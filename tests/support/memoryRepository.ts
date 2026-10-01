@@ -1,6 +1,7 @@
 import { DomainError } from "@/lib/domain/errors";
 import type {
   ConstructionRepository,
+  CommitProposedFactsInput,
   CreateExtractionRunInput,
   CreateRevisionRecordInput,
   ExtractionRunTransitionInput,
@@ -12,6 +13,7 @@ import type {
   ProjectDetail,
   ProjectRecord,
   ProjectSummary,
+  ProposedFactRecord,
   RevisionDetail,
   RevisionPageRecord,
   RevisionRecord,
@@ -24,6 +26,7 @@ export class MemoryRepository implements ConstructionRepository {
   readonly revisions: RevisionRecord[] = [];
   readonly pages: RevisionPageRecord[] = [];
   readonly extractionRuns: ExtractionRunRecord[] = [];
+  readonly proposedFacts: ProposedFactRecord[] = [];
   private sequence = 0;
 
   addOrganization(id: string) { this.organizations.add(id); }
@@ -185,6 +188,40 @@ export class MemoryRepository implements ConstructionRepository {
     return this.copyRun(run);
   }
 
+  async commitProposedFacts(input: CommitProposedFactsInput): Promise<ExtractionRunRecord | null> {
+    const run = this.extractionRunInOrganization(input.organizationId, input.extractionRunId);
+    if (!run || run.status !== input.expectedStatus) return null;
+    const revisionPages = this.pages.filter((page) => page.documentRevisionId === run.documentRevisionId);
+    const facts: ProposedFactRecord[] = input.facts.map((fact, ordinal) => ({
+      id: this.id("fact"),
+      extractionRunId: run.id,
+      ordinal,
+      factType: fact.factType,
+      payload: { ...fact.payload },
+      createdAt: this.now(),
+      evidence: fact.evidence.map((item) => {
+        const page = revisionPages.find((candidate) => candidate.id === item.documentPageId);
+        if (!page || page.pageNumber !== item.pageNumber) {
+          throw new DomainError("INVALID_INPUT", "Evidence references a page that is not part of this revision.", 400);
+        }
+        return { ...item };
+      }),
+    }));
+    run.status = "SUCCEEDED";
+    run.completedAt = input.completedAt;
+    this.proposedFacts.push(...facts);
+    return this.copyRun(run);
+  }
+
+  async listProposedFacts(organizationId: string, extractionRunId: string) {
+    const run = this.extractionRunInOrganization(organizationId, extractionRunId);
+    if (!run) return null;
+    return this.proposedFacts
+      .filter((fact) => fact.extractionRunId === extractionRunId)
+      .sort((left, right) => left.ordinal - right.ordinal)
+      .map((fact) => this.copyFact(fact));
+  }
+
   private extractionRunInOrganization(organizationId: string, extractionRunId: string) {
     const run = this.extractionRuns.find((item) => item.id === extractionRunId);
     if (!run) return null;
@@ -196,6 +233,14 @@ export class MemoryRepository implements ConstructionRepository {
 
   private copyRun(run: ExtractionRunRecord): ExtractionRunRecord {
     return { ...run };
+  }
+
+  private copyFact(fact: ProposedFactRecord): ProposedFactRecord {
+    return {
+      ...fact,
+      payload: { ...fact.payload },
+      evidence: fact.evidence.map((item) => ({ ...item })),
+    };
   }
 }
 

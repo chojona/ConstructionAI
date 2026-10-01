@@ -33,6 +33,10 @@ describe("Prisma PostgreSQL source repository", () => {
     const documentIds = documents.map(({ id }) => id);
     const revisions = await db.documentRevision.findMany({ where: { documentId: { in: documentIds } }, select: { id: true } });
     const revisionIds = revisions.map(({ id }) => id);
+    const runs = await db.extractionRun.findMany({ where: { documentRevisionId: { in: revisionIds } }, select: { id: true } });
+    const runIds = runs.map(({ id }) => id);
+    await db.proposedFactEvidence.deleteMany({ where: { proposedFact: { extractionRunId: { in: runIds } } } });
+    await db.proposedFact.deleteMany({ where: { extractionRunId: { in: runIds } } });
     await db.extractionRun.deleteMany({ where: { documentRevisionId: { in: revisionIds } } });
     await db.documentPage.deleteMany({ where: { documentRevisionId: { in: revisionIds } } });
     await db.documentRevision.deleteMany({ where: { id: { in: revisionIds } } });

@@ -82,3 +82,23 @@ export interface ExtractionRunRecord {
   completedAt: Date | null;
   createdAt: Date;
 }
+
+export type ProposedFactType = "equipment_requirement" | "schedule_date" | "quantity";
+
+export interface ProposedFactEvidenceRecord {
+  documentPageId: string;
+  pageNumber: number;
+  excerpt: string;
+  startOffset: number;
+  endOffset: number;
+}
+
+export interface ProposedFactRecord {
+  id: string;
+  extractionRunId: string;
+  ordinal: number;
+  factType: ProposedFactType;
+  payload: Record<string, string | null>;
+  evidence: ProposedFactEvidenceRecord[];
+  createdAt: Date;
+}

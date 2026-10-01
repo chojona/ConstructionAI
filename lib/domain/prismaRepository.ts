@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { DomainError } from "./errors";
 import type {
+  CommitProposedFactsInput,
   ConstructionRepository,
   CreateExtractionRunInput,
   CreateRevisionRecordInput,
@@ -12,6 +13,7 @@ import type {
   ExtractionRunRecord,
   ProjectDetail,
   ProjectSummary,
+  ProposedFactRecord,
   RevisionDetail,
 } from "./types";
 
@@ -256,6 +258,113 @@ export class PrismaConstructionRepository implements ConstructionRepository {
     if (updated.count !== 1) return null;
     return this.getExtractionRun(input.organizationId, input.extractionRunId);
   }
+
+  async commitProposedFacts(input: CommitProposedFactsInput): Promise<ExtractionRunRecord | null> {
+    const run = await this.db.extractionRun.findFirst({
+      where: {
+        id: input.extractionRunId,
+        status: input.expectedStatus,
+        documentRevision: { document: { project: { organizationId: input.organizationId } } },
+      },
+      select: { id: true, documentRevisionId: true },
+    });
+    if (!run) return null;
+
+    const pages = await this.db.documentPage.findMany({
+      where: { documentRevisionId: run.documentRevisionId },
+      select: { id: true, pageNumber: true, text: true },
+    });
+    for (const fact of input.facts) {
+      for (const item of fact.evidence) {
+        const page = pages.find((candidate) => candidate.id === item.documentPageId);
+        const located = page?.text.slice(item.startOffset, item.endOffset);
+        if (!page || page.pageNumber !== item.pageNumber || item.endOffset <= item.startOffset || located !== item.excerpt) {
+          throw new DomainError("INVALID_INPUT", "Evidence references a page that is not part of this revision.", 400);
+        }
+      }
+    }
+
+    return this.db.$transaction(async (tx) => {
+      const updated = await tx.extractionRun.updateMany({
+        where: { id: run.id, status: input.expectedStatus },
+        data: { status: "SUCCEEDED", completedAt: input.completedAt },
+      });
+      if (updated.count !== 1) return null;
+      for (const [ordinal, fact] of input.facts.entries()) {
+        await tx.proposedFact.create({
+          data: {
+            extractionRunId: run.id,
+            ordinal,
+            factType: fact.factType,
+            payload: fact.payload,
+            evidence: {
+              create: fact.evidence.map((item, evidenceOrdinal) => ({
+                documentPageId: item.documentPageId,
+                ordinal: evidenceOrdinal,
+                pageNumber: item.pageNumber,
+                excerpt: item.excerpt,
+                startOffset: item.startOffset,
+                endOffset: item.endOffset,
+              })),
+            },
+          },
+        });
+      }
+      return tx.extractionRun.findFirst({ where: { id: run.id }, select: extractionRunSelect });
+    });
+  }
+
+  async listProposedFacts(organizationId: string, extractionRunId: string): Promise<ProposedFactRecord[] | null> {
+    const run = await this.getExtractionRun(organizationId, extractionRunId);
+    if (!run) return null;
+    const facts = await this.db.proposedFact.findMany({
+      where: { extractionRunId },
+      select: proposedFactSelect,
+      orderBy: { ordinal: "asc" },
+    });
+    return facts.map(toProposedFactRecord);
+  }
+}
+
+const proposedFactSelect = {
+  id: true,
+  extractionRunId: true,
+  ordinal: true,
+  factType: true,
+  payload: true,
+  createdAt: true,
+  evidence: {
+    orderBy: { ordinal: "asc" as const },
+    select: {
+      documentPageId: true,
+      pageNumber: true,
+      excerpt: true,
+      startOffset: true,
+      endOffset: true,
+    },
+  },
+} as const;
+
+function toProposedFactRecord(fact: {
+  id: string;
+  extractionRunId: string;
+  ordinal: number;
+  factType: ProposedFactRecord["factType"];
+  payload: Prisma.JsonValue;
+  createdAt: Date;
+  evidence: ProposedFactRecord["evidence"];
+}): ProposedFactRecord {
+  if (!fact.payload || typeof fact.payload !== "object" || Array.isArray(fact.payload)) {
+    throw new Error("Stored proposed fact payload is invalid.");
+  }
+  const payload: Record<string, string | null> = {};
+  for (const [key, value] of Object.entries(fact.payload)) {
+    if (value !== null && typeof value !== "string") {
+      throw new Error("Stored proposed fact payload is invalid.");
+    }
+    payload[key] = value;
+  }
+  return { ...fact, payload };
 }
 
 const extractionRunSelect = {

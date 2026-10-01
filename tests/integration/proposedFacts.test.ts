@@ -8,16 +8,15 @@ import { buildTextPdf } from "@/lib/documents/minimalPdf";
 import { createDocument } from "@/lib/documents/service";
 import { LocalDocumentStorage } from "@/lib/documents/storage";
 import { PrismaConstructionRepository } from "@/lib/domain/prismaRepository";
-import {
-  advanceExtractionRun,
-  createExtractionRun,
-  listExtractionRuns,
-} from "@/lib/extractions/service";
+import { toProposedFactDto } from "@/lib/extractions/dto";
+import { listProposedFacts, recordProposedFacts } from "@/lib/extractions/proposedFacts";
+import { createExtractionRun, advanceExtractionRun } from "@/lib/extractions/service";
 import { createProject } from "@/lib/projects/service";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is required for integration tests.");
 
+const repeated = "Install pump 500 GPM.";
 const provenance = {
   extractorName: "construction-facts",
   extractorVersion: "construction-facts-v1",
@@ -25,17 +24,17 @@ const provenance = {
   model: "gpt-4.1",
 };
 
-describe("Prisma extraction runs", () => {
+describe("Prisma proposed facts", () => {
   const db = new PrismaClient();
   const repository = new PrismaConstructionRepository(db);
   const suffix = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  const orgA = `it_extract_a_${suffix}`;
-  const orgB = `it_extract_b_${suffix}`;
+  const orgA = `it_facts_a_${suffix}`;
+  const orgB = `it_facts_b_${suffix}`;
   let storageRoot = "";
 
   beforeAll(async () => {
     await db.organization.createMany({ data: [{ id: orgA, name: "Builder A" }, { id: orgB, name: "Builder B" }] });
-    storageRoot = await mkdtemp(path.join(tmpdir(), "construction-extraction-it-"));
+    storageRoot = await mkdtemp(path.join(tmpdir(), "construction-facts-it-"));
   });
 
   afterAll(async () => {
@@ -59,7 +58,7 @@ describe("Prisma extraction runs", () => {
     if (storageRoot) await rm(storageRoot, { recursive: true, force: true });
   });
 
-  it("persists independent attempts without changing the source revision", async () => {
+  it("stores exact repeated evidence without changing project truth or exposing storage paths", async () => {
     const project = await createProject(orgA, { name: "I-95 Bridge" }, repository);
     const document = await createDocument(orgA, project.id, { title: "Drainage Plan" }, repository);
     const storage = new LocalDocumentStorage(storageRoot);
@@ -67,28 +66,46 @@ describe("Prisma extraction runs", () => {
       revisionLabel: "Revision A",
       originalFilename: "drainage.pdf",
       mimeType: "application/pdf",
-      bytes: buildTextPdf(["Provide pump 500 GPM."]),
+      bytes: buildTextPdf([`${repeated} Confirm access. ${repeated}`]),
     }, { repository, storage });
-    const before = await repository.getRevision(orgA, revision.id);
+    const storedRevision = await repository.getRevision(orgA, revision.id);
+    const pageText = storedRevision?.pages[0]?.text ?? "";
+    const beforeProject = await repository.getProject(orgA, project.id);
+    const beforeRevision = await repository.getRevision(orgA, revision.id);
+    const firstStart = pageText.indexOf(repeated);
+    const secondStart = pageText.indexOf(repeated, firstStart + 1);
+    const run = await createExtractionRun(orgA, revision.id, provenance, repository);
+    await advanceExtractionRun(orgA, run.id, { status: "RUNNING" }, repository);
 
-    const failed = await createExtractionRun(orgA, revision.id, provenance, repository);
-    await advanceExtractionRun(orgA, failed.id, { status: "RUNNING" }, repository);
-    await advanceExtractionRun(orgA, failed.id, {
-      status: "FAILED",
-      failureCode: "MALFORMED_OUTPUT",
-      failureMessage: "Model output failed schema validation.",
-    }, repository);
-    const succeeded = await createExtractionRun(orgA, revision.id, provenance, repository);
-    await advanceExtractionRun(orgA, succeeded.id, { status: "RUNNING" }, repository);
-    await advanceExtractionRun(orgA, succeeded.id, { status: "SUCCEEDED" }, repository);
+    await recordProposedFacts(orgA, run.id, [{
+      type: "equipment_requirement",
+      equipment: "pump",
+      statement: repeated,
+      modality: "asserted",
+      evidence: [
+        { pageNumber: 1, excerpt: repeated, startOffset: firstStart, endOffset: firstStart + repeated.length },
+        { pageNumber: 1, excerpt: repeated, startOffset: secondStart, endOffset: secondStart + repeated.length },
+      ],
+    }], repository);
 
-    const runs = await listExtractionRuns(orgA, revision.id, repository);
-    expect(runs.map((run) => [run.attemptNumber, run.status, run.failureCode])).toEqual([
-      [1, "FAILED", "MALFORMED_OUTPUT"],
-      [2, "SUCCEEDED", null],
+    const facts = await listProposedFacts(orgA, run.id, repository);
+    const pageId = storedRevision?.pages[0]?.id;
+    expect(facts[0]?.evidence).toEqual([
+      { documentPageId: pageId, pageNumber: 1, excerpt: repeated, startOffset: firstStart, endOffset: firstStart + repeated.length },
+      { documentPageId: pageId, pageNumber: 1, excerpt: repeated, startOffset: secondStart, endOffset: secondStart + repeated.length },
     ]);
-    expect(await repository.getRevision(orgA, revision.id)).toEqual(before);
-    await expect(listExtractionRuns(orgB, revision.id, repository)).rejects.toMatchObject({ code: "NOT_FOUND" });
-    await expect(db.documentRevision.delete({ where: { id: revision.id } })).rejects.toThrow();
+    expect(toProposedFactDto(facts[0]!)).not.toHaveProperty("storageKey");
+    expect(JSON.stringify(toProposedFactDto(facts[0]!))).not.toContain(storedRevision?.storageKey);
+    expect(await repository.getProject(orgA, project.id)).toEqual(beforeProject);
+    expect(await repository.getRevision(orgA, revision.id)).toEqual(beforeRevision);
+
+    const later = await createExtractionRun(orgA, revision.id, provenance, repository);
+    await advanceExtractionRun(orgA, later.id, { status: "RUNNING" }, repository);
+    const historical = await listProposedFacts(orgA, run.id, repository);
+    await recordProposedFacts(orgA, later.id, [], repository);
+    expect(await listProposedFacts(orgA, run.id, repository)).toEqual(historical);
+    await expect(listProposedFacts(orgB, run.id, repository)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(db.documentPage.delete({ where: { id: pageId } })).rejects.toThrow();
+    await expect(db.extractionRun.delete({ where: { id: run.id } })).rejects.toThrow();
   });
 });

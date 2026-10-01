@@ -92,13 +92,14 @@ model DocumentPage {
   createdAt           DateTime @default(now())
 
   documentRevision DocumentRevision @relation(fields: [documentRevisionId], references: [id], onDelete: Restrict)
+  evidence         ProposedFactEvidence[]
 
   @@unique([documentRevisionId, pageNumber])
   @@index([documentRevisionId])
 }
 
 /// One immutable analysis attempt against a DocumentRevision.
-/// Later ProposedFact rows attach here and cite DocumentPage ids.
+/// ProposedFact rows attach here and cite DocumentPage ids.
 /// Creating or advancing a run must not rewrite Project, Document, or DocumentRevision truth.
 model ExtractionRun {
   id                 String              @id @default(cuid())
@@ -116,7 +117,48 @@ model ExtractionRun {
   createdAt          DateTime            @default(now())
 
   documentRevision DocumentRevision @relation(fields: [documentRevisionId], references: [id], onDelete: Restrict)
+  proposedFacts    ProposedFact[]
 
   @@unique([documentRevisionId, attemptNumber])
   @@index([documentRevisionId, createdAt])
+}
+
+enum ProposedFactType {
+  equipment_requirement
+  schedule_date
+  quantity
+}
+
+/// Immutable proposed extraction result. This is not canonical project state.
+model ProposedFact {
+  id              String           @id @default(cuid())
+  extractionRunId String
+  ordinal         Int
+  factType        ProposedFactType
+  payload         Json
+  createdAt       DateTime         @default(now())
+
+  extractionRun ExtractionRun          @relation(fields: [extractionRunId], references: [id], onDelete: Restrict)
+  evidence      ProposedFactEvidence[]
+
+  @@unique([extractionRunId, ordinal])
+  @@index([extractionRunId])
+}
+
+/// Exact page evidence. Offsets distinguish repeated excerpts on one page.
+model ProposedFactEvidence {
+  id             String @id @default(cuid())
+  proposedFactId String
+  documentPageId String
+  ordinal        Int
+  pageNumber     Int
+  excerpt        String
+  startOffset    Int
+  endOffset      Int
+
+  proposedFact ProposedFact @relation(fields: [proposedFactId], references: [id], onDelete: Restrict)
+  documentPage DocumentPage @relation(fields: [documentPageId], references: [id], onDelete: Restrict)
+
+  @@unique([proposedFactId, ordinal])
+  @@index([documentPageId])
 }
