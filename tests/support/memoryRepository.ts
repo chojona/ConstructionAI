@@ -1,5 +1,6 @@
 import { DomainError } from "@/lib/domain/errors";
 import type {
+  AppendReviewDecisionInput,
   ConstructionRepository,
   CommitProposedFactsInput,
   CreateExtractionRunInput,
@@ -12,8 +13,10 @@ import type {
   ExtractionRunRecord,
   ProjectDetail,
   ProjectRecord,
+  ProjectReviewSource,
   ProjectSummary,
   ProposedFactRecord,
+  ReviewDecisionRecord,
   RevisionDetail,
   RevisionPageRecord,
   RevisionRecord,
@@ -27,6 +30,7 @@ export class MemoryRepository implements ConstructionRepository {
   readonly pages: RevisionPageRecord[] = [];
   readonly extractionRuns: ExtractionRunRecord[] = [];
   readonly proposedFacts: ProposedFactRecord[] = [];
+  readonly reviewDecisions: ReviewDecisionRecord[] = [];
   private sequence = 0;
 
   addOrganization(id: string) { this.organizations.add(id); }
@@ -220,6 +224,75 @@ export class MemoryRepository implements ConstructionRepository {
       .filter((fact) => fact.extractionRunId === extractionRunId)
       .sort((left, right) => left.ordinal - right.ordinal)
       .map((fact) => this.copyFact(fact));
+  }
+
+  async getProjectReviewSource(organizationId: string, projectId: string): Promise<ProjectReviewSource | null> {
+    const project = this.projects.find((item) => item.id === projectId && item.organizationId === organizationId);
+    if (!project) return null;
+    const documents = this.documents.filter((item) => item.projectId === project.id);
+    const documentIds = new Set(documents.map((item) => item.id));
+    const revisions = this.revisions
+      .filter((item) => documentIds.has(item.documentId))
+      .map((item) => ({
+        id: item.id,
+        documentId: item.documentId,
+        documentTitle: documents.find((document) => document.id === item.documentId)?.title ?? "",
+        revisionLabel: item.revisionLabel,
+        revisionOrder: item.revisionOrder,
+      }));
+    const revisionIds = new Set(revisions.map((item) => item.id));
+    const runs = this.extractionRuns
+      .filter((item) => revisionIds.has(item.documentRevisionId))
+      .map((item) => ({
+        id: item.id,
+        documentRevisionId: item.documentRevisionId,
+        attemptNumber: item.attemptNumber,
+        extractorName: item.extractorName,
+        extractorVersion: item.extractorVersion,
+        status: item.status,
+      }));
+    const facts = this.proposedFacts.flatMap((fact) => {
+      const run = this.extractionRuns.find((item) => item.id === fact.extractionRunId);
+      if (!run || !revisionIds.has(run.documentRevisionId)) return [];
+      return [{ ...this.copyFact(fact), documentRevisionId: run.documentRevisionId }];
+    });
+    return { projectId, revisions, runs, facts };
+  }
+
+  async listReviewDecisions(organizationId: string, projectId: string) {
+    const project = this.projects.find((item) => item.id === projectId && item.organizationId === organizationId);
+    if (!project) return null;
+    return this.reviewDecisions
+      .filter((item) => item.projectId === projectId)
+      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime() || left.id.localeCompare(right.id))
+      .map((item) => ({ ...item }));
+  }
+
+  async appendReviewDecision(input: AppendReviewDecisionInput): Promise<ReviewDecisionRecord | null> {
+    const project = this.projects.find((item) => item.id === input.projectId && item.organizationId === input.organizationId);
+    if (!project) return null;
+    const prior = this.reviewDecisions
+      .filter((item) => item.projectId === input.projectId && item.subjectKey === input.subjectKey)
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime() || right.id.localeCompare(left.id))[0];
+    const decision: ReviewDecisionRecord = {
+      id: this.id("review"),
+      projectId: input.projectId,
+      subjectKind: input.subjectKind,
+      subjectKey: input.subjectKey,
+      decision: input.decision,
+      reviewerId: input.reviewerId,
+      reason: input.reason,
+      proposedFactId: input.proposedFactId,
+      beforeProposedFactId: input.beforeProposedFactId,
+      afterProposedFactId: input.afterProposedFactId,
+      baseRevisionId: input.baseRevisionId,
+      revisedRevisionId: input.revisedRevisionId,
+      changeType: input.changeType,
+      supersedesDecisionId: prior?.id ?? null,
+      createdAt: input.createdAt,
+    };
+    this.reviewDecisions.push(decision);
+    return { ...decision };
   }
 
   private extractionRunInOrganization(organizationId: string, extractionRunId: string) {

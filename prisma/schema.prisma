@@ -38,8 +38,9 @@ model Project {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  documents    Document[]
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  documents       Document[]
+  reviewDecisions ReviewDecision[]
 
   @@index([organizationId, createdAt])
 }
@@ -138,11 +139,62 @@ model ProposedFact {
   payload         Json
   createdAt       DateTime         @default(now())
 
-  extractionRun ExtractionRun          @relation(fields: [extractionRunId], references: [id], onDelete: Restrict)
-  evidence      ProposedFactEvidence[]
+  extractionRun       ExtractionRun          @relation(fields: [extractionRunId], references: [id], onDelete: Restrict)
+  evidence            ProposedFactEvidence[]
+  reviewDecisions     ReviewDecision[]       @relation("DecisionSubject")
+  decisionsAsBefore   ReviewDecision[]       @relation("DecisionBefore")
+  decisionsAsAfter    ReviewDecision[]       @relation("DecisionAfter")
 
   @@unique([extractionRunId, ordinal])
   @@index([extractionRunId])
+}
+
+enum ReviewDecisionValue {
+  ACCEPTED
+  DISMISSED
+  FLAGGED
+}
+
+enum ReviewSubjectKind {
+  PROPOSED_FACT
+  REVISION_CHANGE
+}
+
+enum RevisionChangeType {
+  ADDED
+  REMOVED
+  MODIFIED
+}
+
+/// Append-only human decision. Later decisions supersede earlier ones by link;
+/// source revisions, extraction runs, and proposed facts stay immutable.
+model ReviewDecision {
+  id                   String              @id @default(cuid())
+  projectId            String
+  subjectKind          ReviewSubjectKind
+  subjectKey           String
+  decision             ReviewDecisionValue
+  reviewerId           String
+  reason               String?
+  proposedFactId       String
+  beforeProposedFactId String?
+  afterProposedFactId  String?
+  baseRevisionId       String?
+  revisedRevisionId    String?
+  changeType           RevisionChangeType?
+  supersedesDecisionId String?             @unique
+  createdAt            DateTime            @default(now())
+
+  project            Project         @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  proposedFact       ProposedFact    @relation("DecisionSubject", fields: [proposedFactId], references: [id], onDelete: Restrict)
+  beforeProposedFact ProposedFact?   @relation("DecisionBefore", fields: [beforeProposedFactId], references: [id], onDelete: Restrict)
+  afterProposedFact  ProposedFact?   @relation("DecisionAfter", fields: [afterProposedFactId], references: [id], onDelete: Restrict)
+  supersedes         ReviewDecision? @relation("ReviewSupersession", fields: [supersedesDecisionId], references: [id], onDelete: Restrict)
+  supersededBy       ReviewDecision? @relation("ReviewSupersession")
+
+  @@index([projectId, subjectKey, createdAt])
+  @@index([projectId, createdAt])
+  @@index([proposedFactId])
 }
 
 /// Exact page evidence. Offsets distinguish repeated excerpts on one page.

@@ -1,7 +1,7 @@
 import { DomainError } from "@/lib/domain/errors";
 import type { ConstructionRepository } from "@/lib/domain/repository";
 import { constructionRepository } from "@/lib/domain/prismaRepository";
-import type { ExtractionRunRecord, ProposedFactType } from "@/lib/domain/types";
+import type { ExtractionRunRecord, ProposedFactRecord, ProposedFactType } from "@/lib/domain/types";
 import { CONSTRUCTION_FACTS_EXTRACTOR } from "@/lib/extractions/constructionFacts";
 import { listProposedFacts } from "@/lib/extractions/proposedFacts";
 
@@ -16,8 +16,9 @@ export interface ComparableFactEvidence {
   endOffset: number;
 }
 
-/** Proposed or accepted fact snapshot. Accepted facts do not exist until review workflow lands. */
+/** Proposed-fact snapshot used for comparison. Acceptance lives in the review ledger. */
 export interface ComparableFact {
+  id?: string;
   factType: ProposedFactType;
   payload: Record<string, string | null>;
   evidence: ComparableFactEvidence[];
@@ -96,7 +97,7 @@ export async function compareRevisionFacts(input: {
     revisedRevisionId: revised.id,
     baseRunId: baseRun.id,
     revisedRunId: revisedRun.id,
-    changes: compareFacts(before, after),
+    changes: compareFacts(before.map(toComparableFact), after.map(toComparableFact)),
   };
 }
 
@@ -214,11 +215,28 @@ function change(
   };
 }
 
-function snapshot(fact: ComparableFact): ComparableFact {
+export function toComparableFact(fact: ProposedFactRecord): ComparableFact {
   return {
+    id: fact.id,
     factType: fact.factType,
     payload: { ...fact.payload },
     evidence: fact.evidence.map((item) => ({ ...item })),
+    ordinal: fact.ordinal,
+  };
+}
+
+/** Stable slot for one requirement inside a single document. Documents are not merged. */
+export function factSlotKey(fact: ComparableFact) {
+  return `${fact.factType}:${identity(fact)}`;
+}
+
+function snapshot(fact: ComparableFact): ComparableFact {
+  return {
+    ...(fact.id ? { id: fact.id } : {}),
+    factType: fact.factType,
+    payload: { ...fact.payload },
+    evidence: fact.evidence.map((item) => ({ ...item })),
+    ...(fact.ordinal === undefined ? {} : { ordinal: fact.ordinal }),
   };
 }
 

@@ -5,9 +5,14 @@ import type {
   ExtractionRunStatus,
   ProjectDetail,
   ProjectRecord,
+  ProjectReviewSource,
   ProjectSummary,
   ProposedFactRecord,
   ProposedFactType,
+  ReviewDecisionRecord,
+  ReviewDecisionValue,
+  ReviewSubjectKind,
+  RevisionChangeType,
   RevisionDetail,
 } from "./types";
 
@@ -65,6 +70,23 @@ export interface CommitProposedFactsInput {
   facts: CommitProposedFactInput[];
 }
 
+export interface AppendReviewDecisionInput {
+  organizationId: string;
+  projectId: string;
+  subjectKind: ReviewSubjectKind;
+  subjectKey: string;
+  decision: ReviewDecisionValue;
+  reviewerId: string;
+  reason: string | null;
+  proposedFactId: string;
+  beforeProposedFactId: string | null;
+  afterProposedFactId: string | null;
+  baseRevisionId: string | null;
+  revisedRevisionId: string | null;
+  changeType: RevisionChangeType | null;
+  createdAt: Date;
+}
+
 export interface ConstructionRepository {
   organizationExists(organizationId: string): Promise<boolean>;
   createProject(input: {
@@ -94,4 +116,7 @@ export interface ConstructionRepository {
   applyExtractionRunTransition(input: ExtractionRunTransitionInput): Promise<ExtractionRunRecord | null>;
   commitProposedFacts(input: CommitProposedFactsInput): Promise<ExtractionRunRecord | null>;
   listProposedFacts(organizationId: string, extractionRunId: string): Promise<ProposedFactRecord[] | null>;
+  getProjectReviewSource(organizationId: string, projectId: string): Promise<ProjectReviewSource | null>;
+  listReviewDecisions(organizationId: string, projectId: string): Promise<ReviewDecisionRecord[] | null>;
+  appendReviewDecision(input: AppendReviewDecisionInput): Promise<ReviewDecisionRecord | null>;
 }

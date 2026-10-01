@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { DomainError } from "./errors";
 import type {
+  AppendReviewDecisionInput,
   CommitProposedFactsInput,
   ConstructionRepository,
   CreateExtractionRunInput,
@@ -12,8 +13,10 @@ import type {
   DocumentDetail,
   ExtractionRunRecord,
   ProjectDetail,
+  ProjectReviewSource,
   ProjectSummary,
   ProposedFactRecord,
+  ReviewDecisionRecord,
   RevisionDetail,
 } from "./types";
 
@@ -324,6 +327,123 @@ export class PrismaConstructionRepository implements ConstructionRepository {
     });
     return facts.map(toProposedFactRecord);
   }
+
+  async getProjectReviewSource(organizationId: string, projectId: string): Promise<ProjectReviewSource | null> {
+    const project = await this.db.project.findFirst({
+      where: { id: projectId, organizationId },
+      include: {
+        documents: {
+          orderBy: [{ title: "asc" }, { id: "asc" }],
+          include: {
+            revisions: {
+              orderBy: [{ revisionOrder: "asc" }, { id: "asc" }],
+              include: {
+                extractionRuns: {
+                  orderBy: [{ attemptNumber: "asc" }, { id: "asc" }],
+                  include: {
+                    proposedFacts: {
+                      orderBy: { ordinal: "asc" },
+                      select: proposedFactSelect,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!project) return null;
+
+    const source: ProjectReviewSource = { projectId, revisions: [], runs: [], facts: [] };
+    for (const document of project.documents) {
+      for (const revision of document.revisions) {
+        source.revisions.push({
+          id: revision.id,
+          documentId: document.id,
+          documentTitle: document.title,
+          revisionLabel: revision.revisionLabel,
+          revisionOrder: revision.revisionOrder,
+        });
+        for (const run of revision.extractionRuns) {
+          source.runs.push({
+            id: run.id,
+            documentRevisionId: revision.id,
+            attemptNumber: run.attemptNumber,
+            extractorName: run.extractorName,
+            extractorVersion: run.extractorVersion,
+            status: run.status,
+          });
+          for (const fact of run.proposedFacts) {
+            source.facts.push({ ...toProposedFactRecord(fact), documentRevisionId: revision.id });
+          }
+        }
+      }
+    }
+    return source;
+  }
+
+  async listReviewDecisions(organizationId: string, projectId: string): Promise<ReviewDecisionRecord[] | null> {
+    const project = await this.db.project.findFirst({
+      where: { id: projectId, organizationId },
+      select: { id: true },
+    });
+    if (!project) return null;
+    const decisions = await this.db.reviewDecision.findMany({
+      where: { projectId },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    });
+    return decisions.map(toReviewDecisionRecord);
+  }
+
+  async appendReviewDecision(input: AppendReviewDecisionInput): Promise<ReviewDecisionRecord | null> {
+    const project = await this.db.project.findFirst({
+      where: { id: input.projectId, organizationId: input.organizationId },
+      select: { id: true },
+    });
+    if (!project) return null;
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        return await this.db.$transaction(
+          async (tx) => {
+            const prior = await tx.reviewDecision.findFirst({
+              where: { projectId: input.projectId, subjectKey: input.subjectKey },
+              orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+              select: { id: true },
+            });
+            const created = await tx.reviewDecision.create({
+              data: {
+                projectId: input.projectId,
+                subjectKind: input.subjectKind,
+                subjectKey: input.subjectKey,
+                decision: input.decision,
+                reviewerId: input.reviewerId,
+                reason: input.reason,
+                proposedFactId: input.proposedFactId,
+                beforeProposedFactId: input.beforeProposedFactId,
+                afterProposedFactId: input.afterProposedFactId,
+                baseRevisionId: input.baseRevisionId,
+                revisedRevisionId: input.revisedRevisionId,
+                changeType: input.changeType,
+                supersedesDecisionId: prior?.id ?? null,
+                createdAt: input.createdAt,
+              },
+            });
+            return toReviewDecisionRecord(created);
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError) {
+          if (error.code === "P2034" && attempt < 2) continue;
+          if (error.code === "P2002" && attempt < 2) continue;
+        }
+        throw error;
+      }
+    }
+    throw new Error("Review decision transaction retry limit exceeded.");
+  }
 }
 
 const proposedFactSelect = {
@@ -344,6 +464,26 @@ const proposedFactSelect = {
     },
   },
 } as const;
+
+function toReviewDecisionRecord(decision: {
+  id: string;
+  projectId: string;
+  subjectKind: ReviewDecisionRecord["subjectKind"];
+  subjectKey: string;
+  decision: ReviewDecisionRecord["decision"];
+  reviewerId: string;
+  reason: string | null;
+  proposedFactId: string;
+  beforeProposedFactId: string | null;
+  afterProposedFactId: string | null;
+  baseRevisionId: string | null;
+  revisedRevisionId: string | null;
+  changeType: ReviewDecisionRecord["changeType"];
+  supersedesDecisionId: string | null;
+  createdAt: Date;
+}): ReviewDecisionRecord {
+  return { ...decision };
+}
 
 function toProposedFactRecord(fact: {
   id: string;
