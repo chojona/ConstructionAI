@@ -229,6 +229,18 @@ export async function exportApprovedChangePacket(
   return packetFromStored(stored);
 }
 
+export async function readStoredExportPacket(
+  organizationId: string,
+  projectId: string,
+  exportPacketId: string,
+  repository: ConstructionRepository = constructionRepository,
+) {
+  const stored = await repository.getExportPacketById(organizationId, projectId, exportPacketId);
+  if (!stored) throw new DomainError("NOT_FOUND", "Approved pack not found.", 404);
+  packetFromStored(stored);
+  return stored;
+}
+
 async function load(organizationId: string, projectId: string, repository: ConstructionRepository) {
   const source = await repository.getProjectReviewSource(organizationId, projectId);
   if (!source) throw new DomainError("NOT_FOUND", "Project not found.", 404);

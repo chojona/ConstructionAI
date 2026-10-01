@@ -116,6 +116,52 @@ export interface StoredExportPacket {
   reviewDecisionIds: string[];
 }
 
+export type EmailSendStatus = "DRAFT" | "SENT";
+
+export interface EmailSendRecord {
+  id: string;
+  projectId: string;
+  exportPacketId: string;
+  status: EmailSendStatus;
+  recipients: string[];
+  subject: string;
+  body: string;
+  actorId: string;
+  documentIds: string[];
+  reviewDecisionIds: string[];
+  createdAt: Date;
+  updatedAt: Date;
+  sentAt: Date | null;
+}
+
+export interface CreateEmailSendInput {
+  organizationId: string;
+  projectId: string;
+  exportPacketId: string;
+  status: EmailSendStatus;
+  recipients: string[];
+  subject: string;
+  body: string;
+  actorId: string;
+  documentIds: string[];
+  reviewDecisionIds: string[];
+  createdAt: Date;
+  sentAt: Date | null;
+}
+
+export interface UpdateEmailDraftInput {
+  organizationId: string;
+  projectId: string;
+  emailSendId: string;
+  status: EmailSendStatus;
+  recipients: string[];
+  subject: string;
+  body: string;
+  actorId: string;
+  updatedAt: Date;
+  sentAt: Date | null;
+}
+
 export interface ConstructionRepository {
   organizationExists(organizationId: string): Promise<boolean>;
   createProject(input: {
@@ -150,4 +196,10 @@ export interface ConstructionRepository {
   listReviewDecisions(organizationId: string, projectId: string): Promise<ReviewDecisionRecord[] | null>;
   appendReviewDecision(input: AppendReviewDecisionInput): Promise<ReviewDecisionRecord | null>;
   saveExportPacket(input: SaveExportPacketInput): Promise<StoredExportPacket | null>;
+  getExportPacketByContentHash(organizationId: string, projectId: string, contentHash: string): Promise<StoredExportPacket | null>;
+  getExportPacketById(organizationId: string, projectId: string, exportPacketId: string): Promise<StoredExportPacket | null>;
+  createEmailSend(input: CreateEmailSendInput): Promise<EmailSendRecord | null>;
+  updateEmailDraft(input: UpdateEmailDraftInput): Promise<EmailSendRecord | null>;
+  getEmailSend(organizationId: string, projectId: string, emailSendId: string): Promise<EmailSendRecord | null>;
+  findLatestDraftEmailSend(organizationId: string, projectId: string, exportPacketId: string): Promise<EmailSendRecord | null>;
 }

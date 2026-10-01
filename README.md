@@ -64,4 +64,4 @@ Read them with `GET /api/projects/{projectId}/heavyjob-objects`, optionally filt
 
 After seeding, open `/projects/project_heavyjob_demo?view=heavyjob` (the HeavyJob tab on Northstar River Road Reconstruction). The table columns are type, sourceId, fetchedAt, and a collapsed raw expand.
 
-This layer does not call HCSS, and it does not classify entitlements or build a review queue. Phase 1 still has no live external construction-system integration, OCR, or email.
+This layer does not call HCSS, and it does not classify entitlements or build a review queue. Phase 1 still has no live external construction-system integration or OCR. After an approved pack is exported, Draft email records a human send in the ledger and does not deliver mail.

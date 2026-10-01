@@ -106,7 +106,7 @@ export function ChangeReview({
   return (
     <div className="change-desk">
       <div className="change-list-pane">
-        <ExportPacketControl projectId={projectId} changes={approved} />
+        <ExportPacketControl projectId={projectId} changes={approved} actorId={reviewerId} />
         {items.length === 0 ? <EmptyChanges href={uploadHref} /> : (
           <ul className="change-list">
             {items.map((item) => {

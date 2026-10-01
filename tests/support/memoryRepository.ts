@@ -7,9 +7,13 @@ import type {
   CreateRevisionRecordInput,
   ExtractionRunTransitionInput,
   FailOpenExtractionInput,
+  CreateEmailSendInput,
+  EmailSendRecord,
   SaveExportPacketInput,
   StoredExportPacket,
+  UpdateEmailDraftInput,
 } from "@/lib/domain/repository";
+import { PACK_MISSING_MESSAGE } from "@/lib/email/emailSendView";
 import { EXPORT_BLOCKED_MESSAGE } from "@/lib/review/exportPacket";
 import type {
   DocumentDetail,
@@ -36,6 +40,7 @@ export class MemoryRepository implements ConstructionRepository {
   readonly proposedFacts: ProposedFactRecord[] = [];
   readonly reviewDecisions: ReviewDecisionRecord[] = [];
   readonly exportPackets: StoredExportPacket[] = [];
+  readonly emailSends: EmailSendRecord[] = [];
   private sequence = 0;
 
   addOrganization(id: string) { this.organizations.add(id); }
@@ -349,6 +354,90 @@ export class MemoryRepository implements ConstructionRepository {
     return copyExportPacket(stored);
   }
 
+  async getExportPacketByContentHash(organizationId: string, projectId: string, contentHash: string) {
+    const project = this.projects.find((item) => item.id === projectId && item.organizationId === organizationId);
+    if (!project) return null;
+    const packet = this.exportPackets.find((item) => item.projectId === projectId && item.contentHash === contentHash);
+    return packet ? copyExportPacket(packet) : null;
+  }
+
+  async getExportPacketById(organizationId: string, projectId: string, exportPacketId: string) {
+    const project = this.projects.find((item) => item.id === projectId && item.organizationId === organizationId);
+    if (!project) return null;
+    const packet = this.exportPackets.find((item) => item.id === exportPacketId && item.projectId === projectId);
+    return packet ? copyExportPacket(packet) : null;
+  }
+
+  async createEmailSend(input: CreateEmailSendInput): Promise<EmailSendRecord | null> {
+    const project = this.projects.find((item) => item.id === input.projectId && item.organizationId === input.organizationId);
+    if (!project) return null;
+    this.assertEmailLinks(input.projectId, input.exportPacketId, input.documentIds, input.reviewDecisionIds);
+    const stored: EmailSendRecord = {
+      id: this.id("email"),
+      projectId: input.projectId,
+      exportPacketId: input.exportPacketId,
+      status: input.status,
+      recipients: [...input.recipients],
+      subject: input.subject,
+      body: input.body,
+      actorId: input.actorId,
+      documentIds: [...input.documentIds],
+      reviewDecisionIds: [...input.reviewDecisionIds],
+      createdAt: input.createdAt,
+      updatedAt: input.createdAt,
+      sentAt: input.sentAt,
+    };
+    this.emailSends.push(stored);
+    return copyEmailSend(stored);
+  }
+
+  async updateEmailDraft(input: UpdateEmailDraftInput): Promise<EmailSendRecord | null> {
+    const project = this.projects.find((item) => item.id === input.projectId && item.organizationId === input.organizationId);
+    if (!project) return null;
+    const current = this.emailSends.find((item) => item.id === input.emailSendId && item.projectId === input.projectId);
+    if (!current || current.status !== "DRAFT") return null;
+    current.status = input.status;
+    current.recipients = [...input.recipients];
+    current.subject = input.subject;
+    current.body = input.body;
+    current.actorId = input.actorId;
+    current.updatedAt = input.updatedAt;
+    current.sentAt = input.sentAt;
+    return copyEmailSend(current);
+  }
+
+  async getEmailSend(organizationId: string, projectId: string, emailSendId: string) {
+    const project = this.projects.find((item) => item.id === projectId && item.organizationId === organizationId);
+    if (!project) return null;
+    const email = this.emailSends.find((item) => item.id === emailSendId && item.projectId === projectId);
+    return email ? copyEmailSend(email) : null;
+  }
+
+  async findLatestDraftEmailSend(organizationId: string, projectId: string, exportPacketId: string) {
+    const project = this.projects.find((item) => item.id === projectId && item.organizationId === organizationId);
+    if (!project) return null;
+    const drafts = this.emailSends
+      .filter((item) => item.projectId === projectId && item.exportPacketId === exportPacketId && item.status === "DRAFT")
+      .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime() || right.id.localeCompare(left.id));
+    const latest = drafts[0];
+    return latest ? copyEmailSend(latest) : null;
+  }
+
+  private assertEmailLinks(projectId: string, exportPacketId: string, documentIds: string[], reviewDecisionIds: string[]) {
+    const packet = this.exportPackets.find((item) => item.id === exportPacketId && item.projectId === projectId);
+    if (!packet || documentIds.length === 0 || reviewDecisionIds.length === 0) {
+      throw new DomainError("INVALID_INPUT", PACK_MISSING_MESSAGE, 400);
+    }
+    const decisions = reviewDecisionIds.map((id) => this.reviewDecisions.find((decision) => decision.id === id && decision.projectId === projectId));
+    if (decisions.some((decision) => decision?.decision !== "ACCEPTED")) {
+      throw new DomainError("INVALID_INPUT", "Only an approved change can be exported.", 400);
+    }
+    const documents = documentIds.map((id) => this.documents.find((document) => document.id === id && document.projectId === projectId));
+    if (documents.some((document) => !document)) {
+      throw new DomainError("INVALID_INPUT", PACK_MISSING_MESSAGE, 400);
+    }
+  }
+
   private extractionRunInOrganization(organizationId: string, extractionRunId: string) {
     const run = this.extractionRuns.find((item) => item.id === extractionRunId);
     if (!run) return null;
@@ -373,6 +462,15 @@ export class MemoryRepository implements ConstructionRepository {
 
 function copyExportPacket(packet: StoredExportPacket): StoredExportPacket {
   return { ...packet, payload: Buffer.from(packet.payload), reviewDecisionIds: [...packet.reviewDecisionIds] };
+}
+
+function copyEmailSend(email: EmailSendRecord): EmailSendRecord {
+  return {
+    ...email,
+    recipients: [...email.recipients],
+    documentIds: [...email.documentIds],
+    reviewDecisionIds: [...email.reviewDecisionIds],
+  };
 }
 
 export async function seededRepository() {
