@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { ChangeReview } from "@/components/review/change-review";
 import { EvidenceQuotes } from "@/components/review/evidence-quotes";
 import { ScrollToFinding } from "@/components/review/scroll-to-finding";
+import { DocumentsDesk } from "@/components/workspace/documents-desk";
+import { EmptySolidCard } from "@/components/workspace/empty-solid-card";
 import { ProjectContext } from "@/components/workspace/project-context";
 import { ProjectNavigation } from "@/components/workspace/project-navigation";
 import { CreateDocumentForm } from "@/components/forms/create-document-form";
@@ -46,12 +48,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       </section>}
       {view !== "changes" && <section className="review-block">
         <div className="section-heading"><h2>Documents</h2><span className="count">{project.documents.length} total</span></div>
-        {project.documents.length ? <div className="list">{project.documents.map((document) => (
-          <Link className="list-row" href={`/documents/${document.id}`} key={document.id}>
-            <div><p className="row-title">{document.title}</p><p className="row-meta">{document.documentType || "Unclassified document"}</p></div>
-            <div className="row-side"><span>{document.revisionCount} {document.revisionCount === 1 ? "revision" : "revisions"}</span></div>
-          </Link>
-        ))}</div> : <div className="empty"><strong>No documents yet</strong><span>Add a document before uploading revisions.</span></div>}
+        <DocumentsDesk projectId={project.id} documents={project.documents} />
       </section>}
       {view === "overview" && <section className="review-block">
         <div className="section-heading"><h2>Current project values</h2><span className="count">{review.state.facts.length} accepted</span></div>
@@ -68,7 +65,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
               {fact.supersedesProposedFactId && <p className="row-meta">Replaces {review.state.retirements.find((retirement) => retirement.proposedFactId === fact.supersedesProposedFactId)?.summary ?? "an earlier accepted value"}</p>}
             </div>
           </div>
-        ))}</div> : <div className="empty"><strong>No accepted values yet</strong><span>Accepted facts show up here after a decision is recorded.</span></div>}
+        ))}</div> : <EmptySolidCard message="No accepted values yet" action={{ href: `/projects/${project.id}?view=changes`, label: "Review changes" }} />}
         {review.state.retirements.length > 0 && <div className="retired">{review.state.retirements.map((retirement) => (
           <p key={`${retirement.proposedFactId}-${retirement.decisionId}`}>{retirement.supersededByProposedFactId ? `“${retirement.summary}” was replaced. Recorded by ${retirement.reviewerId}.` : `“${retirement.summary}” was removed from the current values by ${retirement.reviewerId}.`}</p>
         ))}</div>}
