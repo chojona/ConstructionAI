@@ -14,6 +14,14 @@ enum DocumentRevisionStatus {
   FAILED
 }
 
+enum ExtractionRunStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  SUPERSEDED
+}
+
 model Organization {
   id        String    @id @default(cuid())
   name      String
@@ -65,8 +73,9 @@ model DocumentRevision {
   failureMessage   String?
   createdAt        DateTime               @default(now())
 
-  document Document       @relation(fields: [documentId], references: [id], onDelete: Restrict)
-  pages    DocumentPage[]
+  document       Document        @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  pages          DocumentPage[]
+  extractionRuns ExtractionRun[]
 
   @@unique([documentId, revisionOrder])
   @@unique([documentId, revisionLabel])
@@ -86,4 +95,28 @@ model DocumentPage {
 
   @@unique([documentRevisionId, pageNumber])
   @@index([documentRevisionId])
+}
+
+/// One immutable analysis attempt against a DocumentRevision.
+/// Later ProposedFact rows attach here and cite DocumentPage ids.
+/// Creating or advancing a run must not rewrite Project, Document, or DocumentRevision truth.
+model ExtractionRun {
+  id                 String              @id @default(cuid())
+  documentRevisionId String
+  attemptNumber      Int
+  extractorName      String
+  extractorVersion   String
+  provider           String
+  model              String
+  status             ExtractionRunStatus @default(QUEUED)
+  failureCode        String?
+  failureMessage     String?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime            @default(now())
+
+  documentRevision DocumentRevision @relation(fields: [documentRevisionId], references: [id], onDelete: Restrict)
+
+  @@unique([documentRevisionId, attemptNumber])
+  @@index([documentRevisionId, createdAt])
 }

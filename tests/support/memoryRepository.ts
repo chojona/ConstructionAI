@@ -1,8 +1,14 @@
 import { DomainError } from "@/lib/domain/errors";
-import type { ConstructionRepository, CreateRevisionRecordInput } from "@/lib/domain/repository";
+import type {
+  ConstructionRepository,
+  CreateExtractionRunInput,
+  CreateRevisionRecordInput,
+  ExtractionRunTransitionInput,
+} from "@/lib/domain/repository";
 import type {
   DocumentDetail,
   DocumentRecord,
+  ExtractionRunRecord,
   ProjectDetail,
   ProjectRecord,
   ProjectSummary,
@@ -17,6 +23,7 @@ export class MemoryRepository implements ConstructionRepository {
   readonly documents: DocumentRecord[] = [];
   readonly revisions: RevisionRecord[] = [];
   readonly pages: RevisionPageRecord[] = [];
+  readonly extractionRuns: ExtractionRunRecord[] = [];
   private sequence = 0;
 
   addOrganization(id: string) { this.organizations.add(id); }
@@ -120,6 +127,75 @@ export class MemoryRepository implements ConstructionRepository {
     const detail = await this.getRevision(owningProject.organizationId, revision.id);
     if (!detail) throw new Error("Missing revision");
     return detail;
+  }
+
+  async createExtractionRun(input: CreateExtractionRunInput): Promise<ExtractionRunRecord | null> {
+    const revision = await this.getRevision(input.organizationId, input.documentRevisionId);
+    if (!revision) return null;
+    if (revision.status !== "PROCESSED") {
+      throw new DomainError("REVISION_NOT_READY", "Only a processed revision can be analyzed.", 409);
+    }
+    const attemptNumber = Math.max(
+      0,
+      ...this.extractionRuns
+        .filter((run) => run.documentRevisionId === input.documentRevisionId)
+        .map((run) => run.attemptNumber),
+    ) + 1;
+    const run: ExtractionRunRecord = {
+      id: this.id("extraction"),
+      documentRevisionId: input.documentRevisionId,
+      attemptNumber,
+      extractorName: input.extractorName,
+      extractorVersion: input.extractorVersion,
+      provider: input.provider,
+      model: input.model,
+      status: "QUEUED",
+      failureCode: null,
+      failureMessage: null,
+      startedAt: null,
+      completedAt: null,
+      createdAt: this.now(),
+    };
+    this.extractionRuns.push(run);
+    return this.copyRun(run);
+  }
+
+  async listExtractionRuns(organizationId: string, documentRevisionId: string) {
+    const revision = await this.getRevision(organizationId, documentRevisionId);
+    if (!revision) return null;
+    return this.extractionRuns
+      .filter((run) => run.documentRevisionId === documentRevisionId)
+      .sort((left, right) => left.attemptNumber - right.attemptNumber)
+      .map((run) => this.copyRun(run));
+  }
+
+  async getExtractionRun(organizationId: string, extractionRunId: string) {
+    const run = this.extractionRunInOrganization(organizationId, extractionRunId);
+    return run ? this.copyRun(run) : null;
+  }
+
+  async applyExtractionRunTransition(input: ExtractionRunTransitionInput): Promise<ExtractionRunRecord | null> {
+    const run = this.extractionRunInOrganization(input.organizationId, input.extractionRunId);
+    if (!run || run.status !== input.expectedStatus) return null;
+    run.status = input.status;
+    if (input.startedAt) run.startedAt = input.startedAt;
+    if (input.completedAt) run.completedAt = input.completedAt;
+    if (input.failureCode !== undefined) run.failureCode = input.failureCode;
+    if (input.failureMessage !== undefined) run.failureMessage = input.failureMessage;
+    return this.copyRun(run);
+  }
+
+  private extractionRunInOrganization(organizationId: string, extractionRunId: string) {
+    const run = this.extractionRuns.find((item) => item.id === extractionRunId);
+    if (!run) return null;
+    const revision = this.revisions.find((item) => item.id === run.documentRevisionId);
+    const document = revision && this.documents.find((item) => item.id === revision.documentId);
+    const project = document && this.projects.find((item) => item.id === document.projectId && item.organizationId === organizationId);
+    return project ? run : null;
+  }
+
+  private copyRun(run: ExtractionRunRecord): ExtractionRunRecord {
+    return { ...run };
   }
 }
 

@@ -1,5 +1,7 @@
 export type RevisionStatus = "UPLOADED" | "PROCESSING" | "PROCESSED" | "FAILED";
 
+export type ExtractionRunStatus = "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED" | "SUPERSEDED";
+
 export interface ProjectRecord {
   id: string;
   organizationId: string;
@@ -63,4 +65,20 @@ export interface DocumentDetail extends DocumentRecord {
 export interface RevisionDetail extends RevisionRecord {
   document: DocumentRecord & { project: Pick<ProjectRecord, "id" | "name"> };
   pages: RevisionPageRecord[];
+}
+
+export interface ExtractionRunRecord {
+  id: string;
+  documentRevisionId: string;
+  attemptNumber: number;
+  extractorName: string;
+  extractorVersion: string;
+  provider: string;
+  model: string;
+  status: ExtractionRunStatus;
+  failureCode: string | null;
+  failureMessage: string | null;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  createdAt: Date;
 }
