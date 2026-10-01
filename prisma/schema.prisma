@@ -220,15 +220,16 @@ model ProposedFactEvidence {
   @@index([documentPageId])
 }
 
-/// Frozen approved-change packet. Payload bytes live on the row.
-/// storageKey names the packet; it is not a local filesystem path.
+/// Frozen approved-change packet.
+/// Bytes live in object storage at storageKey. payload is only the legacy
+/// database copy until `npm run storage:migrate-packets` clears it.
 /// Decisions linked here are ACCEPTED review decisions only.
 model ExportPacket {
   id          String   @id @default(cuid())
   projectId   String
   contentHash String
   storageKey  String   @unique
-  payload     Bytes
+  payload     Bytes?
   byteSize    Int
   createdAt   DateTime @default(now())
 

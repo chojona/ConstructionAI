@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { LocalObjectStore, requireObjectStore, type ObjectStore } from "@/lib/storage/objectStore";
+import { StoragePathError } from "@/lib/storage/storageKey";
+
+export { resolveStoragePath, StoragePathError } from "@/lib/storage/storageKey";
 
 export interface StoredDocument {
   storageKey: string;
@@ -14,13 +17,6 @@ export interface DocumentStorage {
 
 const DOCUMENT_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 
-export class StoragePathError extends Error {
-  constructor(message = "Invalid document storage path") {
-    super(message);
-    this.name = "StoragePathError";
-  }
-}
-
 /** Display metadata only. The result is never used as a filesystem path. */
 export function displayFilename(original: string): string {
   const base = original.split(/[/\\]/).pop() ?? "document.pdf";
@@ -28,47 +24,32 @@ export function displayFilename(original: string): string {
   return (cleaned || "document.pdf").slice(0, 240);
 }
 
-export function resolveStoragePath(rootDir: string, storageKey: string): string {
-  if (!storageKey || storageKey.includes("\0") || path.isAbsolute(storageKey)) {
-    throw new StoragePathError();
-  }
-  const segments = storageKey.split(/[/\\]/);
-  if (segments.some((segment) => !segment || segment === "." || segment === "..")) {
-    throw new StoragePathError();
-  }
-  const root = path.resolve(rootDir);
-  const resolved = path.resolve(root, ...segments);
-  if (!resolved.startsWith(`${root}${path.sep}`)) throw new StoragePathError();
-  return resolved;
-}
-
-export class LocalDocumentStorage implements DocumentStorage {
-  constructor(private readonly rootDir: string) {}
+class KeyedDocumentStorage implements DocumentStorage {
+  constructor(private readonly objects: ObjectStore) {}
 
   async put(input: { documentId: string; bytes: Buffer }): Promise<StoredDocument> {
     if (!DOCUMENT_ID_PATTERN.test(input.documentId)) throw new StoragePathError("Invalid document id");
     const storageKey = `${input.documentId}/${randomUUID()}.pdf`;
-    const target = resolveStoragePath(this.rootDir, storageKey);
-    await mkdir(path.dirname(target), { recursive: true });
-    await writeFile(target, input.bytes, { flag: "wx" });
+    await this.objects.put(storageKey, input.bytes);
     return { storageKey };
   }
 
   get(storageKey: string) {
-    return readFile(resolveStoragePath(this.rootDir, storageKey));
+    return this.objects.get(storageKey);
   }
 
-  async delete(storageKey: string) {
-    await rm(resolveStoragePath(this.rootDir, storageKey), { force: true });
+  delete(storageKey: string) {
+    return this.objects.delete(storageKey);
   }
 
-  async exists(storageKey: string): Promise<boolean> {
-    try {
-      return (await stat(resolveStoragePath(this.rootDir, storageKey))).isFile();
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
-      throw error;
-    }
+  exists(storageKey: string) {
+    return this.objects.exists(storageKey);
+  }
+}
+
+export class LocalDocumentStorage extends KeyedDocumentStorage {
+  constructor(rootDir: string) {
+    super(new LocalObjectStore(rootDir));
   }
 }
 
@@ -77,8 +58,9 @@ export function defaultDocumentStorageRoot(): string {
   return configured ? path.resolve(configured) : path.join(process.cwd(), "data", "documents");
 }
 
-let defaultStorage: LocalDocumentStorage | undefined;
+let defaultStorage: DocumentStorage | undefined;
+
 export function getDocumentStorage(): DocumentStorage {
-  defaultStorage ??= new LocalDocumentStorage(defaultDocumentStorageRoot());
+  defaultStorage ??= new KeyedDocumentStorage(requireObjectStore());
   return defaultStorage;
 }

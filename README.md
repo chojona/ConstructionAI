@@ -17,7 +17,7 @@ npm run dev
 
 Open [http://localhost:3000/projects](http://localhost:3000/projects).
 
-Files are stored under `DOCUMENT_STORAGE_DIR` using generated keys. The original filename is retained only as display metadata. The seeded organization id is `org_demo`; `APP_ORGANIZATION_ID` selects the organization used by the Phase 1 UI. API callers may provide `x-organization-id` as the already-authenticated tenancy context until authentication is introduced.
+Uploaded document files and approved pack bytes use one object store. Leave the bucket variables unset for a local demo and files stay under `DOCUMENT_STORAGE_DIR` (default `./data/documents`). The original filename is retained only as display metadata. The seeded organization id is `org_demo`; `APP_ORGANIZATION_ID` selects the organization used by the Phase 1 UI. API callers may provide `x-organization-id` as the already-authenticated tenancy context until authentication is introduced.
 
 ## Deploy to Vercel with Neon
 
@@ -26,7 +26,11 @@ Vercel detects the Next.js app automatically; `vercel.json` pins the framework p
 - `DATABASE_URL`: Neon pooled connection string. The app passes it to the PostgreSQL driver adapter.
 - `DIRECT_DATABASE_URL`: Neon direct (non-pooled) connection string. Prisma Migrate reads it from `prisma.config.ts`.
 - `APP_ORGANIZATION_ID`: organization id used by the UI, such as `org_demo` after seeding.
-- `DOCUMENT_STORAGE_DIR`: optional for local development only.
+- `DOCUMENT_STORAGE_DIR`: optional local directory. Default `./data/documents`.
+- `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_ACCESS_KEY_ID`, and `OBJECT_STORAGE_SECRET_ACCESS_KEY`: required together on Vercel. Any S3-compatible store works.
+- `OBJECT_STORAGE_REGION`: optional, default `us-east-1`. Use `auto` for Cloudflare R2.
+- `OBJECT_STORAGE_ENDPOINT`: optional endpoint for MinIO, R2, or another non-AWS store.
+- `OBJECT_STORAGE_FORCE_PATH_STYLE`: optional `true` or `false`. When omitted, path-style is on if an endpoint is set.
 
 For a database that is not built on Vercel, apply the checked-in migrations with `DIRECT_DATABASE_URL` set:
 
@@ -44,7 +48,15 @@ After seeding, open:
 - [North River Bridge documents](http://localhost:3000/projects/project_demo_review?view=documents) and [its changes](http://localhost:3000/projects/project_demo_review?view=changes). Earthworks keeps revisions `revision_demo_earthworks_04` and `revision_demo_earthworks_05`.
 - [HeavyJob snapshots](http://localhost:3000/projects/project_heavyjob_demo?view=heavyjob) on Northstar River Road Reconstruction. Rows stay unlabeled: type, source id, fetched-at, and raw payload.
 
-Document files currently use local filesystem storage. Vercel function filesystems are temporary, so uploaded documents will not persist reliably across requests or deployments on Vercel. Use a persistent object-storage backend before relying on document uploads in a hosted environment.
+Approved pack JSON is stored at `export-packets/{projectId}/{contentHash}.json`. Postgres keeps the packet row, the content hash, the byte size, and the links to accepted review decisions. New exports write the bytes to object storage and leave `ExportPacket.payload` empty. A hosted deploy without the bucket variables refuses to write those bytes, because the Vercel filesystem is temporary.
+
+Packs created before this change may still have bytes in `ExportPacket.payload`. After the bucket variables are set, run the copy once:
+
+```bash
+npm run storage:migrate-packets
+```
+
+The command copies each remaining payload into the object store, clears that column, and copies document files found under `DOCUMENT_STORAGE_DIR` when the object store does not already have them. Running it again is safe. Re-exporting the same approved pack uses the existing row and the same object key.
 
 ## Checks
 
