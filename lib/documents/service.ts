@@ -39,3 +39,13 @@ export async function getRevision(
   if (!revision) throw new DomainError("NOT_FOUND", "Revision not found.", 404);
   return revision;
 }
+
+export async function listRevisionAnalysis(
+  organizationId: string,
+  revisionId: string,
+  repository: ConstructionRepository = constructionRepository,
+) {
+  const runs = await repository.listExtractionRuns(organizationId, revisionId);
+  if (!runs) throw new DomainError("NOT_FOUND", "Revision not found.", 404);
+  return runs;
+}
