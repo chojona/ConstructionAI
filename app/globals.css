@@ -92,11 +92,22 @@ details.create-panel[open] > summary { margin-bottom: 20px; }
 .page-source pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; color: #28322f; }
 .review-block { margin-top: 42px; }
 .review-fields { max-width: 440px; margin-bottom: 8px; }
-.finding { border-top: 1px solid var(--color-line); padding: 16px 0 18px; }
-.finding h3 { margin: 4px 0 0; font-size: 15px; }
-.finding p { margin: 4px 0 0; color: var(--color-ink-secondary); font-size: 13px; }
-.finding-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.evidence-note { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.finding-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.evidence-note { margin: 8px 0 0; border-left: 2px solid var(--color-line-strong); padding-left: 10px; color: #28322f; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.6; }
+.attention { border-top: 1px solid var(--color-line-strong); }
+.attention-item { border-bottom: 1px solid var(--color-line); padding: 18px 0 20px; }
+.attention-item h3 { margin: 6px 0 0; font-size: 18px; letter-spacing: -.015em; }
+.attention-kicker { display: flex; align-items: center; gap: 10px; color: var(--color-ink-secondary); font-size: 12px; font-weight: 650; }
+.attention-reason { margin: 8px 0 0; max-width: 68ch; }
+.source-line { margin: 6px 0 0; color: var(--color-ink-secondary); font-size: 13px; }
+.source-line a { color: var(--color-brand); font-weight: 650; }
+.source-joiner { color: var(--color-ink-secondary); font-weight: 400; }
+.severity-high { background: var(--color-danger-subtle); color: var(--color-danger); }
+.severity-medium { background: var(--color-surface-subtle); color: var(--color-ink); }
+.compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; margin-top: 14px; }
+.compare-single { grid-template-columns: minmax(0, 1fr); max-width: 640px; }
+.compare h4 { margin: 0; color: var(--color-ink-secondary); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.compare-value { margin: 4px 0 0; font-weight: 650; }
 .retired { display: grid; gap: 6px; margin-top: 14px; color: var(--color-ink-secondary); font-size: 13px; }
 .retired p { margin: 0; }
 
@@ -106,5 +117,6 @@ details.create-panel[open] > summary { margin-bottom: 20px; }
   .page-heading { display: grid; margin-bottom: 28px; }
   .list-row { gap: 12px; }
   .row-side { gap: 8px; }
+  .compare { grid-template-columns: 1fr; }
   .topbar-note { display: none; }
 }

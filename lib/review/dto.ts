@@ -1,4 +1,5 @@
 import type { ReviewDecisionRecord } from "@/lib/domain/types";
+import type { AttentionItem } from "./attention";
 import type { ProjectFinding } from "./findings";
 import type { EffectiveProjectState } from "./projectState";
 
@@ -20,5 +21,10 @@ export function toFindingDto(finding: ProjectFinding) {
   };
 }
 
+export function toAttentionDto(item: AttentionItem) {
+  return { ...item, finding: toFindingDto(item.finding) };
+}
+
 export type FindingDto = ReturnType<typeof toFindingDto>;
+export type AttentionItemDto = ReturnType<typeof toAttentionDto>;
 export type ProjectStateDto = ReturnType<typeof toProjectStateDto>;
