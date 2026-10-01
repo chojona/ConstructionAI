@@ -198,7 +198,7 @@ export const CONSTRUCTION_DOCUMENT_BENCHMARK = {
     "Pages are short verbatim excerpts. They are not full plan sets.",
     "Percentage amounts, fraction inches, and gradation ranges are left unlabeled because recording them would rewrite the source into a decimal or a unit the sentence does not use.",
     "08-05-2025 is stored with a null calendar date. Month-day and day-month readings were not chosen.",
-    "May 2025 is unlabeled. construction-facts-v1 treats the month name May as tentative language, and the sentence is not hedged. See CON-30.",
+    "May 2025 is unlabeled. It is a month and year with no day, and the in-repo extractor does not emit that shape as a schedule fact. The sentence is not hedged.",
     "The deleted 8 inch thickness remains visible in the Council Bluffs instruction and is not a remaining requirement.",
   ],
   pairs: [
@@ -431,7 +431,7 @@ export const CONSTRUCTION_DOCUMENT_BENCHMARK = {
         schedule("addendum", "2024-08-07", augustBlank, "asserted"),
         schedule("civil drawings", null, "08-05-2025", "asserted"),
       ], [
-        { pageNumber: 1, excerpt: "May 2025", reason: "The month name May cannot be stored as an asserted date under construction-facts-v1. The sentence is not hedged, so it was not labeled tentative. See CON-30." },
+        { pageNumber: 1, excerpt: "May 2025", reason: "A month and year with no day is not labeled. The sentence is not hedged." },
       ]),
       expectedChanges: [
         { changeType: "MODIFIED", category: "schedule_date", material: true, basis: "date", slot: "schedule_date:civil drawings" },
