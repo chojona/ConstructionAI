@@ -165,7 +165,8 @@ details.create-panel[open] > summary { margin-bottom: 18px; }
 .change-desk { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 10px; align-items: start; }
 .document-desk { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 10px; align-items: start; }
 .document-list { min-width: 0; }
-.document-rail { display: flex; flex-direction: column; justify-content: center; min-height: 120px; width: 300px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--surface-context); }
+.document-rail { display: flex; flex-direction: column; justify-content: flex-start; min-height: 120px; width: 300px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--surface-context); }
+.document-rail-copy { display: grid; gap: 4px; padding: 12px 14px; }
 .change-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .change-card { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 8px 10px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-surface); }
 .change-card.is-active { border-color: #91a5fa; background: #293249; }

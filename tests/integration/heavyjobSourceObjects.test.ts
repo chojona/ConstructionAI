@@ -68,7 +68,9 @@ describe("HeavyJob source objects", () => {
     expect(raw.costCodes?.some((line) => line.isTm === true && line.isRework === false)).toBe(true);
     expect(raw.costCodes?.some((line) => line.isRework === true && line.isTm === false)).toBe(true);
 
-    expect(await repository.listForProject(orgA, projectId, "diary")).toHaveLength(1);
+    expect(await repository.listForProject(orgA, projectId, "diary")).toHaveLength(
+      heavyJobFixtures.filter((fixture) => fixture.objectType === "diary").length,
+    );
     expect(await repository.listForProject(orgB, projectId)).toBeNull();
 
     const timecardRow = await db.heavyJobSourceObject.findFirstOrThrow({
@@ -95,15 +97,15 @@ describe("HeavyJob source objects", () => {
     const body = await response.json() as {
       objects: Array<{ objectType: string; sourceId: string; fetchedAt: string; raw: { installedQuantity?: number; consumedQuantity?: number } }>;
     };
-    expect(body.objects).toHaveLength(1);
+    expect(body.objects).toHaveLength(heavyJobFixtures.filter((fixture) => fixture.objectType === "quantity").length);
     expect(body.objects[0]).toMatchObject({
       objectType: "quantity",
       projectId,
       fetchedAt: HEAVYJOB_FIXTURE_FETCHED_AT,
     });
-    expect(body.objects[0]?.sourceId.length).toBeGreaterThan(0);
-    expect(typeof body.objects[0]?.raw.installedQuantity).toBe("number");
-    expect(typeof body.objects[0]?.raw.consumedQuantity).toBe("number");
+    expect(body.objects.every((object) => object.sourceId.length > 0)).toBe(true);
+    expect(body.objects.every((object) => typeof object.raw.installedQuantity === "number")).toBe(true);
+    expect(body.objects.every((object) => typeof object.raw.consumedQuantity === "number")).toBe(true);
 
     const hidden = await GET(
       new NextRequest(`http://localhost/api/projects/${projectId}/heavyjob-objects`, {
