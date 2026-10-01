@@ -1,15 +1,26 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { SourceDocument } from "@/components/review/source-document";
 import { Badge } from "@/components/ui/badge";
 import { getRevision } from "@/lib/documents/service";
 import { DomainError } from "@/lib/domain/errors";
+import { parseEvidenceTarget, safeReturnPath } from "@/lib/review/evidenceLocation";
 import { currentOrganizationId } from "@/lib/tenancy";
 
 export const dynamic = "force-dynamic";
 const date = (value: Date) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(value);
 
-export default async function RevisionPage({ params }: { params: Promise<{ revisionId: string }> }) {
+export default async function RevisionPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ revisionId: string }>;
+  searchParams: Promise<{ page?: string; start?: string; end?: string; quote?: string; return?: string }>;
+}) {
   const { revisionId } = await params;
+  const query = await searchParams;
+  const returnTo = safeReturnPath(query.return);
+  const target = parseEvidenceTarget(query);
   let revision;
   try { revision = await getRevision(currentOrganizationId(), revisionId); }
   catch (error) { if (error instanceof DomainError && error.code === "NOT_FOUND") notFound(); throw error; }
@@ -25,8 +36,11 @@ export default async function RevisionPage({ params }: { params: Promise<{ revis
         <dl className="fact"><dt>File</dt><dd>{revision.originalFilename}</dd></dl>
       </div>
       {revision.failureMessage && <p className="failure"><strong>{revision.failureCode}:</strong> {revision.failureMessage}</p>}
-      <h2 className="source-heading">Source</h2>
-      {revision.pages.map((page) => <section className="page-source" key={page.id}><h2>Page {page.pageNumber}</h2><pre>{page.text || "No embedded text found on this page."}</pre></section>)}
+      <div className="source-heading-row">
+        <h2 className="source-heading">Source</h2>
+        {returnTo && <Link className="return-link" href={returnTo}>Back to decision</Link>}
+      </div>
+      <SourceDocument pages={revision.pages.map((page) => ({ id: page.id, pageNumber: page.pageNumber, text: page.text }))} target={target} />
     </main>
   );
 }
