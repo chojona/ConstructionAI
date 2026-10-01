@@ -1,11 +1,25 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowRight, FolderKanban, HardHat, Layers3, Search, X } from "lucide-react";
-import { ProjectCard } from "@/components/workspace/project-card";
+import { ArrowRight, FolderKanban, HardHat, Layers3, PanelLeftClose, PanelLeftOpen, Search, X } from "lucide-react";
 import { projectNumberLabel } from "@/lib/projects/card";
+
+const sidebarStorageKey = "construction-ai.sidebar-collapsed";
+
+function readCollapsed() {
+  try { return window.localStorage.getItem(sidebarStorageKey) === "1"; } catch { return false; }
+}
+
+function subscribeCollapsed(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  window.addEventListener("construction-ai:sidebar", onChange);
+  return () => {
+    window.removeEventListener("storage", onChange);
+    window.removeEventListener("construction-ai:sidebar", onChange);
+  };
+}
 
 type Project = {
   id: string;
@@ -17,6 +31,7 @@ type Project = {
 
 export function AppShell({ projects, children }: { projects: Project[]; children: React.ReactNode }) {
   const pathname = usePathname();
+  const collapsed = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const [query, setQuery] = useState("");
@@ -29,6 +44,11 @@ export function AppShell({ projects, children }: { projects: Project[]; children
   function openSearch() {
     setQuery("");
     dialog.current?.showModal();
+  }
+
+  function toggleSidebar() {
+    try { window.localStorage.setItem(sidebarStorageKey, collapsed ? "0" : "1"); } catch { /* Sidebar stays usable when storage is blocked. */ }
+    window.dispatchEvent(new Event("construction-ai:sidebar"));
   }
 
   useEffect(() => {
@@ -44,20 +64,18 @@ export function AppShell({ projects, children }: { projects: Project[]; children
   }, []);
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${collapsed ? " is-collapsed" : ""}`}>
       <a className="skip-link" href="#workspace">Skip to workspace</a>
       <aside className="sidebar" aria-label="Workspace navigation">
-        <Link href="/projects" className="brand"><span className="brand-mark"><HardHat size={18} aria-hidden /></span><span>Construction AI<small>Project intelligence</small></span></Link>
+        <div className="sidebar-head">
+          <Link href="/projects" className="brand" aria-label="Construction AI"><span className="brand-mark"><HardHat size={18} aria-hidden /></span><span className="brand-copy">Construction AI<small>Project intelligence</small></span></Link>
+          <button type="button" className="icon-button sidebar-collapse" aria-expanded={!collapsed} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} onClick={toggleSidebar}>{collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}</button>
+        </div>
         <button ref={trigger} className="search-trigger" aria-label="Find a project or command" aria-haspopup="dialog" onClick={openSearch}><Search size={15} aria-hidden /><span>Find a project…</span><kbd>⌘K</kbd></button>
         <p className="nav-heading">Workspace</p>
         <nav className="nav-stack" aria-label="Main">
-          <Link className={`nav-row ${pathname === "/projects" ? "is-active" : ""}`} aria-current={pathname === "/projects" ? "page" : undefined} href="/projects"><FolderKanban size={16} aria-hidden />Projects</Link>
-          <Link className={`nav-row ${pathname === "/changes" ? "is-active" : ""}`} aria-current={pathname === "/changes" ? "page" : undefined} href="/changes"><Layers3 size={16} aria-hidden /><span className="nav-copy">Changes<small>Needs attention</small></span></Link>
-        </nav>
-        <p className="nav-heading">Recent projects</p>
-        <nav className="nav-stack recent-projects" aria-label="Recent projects">
-          {projects.slice(0, 8).map((project) => <ProjectCard key={project.id} href={`/projects/${project.id}`} name={project.name} projectNumber={project.projectNumber} documentCount={project.documentCount} openCount={project.openCount} active={pathname === `/projects/${project.id}`} />)}
-          {!projects.length && <p className="nav-empty">Your projects will appear here.</p>}
+          <Link className={`nav-row ${pathname === "/projects" ? "is-active" : ""}`} aria-current={pathname === "/projects" ? "page" : undefined} aria-label="Projects" href="/projects"><FolderKanban size={16} aria-hidden /><span className="nav-label">Projects</span></Link>
+          <Link className={`nav-row ${pathname === "/changes" ? "is-active" : ""}`} aria-current={pathname === "/changes" ? "page" : undefined} aria-label="Changes" href="/changes"><Layers3 size={16} aria-hidden /><span className="nav-copy">Changes<small>Needs attention</small></span></Link>
         </nav>
         <div className="sidebar-footer"><span className="status-dot" />Source intelligence<small>Decisions grounded in documents</small></div>
       </aside>
