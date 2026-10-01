@@ -2,30 +2,23 @@ import { createHash } from "node:crypto";
 import { DomainError } from "@/lib/domain/errors";
 import type { ProjectRevisionContext, ReviewDecisionRecord, RevisionChangeType } from "@/lib/domain/types";
 import type { FindingEvidence, ProjectFinding } from "./findings";
+import { EXPORT_BLOCKED_MESSAGE, type ApprovedChangePreview } from "./exportPacketView";
 
-export const EXPORT_BLOCKED_MESSAGE = "Approve at least one change to export.";
+export {
+  EXPORT_BLOCKED_MESSAGE,
+  approvedChangeExportPath,
+  exportPacketAction,
+  subjectExportVisible,
+  visiblePacketChanges,
+  type ApprovedChangePreview,
+  type ExportPacketAction,
+} from "./exportPacketView";
+
 export const APPROVED_CHANGE_PACKET_KIND = "approved-change-packet";
 export const APPROVED_CHANGE_PACKET_VERSION = 1;
 export const APPROVED_CHANGE_PACKET_NOTE = "Approved changes with the cited page evidence.";
 
 const NOT_EXPORTABLE = "Only an approved change can be exported.";
-
-export interface ExportPacketAction {
-  enabled: boolean;
-  href: string | null;
-  message: typeof EXPORT_BLOCKED_MESSAGE | null;
-}
-
-export interface ApprovedChangePreview {
-  subjectKey: string;
-  decision: "ACCEPTED";
-  summary: string;
-  evidence: Array<{
-    revisionId: string;
-    pageNumber: number;
-    excerpt: string;
-  }>;
-}
 
 export interface ApprovedChangePacketItem {
   subjectKey: string;
@@ -61,23 +54,6 @@ export interface ExportPacketCanonical {
 export interface ApprovedChangePacket extends ExportPacketCanonical {
   contentHash: string;
   generatedAt: string;
-}
-
-export function subjectExportVisible(decision: string | null | undefined) {
-  return decision === "ACCEPTED";
-}
-
-export function exportPacketAction(approvedCount: number, projectId: string): ExportPacketAction {
-  if (approvedCount < 1) return { enabled: false, href: null, message: EXPORT_BLOCKED_MESSAGE };
-  return { enabled: true, href: approvedChangeExportPath(projectId), message: null };
-}
-
-export function approvedChangeExportPath(projectId: string) {
-  return `/api/projects/${encodeURIComponent(projectId)}/export`;
-}
-
-export function visiblePacketChanges<T extends { decision: string }>(changes: readonly T[]) {
-  return changes.filter((change) => change.decision === "ACCEPTED");
 }
 
 export function approvedChangePreview(findings: readonly ProjectFinding[]): ApprovedChangePreview[] {

@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { exportPacketAction, subjectExportVisible, visiblePacketChanges, type ApprovedChangePreview } from "@/lib/review/exportPacket";
+import { exportPacketAction, subjectExportVisible, visiblePacketChanges, type ApprovedChangePreview } from "@/lib/review/exportPacketView";
 
 export function ExportPacketControl({
   projectId,

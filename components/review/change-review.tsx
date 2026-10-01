@@ -8,7 +8,7 @@ import { ExportPacketControl } from "@/components/review/export-packet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { AttentionItemDto, FindingDto } from "@/lib/review/dto";
-import type { ApprovedChangePreview } from "@/lib/review/exportPacket";
+import type { ApprovedChangePreview } from "@/lib/review/exportPacketView";
 import { changeEvidenceLead, changePageChip, changeRowTitle } from "@/lib/review/changeRow";
 import { decisionReturnPath, findingDomId } from "@/lib/review/evidenceLocation";
 
