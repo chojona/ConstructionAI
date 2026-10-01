@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DocumentRevisionStatus {
+  UPLOADED
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+model Organization {
+  id        String    @id @default(cuid())
+  name      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  projects  Project[]
+}
+
+model Project {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  projectNumber  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  documents    Document[]
+
+  @@index([organizationId, createdAt])
+}
+
+model Document {
+  id           String   @id @default(cuid())
+  projectId    String
+  title        String
+  documentType String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  project   Project            @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  revisions DocumentRevision[]
+
+  @@index([projectId, createdAt])
+}
+
+model DocumentRevision {
+  id               String                 @id @default(cuid())
+  documentId       String
+  revisionLabel    String
+  revisionOrder    Int
+  originalFilename String
+  mimeType         String
+  byteSize         Int
+  sha256           String
+  storageKey       String
+  status           DocumentRevisionStatus @default(UPLOADED)
+  failureCode      String?
+  failureMessage   String?
+  createdAt        DateTime               @default(now())
+
+  document Document       @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  pages    DocumentPage[]
+
+  @@unique([documentId, revisionOrder])
+  @@unique([documentId, revisionLabel])
+  @@unique([documentId, sha256])
+  @@index([documentId, createdAt])
+}
+
+model DocumentPage {
+  id                 String   @id @default(cuid())
+  documentRevisionId String
+  pageNumber          Int
+  text                String
+  textSha256          String?
+  createdAt           DateTime @default(now())
+
+  documentRevision DocumentRevision @relation(fields: [documentRevisionId], references: [id], onDelete: Restrict)
+
+  @@unique([documentRevisionId, pageNumber])
+  @@index([documentRevisionId])
+}
