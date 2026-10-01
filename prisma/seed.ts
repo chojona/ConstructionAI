@@ -1,4 +1,5 @@
 import { createPrismaClient } from "../lib/db";
+import { DEMO_REVIEW_ORGANIZATION_ID, seedDemoReviewProject } from "../lib/demo/reviewProject";
 import { seedHeavyJobDemoProject } from "../lib/heavyjob/loadFixtures";
 
 const prisma = createPrismaClient();
@@ -14,6 +15,7 @@ async function main() {
     },
   });
   await seedHeavyJobDemoProject(prisma, organizationId);
+  if (organizationId === DEMO_REVIEW_ORGANIZATION_ID) await seedDemoReviewProject(prisma);
 }
 
 main().finally(() => prisma.$disconnect());

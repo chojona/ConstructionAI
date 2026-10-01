@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { RevisionInspection } from "@/components/documents/revision-inspection";
 import { SourceDocument } from "@/components/review/source-document";
+import { ProjectContext } from "@/components/workspace/project-context";
 import { ProjectNavigation } from "@/components/workspace/project-navigation";
 import { getDocument, getRevision, listRevisionAnalysis } from "@/lib/documents/service";
 import { DomainError } from "@/lib/domain/errors";
@@ -55,7 +56,7 @@ export default async function RevisionPage({
 
   return (
     <main className="page reading">
-      <nav className="breadcrumb">
+      <ProjectContext projectId={revision.document.project.id}>
         <Link href="/projects">Projects</Link>
         <span>/</span>
         <Link href={`/projects/${revision.document.project.id}`}>{revision.document.project.name}</Link>
@@ -63,7 +64,7 @@ export default async function RevisionPage({
         <Link href={`/documents/${revision.document.id}`}>{revision.document.title}</Link>
         <span>/</span>
         <span>{revision.revisionLabel}</span>
-      </nav>
+      </ProjectContext>
       <p className="eyebrow">{revision.document.documentType || "Document"} · {revision.document.title}</p>
       <RevisionInspection
         revision={{ ...revision, pageCount: revision.pages.length }}

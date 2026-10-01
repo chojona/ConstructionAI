@@ -1,6 +1,6 @@
-import Link from "next/link";
-import { FolderKanban, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { CreateProjectForm } from "@/components/forms/create-project-form";
+import { ProjectCard } from "@/components/workspace/project-card";
 import { listProjects } from "@/lib/projects/service";
 import { listAttention } from "@/lib/review/attention";
 import { getProjectReview } from "@/lib/review/service";
@@ -26,15 +26,9 @@ export default async function ProjectsPage() {
       </div>
       <div className="section-heading"><h2>Active projects</h2><span className="count">{rows.length} total</span></div>
       {rows.length ? (
-        <div className="list">
+        <div className="project-cards">
           {rows.sort((a, b) => b.openCount - a.openCount).map((project) => (
-            <Link className="list-row" href={`/projects/${project.id}`} key={project.id}>
-              <div className="project-row-name"><span className="project-row-icon"><FolderKanban size={16} aria-hidden /></span><div><p className="row-title">{project.name}</p><p className="row-meta">{project.projectNumber || "No project number"}</p></div></div>
-              <div className="row-side">
-                <span className={project.openCount ? "open-count" : "clear-count"}>{project.openCount ? `${project.openCount} open` : "All clear"}</span>
-                <span>{project.documentCount} {project.documentCount === 1 ? "document" : "documents"}</span>
-              </div>
-            </Link>
+            <ProjectCard key={project.id} href={`/projects/${project.id}`} name={project.name} projectNumber={project.projectNumber} documentCount={project.documentCount} openCount={project.openCount} />
           ))}
         </div>
       ) : <div className="empty"><strong>No projects yet</strong><span>Create the first project to begin.</span></div>}

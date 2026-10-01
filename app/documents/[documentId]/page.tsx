@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { RevisionHistory } from "@/components/documents/revision-history";
+import { ProjectContext } from "@/components/workspace/project-context";
 import { ProjectNavigation } from "@/components/workspace/project-navigation";
 import { UploadRevisionForm } from "@/components/forms/upload-revision-form";
 import { getDocument } from "@/lib/documents/service";
@@ -18,8 +19,15 @@ const date = (value: Date) => new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 }).format(value);
 
-export default async function DocumentPage({ params }: { params: Promise<{ documentId: string }> }) {
+export default async function DocumentPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ documentId: string }>;
+  searchParams: Promise<{ upload?: string }>;
+}) {
   const { documentId } = await params;
+  const { upload } = await searchParams;
   const organizationId = currentOrganizationId();
   let document;
   try {
@@ -47,13 +55,13 @@ export default async function DocumentPage({ params }: { params: Promise<{ docum
 
   return (
     <main className="page">
-      <nav className="breadcrumb">
+      <ProjectContext projectId={document.project.id}>
         <Link href="/projects">Projects</Link>
         <span>/</span>
         <Link href={`/projects/${document.project.id}`}>{document.project.name}</Link>
         <span>/</span>
         <span>{document.title}</span>
-      </nav>
+      </ProjectContext>
       <div className="page-heading">
         <div>
           <p className="eyebrow">{identity}</p>
@@ -65,7 +73,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ docum
             {latest && reading ? ` Latest is ${latest.revisionLabel}, uploaded ${date(latest.createdAt)}: ${reading.summary}` : ""}
           </p>
         </div>
-        <details className="create-panel panel" id="upload">
+        <details className="create-panel panel" id="upload" open={upload === "1"}>
           <summary className="primary-summary">Upload revision</summary>
           <UploadRevisionForm documentId={document.id} />
         </details>
