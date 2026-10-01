@@ -8,7 +8,9 @@ export type DomainErrorCode =
   | "DUPLICATE_REVISION"
   | "REVISION_LABEL_CONFLICT"
   | "SCANNED_OR_EMPTY"
-  | "STORAGE_ERROR";
+  | "STORAGE_ERROR"
+  | "REVISION_NOT_READY"
+  | "INVALID_TRANSITION";
 
 export class DomainError extends Error {
   constructor(

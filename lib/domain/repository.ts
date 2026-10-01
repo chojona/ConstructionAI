@@ -1,6 +1,8 @@
 import type {
   DocumentDetail,
   DocumentRecord,
+  ExtractionRunRecord,
+  ExtractionRunStatus,
   ProjectDetail,
   ProjectRecord,
   ProjectSummary,
@@ -19,6 +21,26 @@ export interface CreateRevisionRecordInput {
   failureCode?: string;
   failureMessage?: string;
   pages: Array<{ pageNumber: number; text: string; textSha256: string }>;
+}
+
+export interface CreateExtractionRunInput {
+  organizationId: string;
+  documentRevisionId: string;
+  extractorName: string;
+  extractorVersion: string;
+  provider: string;
+  model: string;
+}
+
+export interface ExtractionRunTransitionInput {
+  organizationId: string;
+  extractionRunId: string;
+  expectedStatus: ExtractionRunStatus;
+  status: ExtractionRunStatus;
+  startedAt?: Date;
+  completedAt?: Date;
+  failureCode?: string | null;
+  failureMessage?: string | null;
 }
 
 export interface ConstructionRepository {
@@ -44,4 +66,8 @@ export interface ConstructionRepository {
     sha256: string,
   ): Promise<{ id: string } | null>;
   createRevision(input: CreateRevisionRecordInput): Promise<RevisionDetail>;
+  createExtractionRun(input: CreateExtractionRunInput): Promise<ExtractionRunRecord | null>;
+  listExtractionRuns(organizationId: string, documentRevisionId: string): Promise<ExtractionRunRecord[] | null>;
+  getExtractionRun(organizationId: string, extractionRunId: string): Promise<ExtractionRunRecord | null>;
+  applyExtractionRunTransition(input: ExtractionRunTransitionInput): Promise<ExtractionRunRecord | null>;
 }
