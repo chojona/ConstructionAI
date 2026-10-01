@@ -16,6 +16,16 @@ const requiredFixtures = [
   "contradictory-language",
   "repeated-evidence-text",
   "unsupported-facts",
+  "month-name-date",
+  "ambiguous-numeric-date",
+  "delete-replace-thickness",
+  "ph-bounds",
+  "equipment-list",
+  "hedged-permission-keeps-dimension",
+  "volume-and-tilling-depth",
+  "fill-thickness",
+  "tentative-temperature-window",
+  "repeated-cubic-yards",
 ];
 
 function fixture(id: string): ConstructionFactsFixture {

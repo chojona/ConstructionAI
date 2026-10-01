@@ -84,6 +84,11 @@ const languageChecks: Array<{ label: "tentative" | "conditional" | "historical";
   { label: "tentative", pattern: /\bmay\b(?!\s+\d{1,2}\b)/i },
 ];
 
+/** Modality the parser will reject if the fact is stored as asserted. */
+export function conflictingAssertedLanguage(text: string) {
+  return languageChecks.find((check) => check.pattern.test(text))?.label ?? null;
+}
+
 export function parseConstructionFactsV1(
   raw: unknown,
   pages: readonly ConstructionFactPage[],
@@ -202,7 +207,7 @@ function assertQuantity(fact: ProposedConstructionFact) {
 function assertNotPromoted(fact: ProposedConstructionFact) {
   if (fact.modality !== "asserted") return;
   const language = factLanguage(fact);
-  const matched = languageChecks.find((check) => check.pattern.test(language));
+  const matched = conflictingAssertedLanguage(language);
   if (!matched) return;
   throw new DomainError(
     "MALFORMED_OUTPUT",
