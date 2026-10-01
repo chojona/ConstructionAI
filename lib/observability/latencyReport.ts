@@ -51,9 +51,10 @@ export function formatLatencyReport(summary: LatencySummary, meta: {
   iterations: number;
   notes: readonly string[];
   workload: readonly string[];
+  title?: string;
 }): string {
   const lines = [
-    "# Document intelligence latency baseline",
+    `# ${meta.title ?? "Document intelligence latency benchmark"}`,
     "",
     `Generated: ${meta.generatedAt}`,
     `Successful-run samples used for percentiles: ${summary.successes} of ${summary.runs} runs (${meta.iterations} requested).`,

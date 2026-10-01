@@ -5,7 +5,7 @@ import { runLatencyBenchmark, withBenchmarkStorage } from "./latencyBenchmark";
 const args = process.argv.slice(2);
 let iterations = 11;
 let pages = 8;
-let out = path.join(process.cwd(), "benchmarks", "latency", "baseline.md");
+let out = path.join(process.cwd(), "benchmarks", "latency", "optimized.md");
 
 for (let index = 0; index < args.length; index += 1) {
   const arg = args[index];

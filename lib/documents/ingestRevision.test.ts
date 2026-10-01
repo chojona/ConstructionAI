@@ -9,6 +9,7 @@ import { createDocument } from "./service";
 import { ingestRevision } from "./ingestRevision";
 import { buildTextPdf } from "./minimalPdf";
 import { LocalDocumentStorage } from "./storage";
+import { createCachedPdfExtractor } from "./extractPdf";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))));
@@ -18,7 +19,7 @@ async function setup() {
   const project = await createProject("org_a", { name: "Bridge" }, repository);
   const document = await createDocument("org_a", project.id, { title: "Drainage Plan" }, repository);
   const root = await mkdtemp(path.join(tmpdir(), "construction-ingest-")); roots.push(root);
-  return { repository, document, storage: new LocalDocumentStorage(root) };
+  return { repository, project, document, storage: new LocalDocumentStorage(root) };
 }
 
 describe("revision ingestion", () => {
@@ -42,6 +43,38 @@ describe("revision ingestion", () => {
     await expect(ingestRevision("org_a", document.id, { revisionLabel: "B", originalFilename: "renamed.pdf", mimeType: "application/pdf", bytes }, { repository, storage }))
       .rejects.toMatchObject({ code: "DUPLICATE_REVISION" });
     expect(repository.revisions).toHaveLength(1);
+  });
+
+  it("coalesces concurrent parsing without creating duplicate revisions", async () => {
+    const { repository, document, storage } = await setup();
+    let parseCalls = 0;
+    let release!: () => void;
+    const blocked = new Promise<void>((resolve) => { release = resolve; });
+    const extract = createCachedPdfExtractor({
+      extract: async () => {
+        parseCalls += 1;
+        await blocked;
+        return { pageCount: 1, pages: [{ pageNumber: 1, text: "Shared source" }] };
+      },
+    });
+    const bytes = buildTextPdf(["Shared source"]);
+    const first = ingestRevision("org_a", document.id, {
+      revisionLabel: "A", originalFilename: "a.pdf", mimeType: "application/pdf", bytes,
+    }, { repository, storage, extract });
+    const second = ingestRevision("org_a", document.id, {
+      revisionLabel: "B", originalFilename: "b.pdf", mimeType: "application/pdf", bytes,
+    }, { repository, storage, extract });
+    await Promise.resolve();
+    release();
+
+    const results = await Promise.allSettled([first, second]);
+    expect(parseCalls).toBe(1);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.find((result) => result.status === "rejected")).toMatchObject({
+      reason: { code: "DUPLICATE_REVISION" },
+    });
+    expect(repository.revisions).toHaveLength(1);
+    expect(repository.pages).toHaveLength(1);
   });
 
   it("assigns deterministic order and leaves old revisions unchanged", async () => {

@@ -22,6 +22,9 @@ const CONTEXT_COUNTS = [
   "changeCount",
   "findingCount",
   "attentionCount",
+  "pdfCacheHitCount",
+  "pdfCacheMissCount",
+  "pdfCacheCoalescedCount",
 ] as const;
 
 export interface StageContext {
@@ -32,6 +35,9 @@ export interface StageContext {
   changeCount?: number;
   findingCount?: number;
   attentionCount?: number;
+  pdfCacheHitCount?: number;
+  pdfCacheMissCount?: number;
+  pdfCacheCoalescedCount?: number;
   failureCode?: string;
 }
 
