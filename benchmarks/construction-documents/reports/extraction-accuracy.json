@@ -1,0 +1,329 @@
+{
+  "predictionSource": "model",
+  "model": {
+    "provider": "deterministic",
+    "model": "construction-facts-rules-v1"
+  },
+  "note": "Human labels are the reference. A goal is achieved only when this run meets it.",
+  "definitions": {
+    "precision": "Strict true positives divided by strict true positives plus false positives. A strict match requires type, modality, evidence, and normalized payload, including the schedule event name.",
+    "recall": "Strict true positives divided by strict true positives plus false negatives.",
+    "f1": "Harmonic mean of strict precision and strict recall.",
+    "evidenceCorrectness": "Share of value-matched facts whose evidence excerpt covers the labeled excerpt. Value match ignores modality, evidence, and schedule event names. The rate is 0 when no value match was compared.",
+    "hallucinatedFactRate": "Share of predictions that neither value-match a labeled fact nor overlap its evidence.",
+    "modalityCorrectness": "Share of value-matched facts with the labeled modality. The rate is 0 when no value match was compared.",
+    "normalizationCorrectness": "Share of type-aligned facts whose amount, unit, date, date text, or equipment statement matches the label. The rate is 0 when no alignment was compared.",
+    "unsupportedHighConfidenceFacts": "Asserted predictions that neither value-match a labeled fact nor overlap its evidence. The goal is zero."
+  },
+  "targets": {
+    "precision": {
+      "goal": 0.98,
+      "actual": 0.9117647058823529,
+      "achieved": false
+    },
+    "recall": {
+      "goal": 0.95,
+      "actual": 0.9117647058823529,
+      "achieved": false
+    },
+    "evidenceCorrectness": {
+      "goal": 0.99,
+      "actual": 1,
+      "achieved": true
+    },
+    "unsupportedHighConfidenceFacts": {
+      "goal": 0,
+      "actual": 0,
+      "achieved": true
+    },
+    "allMeasuredTargetsMet": false
+  },
+  "overall": {
+    "truePositives": 31,
+    "falsePositives": 3,
+    "falseNegatives": 3,
+    "precision": 0.9117647058823529,
+    "recall": 0.9117647058823529,
+    "f1": 0.9117647058823528,
+    "evidenceCorrectness": 1,
+    "evidenceCompared": 34,
+    "hallucinatedFactRate": 0,
+    "modalityCorrectness": 1,
+    "modalityCompared": 34,
+    "normalizationCorrectness": 1,
+    "normalizationCompared": 34,
+    "unsupportedHighConfidenceFacts": 0
+  },
+  "byType": {
+    "equipment_requirement": {
+      "truePositives": 12,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "evidenceCorrectness": 1,
+      "evidenceCompared": 12,
+      "hallucinatedFactRate": 0,
+      "modalityCorrectness": 1,
+      "modalityCompared": 12,
+      "normalizationCorrectness": 1,
+      "normalizationCompared": 12,
+      "unsupportedHighConfidenceFacts": 0
+    },
+    "quantity": {
+      "truePositives": 19,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "evidenceCorrectness": 1,
+      "evidenceCompared": 19,
+      "hallucinatedFactRate": 0,
+      "modalityCorrectness": 1,
+      "modalityCompared": 19,
+      "normalizationCorrectness": 1,
+      "normalizationCompared": 19,
+      "unsupportedHighConfidenceFacts": 0
+    },
+    "schedule_date": {
+      "truePositives": 0,
+      "falsePositives": 3,
+      "falseNegatives": 3,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "evidenceCorrectness": 1,
+      "evidenceCompared": 3,
+      "hallucinatedFactRate": 0,
+      "modalityCorrectness": 1,
+      "modalityCompared": 3,
+      "normalizationCorrectness": 1,
+      "normalizationCompared": 3,
+      "unsupportedHighConfidenceFacts": 0
+    }
+  },
+  "byDifficulty": {
+    "addition": {
+      "truePositives": 17,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "evidenceCorrectness": 1,
+      "evidenceCompared": 17,
+      "hallucinatedFactRate": 0,
+      "modalityCorrectness": 1,
+      "modalityCompared": 17,
+      "normalizationCorrectness": 1,
+      "normalizationCompared": 17,
+      "unsupportedHighConfidenceFacts": 0
+    },
+    "conditional": {
+      "truePositives": 11,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "evidenceCorrectness": 1,
+      "evidenceCompared": 11,
+      "hallucinatedFactRate": 0,
+      "modalityCorrectness": 1,
+      "modalityCompared": 11,
+      "normalizationCorrectness": 1,
+      "normalizationCompared": 11,
+      "unsupportedHighConfidenceFacts": 0
+    },
+    "contradictory": {
+      "truePositives": 5,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "evidenceCorrectness": 1,
+      "evidenceCompared": 5,
+      "hallucinatedFactRate": 0,
+      "modalityCorrectness": 1,
+      "modalityCompared": 5,
+      "normalizationCorrectness": 1,
+      "normalizationCompared": 5,
+      "unsupportedHighConfidenceFacts": 0
+    },
+    "date-format": {
+      "truePositives": 0,
+      "falsePositives": 3,
+      "falseNegatives": 3,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "evidenceCorrectness": 1,
+      "evidenceCompared": 3,
+      "hallucinatedFactRate": 0,
+      "modalityCorrectness": 1,
+      "modalityCompared": 3,
+      "normalizationCorrectness": 1,
+      "normalizationCompared": 3,
+      "unsupportedHighConfidenceFacts": 0
+    },
+    "difficult-language": {
+      "truePositives": 19,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "evidenceCorrectness": 1,
+      "evidenceCompared": 19,
+      "hallucinatedFactRate": 0,
+      "modalityCorrectness": 1,
+      "modalityCompared": 19,
+      "normalizationCorrectness": 1,
+      "normalizationCompared": 19,
+      "unsupportedHighConfidenceFacts": 0
+    },
+    "removal": {
+      "truePositives": 2,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "evidenceCorrectness": 1,
+      "evidenceCompared": 2,
+      "hallucinatedFactRate": 0,
+      "modalityCorrectness": 1,
+      "modalityCompared": 2,
+      "normalizationCorrectness": 1,
+      "normalizationCompared": 2,
+      "unsupportedHighConfidenceFacts": 0
+    },
+    "repeated-text": {
+      "truePositives": 13,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "evidenceCorrectness": 1,
+      "evidenceCompared": 13,
+      "hallucinatedFactRate": 0,
+      "modalityCorrectness": 1,
+      "modalityCompared": 13,
+      "normalizationCorrectness": 1,
+      "normalizationCompared": 13,
+      "unsupportedHighConfidenceFacts": 0
+    },
+    "table": {
+      "truePositives": 10,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "evidenceCorrectness": 1,
+      "evidenceCompared": 10,
+      "hallucinatedFactRate": 0,
+      "modalityCorrectness": 1,
+      "modalityCompared": 10,
+      "normalizationCorrectness": 1,
+      "normalizationCompared": 10,
+      "unsupportedHighConfidenceFacts": 0
+    },
+    "tentative": {
+      "truePositives": 11,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "evidenceCorrectness": 1,
+      "evidenceCompared": 11,
+      "hallucinatedFactRate": 0,
+      "modalityCorrectness": 1,
+      "modalityCompared": 11,
+      "normalizationCorrectness": 1,
+      "normalizationCompared": 11,
+      "unsupportedHighConfidenceFacts": 0
+    },
+    "units": {
+      "truePositives": 26,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "evidenceCorrectness": 1,
+      "evidenceCompared": 26,
+      "hallucinatedFactRate": 0,
+      "modalityCorrectness": 1,
+      "modalityCompared": 26,
+      "normalizationCorrectness": 1,
+      "normalizationCompared": 26,
+      "unsupportedHighConfidenceFacts": 0
+    },
+    "wording-only": {
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "evidenceCorrectness": 0,
+      "evidenceCompared": 0,
+      "hallucinatedFactRate": 0,
+      "modalityCorrectness": 0,
+      "modalityCompared": 0,
+      "normalizationCorrectness": 0,
+      "normalizationCompared": 0,
+      "unsupportedHighConfidenceFacts": 0
+    }
+  },
+  "misses": [
+    {
+      "fixtureId": "catawba-drawing-dates:base",
+      "outcome": "missed",
+      "fact": "schedule_date:asserted:civil drawings:2025-06-06",
+      "failure": "benchmark ambiguity",
+      "detail": "Labeled event \"civil drawings\" does not appear on the page. The date and date text match."
+    },
+    {
+      "fixtureId": "catawba-drawing-dates:base",
+      "outcome": "unexpected",
+      "fact": "schedule_date:asserted:revision:2025-06-06",
+      "failure": "benchmark ambiguity",
+      "detail": "Labeled event \"civil drawings\" does not appear on the page. The date and date text match."
+    },
+    {
+      "fixtureId": "catawba-drawing-dates:revised",
+      "outcome": "missed",
+      "fact": "schedule_date:asserted:addendum:2024-08-07",
+      "failure": "benchmark ambiguity",
+      "detail": "Labeled event \"addendum\" does not appear on the page. The date and date text match."
+    },
+    {
+      "fixtureId": "catawba-drawing-dates:revised",
+      "outcome": "missed",
+      "fact": "schedule_date:asserted:civil drawings:unparsed",
+      "failure": "benchmark ambiguity",
+      "detail": "Labeled event \"civil drawings\" does not appear on the page. The date and date text match."
+    },
+    {
+      "fixtureId": "catawba-drawing-dates:revised",
+      "outcome": "unexpected",
+      "fact": "schedule_date:asserted:schedule:2024-08-07",
+      "failure": "benchmark ambiguity",
+      "detail": "Labeled event \"addendum\" does not appear on the page. The date and date text match."
+    },
+    {
+      "fixtureId": "catawba-drawing-dates:revised",
+      "outcome": "unexpected",
+      "fact": "schedule_date:asserted:schedule:unparsed",
+      "failure": "benchmark ambiguity",
+      "detail": "Labeled event \"civil drawings\" does not appear on the page. The date and date text match."
+    }
+  ]
+}

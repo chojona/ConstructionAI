@@ -20,6 +20,12 @@ Every pair is a public agency record retrieved on 2026-09-30. Publishers and URL
 
 Some pairs are a sentence an addendum says to delete and the sentence that replaces it, or the original and revised columns of one addendum. They are not two independently downloaded files.
 
+## Extraction accuracy
+
+`npm run eval:extraction-accuracy` runs the in-repo extractor on these pages and writes `reports/extraction-accuracy.json`. The extractor sees page text only. It does not read the human labels, and the score is not labels compared with themselves.
+
+The report records strict precision, recall, and F1, plus evidence correctness, the unsupported high-confidence count, modality correctness, and unit/value normalization. It breaks those rates down by fact type and by difficult-language tags. Every strict miss has a failure class. A goal is marked achieved only when that run meets the goal.
+
 ## Known limitations
 
 - These are short excerpts, not full drawing sets. No design-partner documents were available.
