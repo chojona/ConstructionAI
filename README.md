@@ -35,7 +35,7 @@ npx prisma migrate deploy
 npm run db:seed
 ```
 
-The Vercel build runs `prisma migrate deploy` before `next build`, using `DIRECT_DATABASE_URL` when it is set and `DATABASE_URL` otherwise. `prisma generate` still runs during dependency installation. Seed the organization yourself when `APP_ORGANIZATION_ID` should match a known organization such as `org_demo`.
+The Vercel build runs `prisma migrate deploy` and `npm run db:seed` before `next build`. Migrate uses `DIRECT_DATABASE_URL` when it is set and `DATABASE_URL` otherwise. Seed upserts the organization selected by `APP_ORGANIZATION_ID`, or `org_demo` when that variable is unset. `prisma generate` still runs during dependency installation.
 
 Document files currently use local filesystem storage. Vercel function filesystems are temporary, so uploaded documents will not persist reliably across requests or deployments on Vercel. Use a persistent object-storage backend before relying on document uploads in a hosted environment.
 
