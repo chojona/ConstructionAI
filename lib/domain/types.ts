@@ -102,3 +102,53 @@ export interface ProposedFactRecord {
   evidence: ProposedFactEvidenceRecord[];
   createdAt: Date;
 }
+
+export type ReviewDecisionValue = "ACCEPTED" | "DISMISSED" | "FLAGGED";
+export type ReviewSubjectKind = "PROPOSED_FACT" | "REVISION_CHANGE";
+export type RevisionChangeType = "ADDED" | "REMOVED" | "MODIFIED";
+
+export interface ReviewDecisionRecord {
+  id: string;
+  projectId: string;
+  subjectKind: ReviewSubjectKind;
+  subjectKey: string;
+  decision: ReviewDecisionValue;
+  reviewerId: string;
+  reason: string | null;
+  proposedFactId: string;
+  beforeProposedFactId: string | null;
+  afterProposedFactId: string | null;
+  baseRevisionId: string | null;
+  revisedRevisionId: string | null;
+  changeType: RevisionChangeType | null;
+  supersedesDecisionId: string | null;
+  createdAt: Date;
+}
+
+export interface ProjectRevisionContext {
+  id: string;
+  documentId: string;
+  documentTitle: string;
+  revisionLabel: string;
+  revisionOrder: number;
+}
+
+export interface ProjectRunContext {
+  id: string;
+  documentRevisionId: string;
+  attemptNumber: number;
+  extractorName: string;
+  extractorVersion: string;
+  status: ExtractionRunStatus;
+}
+
+export interface ProjectFactContext extends ProposedFactRecord {
+  documentRevisionId: string;
+}
+
+export interface ProjectReviewSource {
+  projectId: string;
+  revisions: ProjectRevisionContext[];
+  runs: ProjectRunContext[];
+  facts: ProjectFactContext[];
+}

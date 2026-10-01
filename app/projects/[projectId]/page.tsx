@@ -1,17 +1,26 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CreateDocumentForm } from "@/components/forms/create-document-form";
+import { FindingReviewList } from "@/components/forms/finding-review-list";
 import { Button } from "@/components/ui/button";
 import { DomainError } from "@/lib/domain/errors";
 import { getProject } from "@/lib/projects/service";
+import { toFindingDto } from "@/lib/review/dto";
+import { getProjectReview } from "@/lib/review/service";
 import { currentOrganizationId } from "@/lib/tenancy";
 
 export const dynamic = "force-dynamic";
+const dateTime = (value: Date) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC" }).format(value);
 
 export default async function ProjectPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
+  const organizationId = currentOrganizationId();
   let project;
-  try { project = await getProject(currentOrganizationId(), projectId); }
+  let review;
+  try {
+    project = await getProject(organizationId, projectId);
+    review = await getProjectReview(organizationId, projectId);
+  }
   catch (error) { if (error instanceof DomainError && error.code === "NOT_FOUND") notFound(); throw error; }
   return (
     <main className="page">
@@ -27,6 +36,26 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
           <div className="row-side"><span>{document.revisionCount} {document.revisionCount === 1 ? "revision" : "revisions"}</span><span aria-hidden>→</span></div>
         </Link>
       ))}</div> : <div className="empty">No documents yet. Add a logical document before uploading revisions.</div>}
+      <section className="review-block">
+        <div className="section-heading"><h2>Effective project state</h2><span className="count">{review.state.facts.length} accepted</span></div>
+        <p className="field-help">Accepted findings are projected here. Source revisions and extraction runs stay unchanged.</p>
+        {review.state.facts.length ? <div className="list">{review.state.facts.map((fact) => (
+          <div className="list-row" key={fact.proposedFactId}>
+            <div>
+              <p className="row-title">{fact.summary}</p>
+              <p className="row-meta">{fact.documentTitle} · {fact.revisionLabel} · accepted by {fact.reviewerId} on {dateTime(fact.acceptedAt)}</p>
+              {fact.supersedesProposedFactId && <p className="row-meta">Supersedes {review.state.retirements.find((retirement) => retirement.proposedFactId === fact.supersedesProposedFactId)?.summary ?? "an earlier accepted fact"}</p>}
+            </div>
+          </div>
+        ))}</div> : <div className="empty">No accepted facts yet.</div>}
+        {review.state.retirements.length > 0 && <div className="retired">{review.state.retirements.map((retirement) => (
+          <p key={`${retirement.proposedFactId}-${retirement.decisionId}`}>{retirement.supersededByProposedFactId ? `“${retirement.summary}” was superseded. Recorded by ${retirement.reviewerId}.` : `“${retirement.summary}” was removed from the current projection by ${retirement.reviewerId}.`}</p>
+        ))}</div>}
+      </section>
+      <section className="review-block">
+        <div className="section-heading"><h2>Findings</h2><span className="count">{review.findings.length} total</span></div>
+        <FindingReviewList projectId={project.id} findings={review.findings.map(toFindingDto)} />
+      </section>
     </main>
   );
 }
