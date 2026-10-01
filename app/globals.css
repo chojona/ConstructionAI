@@ -319,7 +319,21 @@ button.queue-heading:hover { color: #f3f5f8; }
   .app-shell.is-collapsed .sidebar-footer { display: none; }
   .app-shell.is-collapsed .search-trigger { width: 36px; justify-content: center; margin: 12px 0 8px; padding: 7px; }
   .app-shell.is-collapsed .nav-row { justify-content: center; width: 36px; padding: 8px 0; }
-  .app-shell.is-collapsed .sidebar-collapse { margin: 0; }
+  .app-shell.is-collapsed .sidebar-collapse {
+    position: relative;
+    z-index: 1;
+    box-sizing: border-box;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 6px;
+    background: #1b1e25;
+    color: var(--color-ink);
+  }
 }
 @media (max-width: 1200px) {
   .page { padding: 22px; }

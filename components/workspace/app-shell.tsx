@@ -5,11 +5,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowRight, FolderKanban, HardHat, Layers3, PanelLeftClose, PanelLeftOpen, Search, X } from "lucide-react";
 import { projectNumberLabel } from "@/lib/projects/card";
-
-const sidebarStorageKey = "construction-ai.sidebar-collapsed";
+import { readSidebarCollapsed, writeSidebarCollapsed } from "@/lib/workspace/sidebarState";
 
 function readCollapsed() {
-  try { return window.localStorage.getItem(sidebarStorageKey) === "1"; } catch { return false; }
+  return readSidebarCollapsed(window.localStorage);
 }
 
 function subscribeCollapsed(onChange: () => void) {
@@ -47,7 +46,7 @@ export function AppShell({ projects, children }: { projects: Project[]; children
   }
 
   function toggleSidebar() {
-    try { window.localStorage.setItem(sidebarStorageKey, collapsed ? "0" : "1"); } catch { /* Sidebar stays usable when storage is blocked. */ }
+    try { writeSidebarCollapsed(window.localStorage, !collapsed); } catch { /* Sidebar stays usable when storage is blocked. */ }
     window.dispatchEvent(new Event("construction-ai:sidebar"));
   }
 
