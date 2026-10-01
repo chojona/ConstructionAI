@@ -8,7 +8,7 @@
     "materialPrecision": "Material predictions that match a labeled material change, divided by all material predictions.",
     "materialRecall": "Labeled material changes that were predicted, divided by all labeled material changes.",
     "wordingSuppression": "Share of wording-only and normalization-equivalent cases that produced no material change.",
-    "falseHighRate": "Share of high-severity predictions that are not a labeled material removal or modification. Added changes are medium. There is no critical severity.",
+    "falseHighRate": "Share of high or critical predictions that do not match a labeled change scored high or critical by the same deterministic rules. Wording-only changes score low. Revision text alone never scores critical.",
     "evidenceCorrectness": "Share of matched changes whose old and new evidence excerpts are the labeled excerpts."
   },
   "targets": {
@@ -75,7 +75,9 @@
   "normalizationCases": 6,
   "normalizationLeaks": 0,
   "falseHighFindings": 0,
-  "highFindings": 10,
+  "falseCriticalFindings": 0,
+  "highFindings": 7,
+  "criticalFindings": 0,
   "evidenceCorrectness": 1,
   "evidenceCompared": 62,
   "byPhenomenon": {

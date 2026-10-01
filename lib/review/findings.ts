@@ -3,6 +3,7 @@ import type { ProcessingRun } from "@/lib/observability/pipelineTiming";
 import { CONSTRUCTION_FACTS_EXTRACTOR } from "@/lib/extractions/constructionFacts";
 import { compareFacts, toComparableFact, type ComparisonBasis, type RevisionFactChange } from "@/lib/revisions/compareFacts";
 import { describeFact } from "./describe";
+import { scoreRevisionChange, type SeverityAssessment } from "./severity";
 import { proposedFactSubjectKey, removalSubjectKey } from "./subjects";
 
 export interface FindingSubjectProposedFact {
@@ -46,6 +47,7 @@ export interface ProjectFinding {
   evidence: FindingEvidence[];
   material: boolean | null;
   basis: ComparisonBasis | null;
+  assessment: SeverityAssessment | null;
   before: FindingValue | null;
   after: FindingValue | null;
   sources: FindingSource[];
@@ -128,6 +130,7 @@ function changeFinding(
     evidence: (after ?? before)?.evidence ?? [],
     material: change.material,
     basis: change.basis,
+    assessment: scoreRevisionChange(change),
     before,
     after,
     sources: [
@@ -156,6 +159,7 @@ function factFinding(
     evidence: after.evidence,
     material: null,
     basis: null,
+    assessment: null,
     before: null,
     after,
     sources: [{ revisionId: revision.id, revisionLabel: revision.revisionLabel, role: "extracted" }],

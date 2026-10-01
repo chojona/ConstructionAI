@@ -1,24 +1,19 @@
 import { type ProcessingRun, withProcessingRunSync } from "@/lib/observability/pipelineTiming";
 import type { ProjectFinding } from "./findings";
+import type { SeverityDisposition, SeverityLevel } from "./severity";
 
-export type AttentionSeverity = "high" | "medium";
+export type AttentionSeverity = SeverityLevel;
+export type AttentionDisposition = SeverityDisposition | "reviewer_flag" | "unreviewed_extraction";
 
 export interface AttentionItem {
   finding: ProjectFinding;
   severity: AttentionSeverity;
+  disposition: AttentionDisposition;
+  rule: string;
   reason: string;
 }
 
-const severityRank: Record<AttentionSeverity, number> = { high: 0, medium: 1 };
-
-const basisReason: Record<NonNullable<ProjectFinding["basis"]>, string> = {
-  identity: "The requirement no longer matches the earlier revision.",
-  numeric: "The amount changed.",
-  unit: "The unit changed.",
-  date: "The date changed.",
-  modality: "The certainty of the statement changed.",
-  wording: "Only the wording changed.",
-};
+const severityRank: Record<AttentionSeverity, number> = { critical: 0, high: 1, medium: 2, low: 3 };
 
 export function listAttention(findings: readonly ProjectFinding[], timings?: ProcessingRun): AttentionItem[] {
   return withProcessingRunSync(timings, "review_attention", (run) => run.measure(
@@ -53,28 +48,27 @@ function toAttention(finding: ProjectFinding): AttentionItem | null {
     return {
       finding,
       severity: "high",
+      disposition: "reviewer_flag",
+      rule: "reviewer.flag",
       reason: finding.currentDecision?.reason?.trim() || "Flagged for follow-up.",
     };
   }
-  if (finding.subject.type === "revision_change" && finding.material === false) return null;
   if (finding.subject.type === "revision_change") {
+    const assessment = finding.assessment;
+    if (!assessment || assessment.disposition === "change_detected" || assessment.severity === "low") return null;
     return {
       finding,
-      severity: finding.subject.changeType === "ADDED" ? "medium" : "high",
-      reason: changeReason(finding),
+      severity: assessment.severity,
+      disposition: assessment.disposition,
+      rule: assessment.rule,
+      reason: assessment.reason,
     };
   }
   return {
     finding,
     severity: "medium",
+    disposition: "unreviewed_extraction",
+    rule: "extraction.unreviewed",
     reason: "Extracted from the source revision and not yet reviewed.",
   };
-}
-
-function changeReason(finding: ProjectFinding) {
-  const changeType = finding.subject.type === "revision_change" ? finding.subject.changeType : "MODIFIED";
-  const because = finding.basis ? basisReason[finding.basis] : "The later revision differs.";
-  if (changeType === "REMOVED") return `Removed in the later revision. ${because}`;
-  if (changeType === "ADDED") return `Added in the later revision. ${because}`;
-  return `Material change between revisions. ${because}`;
 }

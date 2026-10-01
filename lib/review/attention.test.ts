@@ -3,6 +3,7 @@ import { CONSTRUCTION_FACTS_EXTRACTOR } from "@/lib/extractions/constructionFact
 import { MemoryRepository } from "@/tests/support/memoryRepository";
 import { compareFacts, type RevisionFactChange } from "@/lib/revisions/compareFacts";
 import { listAttention, listSettled, type AttentionItem } from "./attention";
+import { scoreRevisionChange } from "./severity";
 import type { ProjectFinding } from "./findings";
 import { getProjectReview, recordReviewDecision } from "./service";
 
@@ -81,7 +82,7 @@ describe("listAttention", () => {
     const attention = listAttention(review.findings);
     expect(attention.map((item) => [item.severity, item.finding.label, item.reason])).toEqual([
       ["high", "tower crane: A tower crane shall be used.", "Confirm the crane is still on the job."],
-      ["high", "notice to proceed: mid November", "Material change between revisions. The date changed."],
+      ["high", "notice to proceed: mid November", "Schedule date for notice to proceed changed from mid October to mid November. The dates are not both calendar dates, so the size of the shift is not measured."],
     ]);
     const dateChange = attention[1]!.finding;
     expect(dateChange.before).toMatchObject({
@@ -140,10 +141,11 @@ describe("listAttention", () => {
 
     const attention: AttentionItem[] = listAttention(changes.map(findingForChange));
     expect(changes.filter((change) => change.material).map((change) => change.changeType).sort()).toEqual(["ADDED", "REMOVED"]);
-    expect(attention.map((item) => [item.severity, item.finding.subject.type === "revision_change" ? item.finding.subject.changeType : ""])).toEqual([
-      ["high", "REMOVED"],
-      ["medium", "ADDED"],
+    expect(attention.map((item) => [item.severity, item.rule, item.finding.subject.type === "revision_change" ? item.finding.subject.changeType : ""])).toEqual([
+      ["high", "equipment.removed", "REMOVED"],
+      ["medium", "equipment.added", "ADDED"],
     ]);
+    expect(attention.every((item) => item.reason.trim().length > 0 && item.disposition === "material_change")).toBe(true);
   });
 });
 
@@ -158,6 +160,7 @@ function findingForChange(change: RevisionFactChange, index: number): ProjectFin
     evidence: focus?.evidence.map((item) => ({ pageNumber: item.pageNumber, excerpt: item.excerpt })) ?? [],
     material: change.material,
     basis: change.basis,
+    assessment: scoreRevisionChange(change),
     before: null,
     after: null,
     sources: [],

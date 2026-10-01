@@ -29,7 +29,9 @@ describe("revision change accuracy", () => {
     expect(report.wordingSuppression).toBe(1);
     expect(report.normalizationLeaks).toBe(0);
     expect(report.highFindings).toBeGreaterThan(0);
+    expect(report.criticalFindings).toBe(0);
     expect(report.falseHighFindings).toBe(0);
+    expect(report.falseCriticalFindings).toBe(0);
     expect(report.targets.falseHighRate.actual).toBeLessThan(0.01);
     expect(report.evidenceCompared).toBeGreaterThan(0);
     expect(report.evidenceCorrectness).toBe(1);
