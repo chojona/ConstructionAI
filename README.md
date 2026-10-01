@@ -28,14 +28,14 @@ Vercel detects the Next.js app automatically; `vercel.json` pins the framework p
 - `APP_ORGANIZATION_ID`: organization id used by the UI, such as `org_demo` after seeding.
 - `DOCUMENT_STORAGE_DIR`: optional for local development only.
 
-For a new Neon database, apply the checked-in migrations with `DIRECT_DATABASE_URL` set:
+For a database that is not built on Vercel, apply the checked-in migrations with `DIRECT_DATABASE_URL` set:
 
 ```bash
 npx prisma migrate deploy
 npm run db:seed
 ```
 
-The deployment build runs `prisma generate` during dependency installation. Database migrations remain an explicit release step so each environment can be migrated against its own Neon database.
+The Vercel build runs `prisma migrate deploy` before `next build`, using `DIRECT_DATABASE_URL` when it is set and `DATABASE_URL` otherwise. `prisma generate` still runs during dependency installation. Seed the organization yourself when `APP_ORGANIZATION_ID` should match a known organization such as `org_demo`.
 
 Document files currently use local filesystem storage. Vercel function filesystems are temporary, so uploaded documents will not persist reliably across requests or deployments on Vercel. Use a persistent object-storage backend before relying on document uploads in a hosted environment.
 
