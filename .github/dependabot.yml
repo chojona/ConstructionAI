@@ -9,6 +9,11 @@ updates:
     commit-message:
       prefix: chore
       include: scope
+    ignore:
+      # ESLint 10 crashes eslint-config-next: eslint-plugin-react, import, and jsx-a11y still peer ESLint 9.
+      - dependency-name: eslint
+        update-types:
+          - version-update:semver-major
     groups:
       prisma:
         patterns:
