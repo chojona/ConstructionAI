@@ -19,6 +19,26 @@ Open [http://localhost:3000/projects](http://localhost:3000/projects).
 
 Files are stored under `DOCUMENT_STORAGE_DIR` using generated keys. The original filename is retained only as display metadata. The seeded organization id is `org_demo`; `APP_ORGANIZATION_ID` selects the organization used by the Phase 1 UI. API callers may provide `x-organization-id` as the already-authenticated tenancy context until authentication is introduced.
 
+## Deploy to Vercel with Neon
+
+Vercel detects the Next.js app automatically; `vercel.json` pins the framework preset. Import the repository into Vercel, then create a Neon PostgreSQL database and add these environment variables to the Vercel project:
+
+- `DATABASE_URL`: Neon pooled connection string for application traffic.
+- `DIRECT_DATABASE_URL`: Neon direct (non-pooled) connection string for Prisma schema changes.
+- `APP_ORGANIZATION_ID`: organization id used by the UI, such as `org_demo` after seeding.
+- `DOCUMENT_STORAGE_DIR`: optional for local development only.
+
+For a new Neon database, apply the checked-in migrations with `DIRECT_DATABASE_URL` set:
+
+```bash
+npx prisma migrate deploy
+npm run db:seed
+```
+
+The deployment build runs `prisma generate` during dependency installation. Database migrations remain an explicit release step so each environment can be migrated against its own Neon database.
+
+Document files currently use local filesystem storage. Vercel function filesystems are temporary, so uploaded documents will not persist reliably across requests or deployments on Vercel. Use a persistent object-storage backend before relying on document uploads in a hosted environment.
+
 ## Checks
 
 ```bash
