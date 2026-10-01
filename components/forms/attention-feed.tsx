@@ -1,267 +1,185 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ArrowRight, Check, CheckCheck, Flag, FileText, X } from "lucide-react";
 import { EvidenceQuotes } from "@/components/review/evidence-quotes";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { AttentionItemDto, FindingDto } from "@/lib/review/dto";
 import { decisionReturnPath, findingDomId } from "@/lib/review/evidenceLocation";
+
 import { nextQueueIndex, reviewShortcut, type ArmedDecision } from "@/lib/review/reviewShortcuts";
 
-type Decision = "ACCEPTED" | "DISMISSED" | "FLAGGED";
 const reviewerStorageKey = "construction-ai.reviewer-name";
-
-function subscribeToReviewer() {
-  return () => {};
-}
-
 function readStoredReviewer() {
-  return window.localStorage.getItem(reviewerStorageKey) ?? "";
+  try { return window.localStorage.getItem(reviewerStorageKey) ?? ""; } catch { return ""; }
+}
+function subscribeToReviewer(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
 }
 
-export function AttentionFeed({ projectId, items }: { projectId: string; items: AttentionItemDto[] }) {
+const decisions = ["ACCEPTED", "DISMISSED", "FLAGGED"] as const;
+
+export function AttentionFeed({ projectId, items, settled = [] }: { projectId: string; items: AttentionItemDto[]; settled?: FindingDto[] }) {
   const router = useRouter();
-  const [queue, setQueue] = useState(items);
-  const [index, setIndex] = useState(0);
+  const [selectedKey, setSelectedKey] = useState("");
   const storedReviewer = useSyncExternalStore(subscribeToReviewer, readStoredReviewer, () => "");
   const [reviewerDraft, setReviewerDraft] = useState<string | null>(null);
   const reviewerId = reviewerDraft ?? storedReviewer;
-  const [reason, setReason] = useState("");
   const [armed, setArmed] = useState<ArmedDecision | null>(null);
-  const [error, setError] = useState("");
   const [status, setStatus] = useState("");
-  const [pendingKey, setPendingKey] = useState("");
-  const decided = useRef(new Set<string>());
-  const moveFocus = useRef(false);
-  const reviewerRef = useRef<HTMLInputElement>(null);
-  const reasonRef = useRef<HTMLInputElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const deskRef = useRef<HTMLDivElement>(null);
-  const hashApplied = useRef(false);
+  const moveFocus = useRef(false);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+  const [pendingKey, setPendingKey] = useState("");
+  const [refreshing, startTransition] = useTransition();
+  const busy = !!pendingKey || refreshing;
+  const submitting = useRef(false);
+  const nextSelection = useRef<{ reviewedKey: string; nextKey: string } | null>(null);
+  const reviewerRef = useRef<HTMLInputElement>(null);
+  const reasonRef = useRef<HTMLInputElement>(null);
+  const activeItem = items.find((item) => item.finding.subjectKey === selectedKey) ?? (settled.some((finding) => finding.subjectKey === selectedKey) ? undefined : items[0]);
+  const finding = activeItem?.finding ?? settled.find((finding) => finding.subjectKey === selectedKey) ?? settled[0];
 
   useEffect(() => {
-    for (const key of decided.current) {
-      if (!items.some((item) => item.finding.subjectKey === key)) decided.current.delete(key);
+    const next = nextSelection.current;
+    if (next && settled.some((item) => item.subjectKey === next.reviewedKey)) {
+      nextSelection.current = null;
+      window.history.replaceState(null, "", `#${findingDomId(next.nextKey)}`);
     }
-    const open = items.filter((item) => !decided.current.has(item.finding.subjectKey));
-    setQueue(open);
-    setIndex((current) => {
-      if (!hashApplied.current) {
-        hashApplied.current = true;
-        const hashed = open.findIndex((item) => findingDomId(item.finding.subjectKey) === window.location.hash.slice(1));
-        if (hashed >= 0) return hashed;
+    function selectHash() {
+      const match = [...items.map((item) => item.finding), ...settled].find((item) => `#${findingDomId(item.subjectKey)}` === window.location.hash);
+      if (match) setSelectedKey(match.subjectKey);
+    }
+    selectHash();
+    window.addEventListener("hashchange", selectHash);
+    return () => window.removeEventListener("hashchange", selectHash);
+  }, [items, settled]);
+
+  function select(finding: FindingDto) {
+    if (submitting.current || refreshing) return;
+    moveFocus.current = true;
+    setSelectedKey(finding.subjectKey);
+    setArmed(null);
+    setReason("");
+    setError("");
+    window.history.replaceState(null, "", `#${findingDomId(finding.subjectKey)}`);
+  }
+
+  async function review(finding: FindingDto, decision: (typeof decisions)[number]) {
+    if (submitting.current || refreshing) return;
+    setError("");
+    if (!reviewerId.trim()) { setError("Enter a reviewer id before recording a decision."); reviewerRef.current?.focus(); return; }
+    if (decision !== "ACCEPTED" && !reason.trim()) { setArmed(decision); setError("Dismissing or flagging a finding requires a reason."); reasonRef.current?.focus(); return; }
+    submitting.current = true;
+    setPendingKey(finding.subjectKey);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/reviews`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-reviewer-id": reviewerId.trim() },
+        body: JSON.stringify({ decision, reason: reason.trim() || undefined, subject: finding.subject }),
+      });
+      const result = await response.json();
+      if (!response.ok) { setError(result.error?.message ?? "Could not record the review."); return; }
+      setReason("");
+      setArmed(null);
+      setStatus(`${decision.toLowerCase()} “${finding.label}”.`);
+      if (decision !== "FLAGGED") {
+        const index = items.findIndex((item) => item.finding.subjectKey === finding.subjectKey);
+        const next = items[index + 1] ?? items.find((item) => item.finding.subjectKey !== finding.subjectKey);
+        const nextKey = next?.finding.subjectKey ?? finding.subjectKey;
+        moveFocus.current = true;
+        setSelectedKey(nextKey);
+        nextSelection.current = { reviewedKey: finding.subjectKey, nextKey };
       }
-      return Math.min(current, Math.max(open.length - 1, 0));
-    });
-  }, [items]);
+      startTransition(() => router.refresh());
+    } catch { setError("Could not record the review. Check your connection and try again."); }
+    finally { submitting.current = false; setPendingKey(""); }
+  }
 
   useEffect(() => {
     if (!moveFocus.current) return;
     moveFocus.current = false;
     headingRef.current?.focus();
-  }, [index, queue]);
+  }, [selectedKey]);
 
-  const current = queue[index] ?? null;
-
-  const move = useCallback((direction: -1 | 1) => {
-    if (queue.length < 2) return;
-    moveFocus.current = true;
-    setArmed(null);
-    setError("");
-    setIndex(nextQueueIndex(index, queue.length, direction));
-  }, [index, queue.length]);
-
-  function selectIndex(next: number) {
-    moveFocus.current = true;
-    setArmed(null);
-    setError("");
-    setIndex(next);
+  function move(direction: -1 | 1) {
+    if (busy || items.length < 2) return;
+    const index = items.findIndex((item) => item.finding.subjectKey === finding?.subjectKey);
+    select(items[nextQueueIndex(Math.max(index, 0), items.length, direction)]!.finding);
   }
 
-  const arm = useCallback((decision: ArmedDecision) => {
-    setError("");
-    setArmed(decision);
-    requestAnimationFrame(() => reasonRef.current?.focus());
+  const handleShortcut = useEffectEvent((event: KeyboardEvent) => {
+    if (event.metaKey || event.ctrlKey || event.altKey || busy || !activeItem) return;
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest("dialog")) return;
+    const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable);
+    const insideDesk = target instanceof Node && Boolean(deskRef.current?.contains(target));
+    if (target instanceof HTMLElement && !insideDesk && target.closest("input, textarea, button, a, select, summary")) return;
+    const action = reviewShortcut(event.key, { typing, armed, reasonReady: reason.trim().length > 0 });
+    if (!action) return;
+    event.preventDefault();
+    if (action.type === "accept") void review(activeItem.finding, "ACCEPTED");
+    if (action.type === "arm") { setArmed(action.decision); setError(""); reasonRef.current?.focus(); }
+    if (action.type === "confirm" && armed) void review(activeItem.finding, armed);
+    if (action.type === "cancel") { setArmed(null); setError(""); headingRef.current?.focus(); }
+    if (action.type === "move") move(action.direction);
+  });
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => handleShortcut(event);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const review = useCallback(async (finding: FindingDto | undefined, decision: Decision) => {
-    if (!finding || pendingKey) return;
-    setError("");
-    if (!reviewerId.trim()) {
-      setError("Enter your name before recording a decision.");
-      reviewerRef.current?.focus();
-      return;
-    }
-    if (decision !== "ACCEPTED" && !reason.trim()) {
-      arm(decision);
-      setError(decision === "DISMISSED" ? "Add a reason to dismiss this item." : "Add a reason to flag this item.");
-      return;
-    }
-    const key = finding.subjectKey;
-    const previousQueue = queue;
-    const previousIndex = index;
-    setPendingKey(key);
-    const response = await fetch(`/api/projects/${projectId}/reviews`, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-reviewer-id": reviewerId.trim() },
-      body: JSON.stringify({
-        decision,
-        reason: reason.trim() || undefined,
-        subject: finding.subject,
-      }),
-    });
-    const result = await response.json().catch(() => null);
-    if (!response.ok) {
-      setPendingKey("");
-      setError(result?.error?.message ?? "Could not record the decision.");
-      return;
-    }
-    decided.current.add(key);
-    const remaining = previousQueue.filter((item) => item.finding.subjectKey !== key);
-    setQueue(remaining);
-    setIndex(Math.min(previousIndex, Math.max(remaining.length - 1, 0)));
-    setReason("");
-    setArmed(null);
-    setPendingKey("");
-    moveFocus.current = remaining.length > 0;
-    setStatus(`${decisionLabel(decision)} “${finding.label}”. ${remaining.length === 0 ? "Nothing else needs a decision." : `${remaining.length} still open.`}`);
-    router.refresh();
-  }, [arm, index, pendingKey, projectId, queue, reason, reviewerId, router]);
+  if (!finding) return <div className="empty"><CheckCheck size={24} aria-hidden /><strong>No open exceptions</strong><span>Material changes and unreviewed facts will appear here.</span></div>;
 
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
-      const target = event.target;
-      const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable);
-      const insideDesk = target instanceof Node && Boolean(deskRef.current?.contains(target));
-      const outsideControl = target instanceof HTMLElement && !insideDesk && Boolean(target.closest("input, textarea, button, a, select, summary"));
-      if (outsideControl) return;
-      const action = reviewShortcut(event.key, { typing, armed, reasonReady: reason.trim().length > 0 });
-      if (!action) return;
-      event.preventDefault();
-      if (action.type === "accept") void review(queue[index]?.finding, "ACCEPTED");
-      if (action.type === "arm") arm(action.decision);
-      if (action.type === "confirm" && armed) void review(queue[index]?.finding, armed);
-      if (action.type === "cancel") {
-        setArmed(null);
-        setError("");
-        headingRef.current?.focus();
-      }
-      if (action.type === "move") move(action.direction);
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [arm, armed, index, move, queue, reason, review]);
-
-  return (
-    <div className="review-desk-wrap" ref={deskRef}>
-      <div className="review-toolbar">
-        <label className="reviewer-field">
-          <span>Your name</span>
-          <Input
-            ref={reviewerRef}
-            value={reviewerId}
-            onChange={(event) => {
-              const value = event.target.value;
-              setReviewerDraft(value);
-              window.localStorage.setItem(reviewerStorageKey, value);
-            }}
-            maxLength={120}
-            placeholder="Alex Chen"
-            autoComplete="name"
-          />
-        </label>
-        <p className="review-keys">A accept, D dismiss, F flag. Arrow keys move between open items.</p>
-      </div>
-      {error && <p className="form-error" role="alert">{error}</p>}
-      <p className="review-status" role="status">{status}</p>
-      {!current ? (
-        <div className="empty">Nothing needs a decision. Wording-only edits stay out of this queue.</div>
-      ) : (
-        <div className="review-desk">
-          <article
-            className={`review-card severity-rule-${current.severity}`}
-            id={findingDomId(current.finding.subjectKey)}
-            aria-labelledby="review-subject"
-          >
-            <div className="review-card-kicker">
-              <Badge className={severityClass(current.severity)}>{severityLabel(current.severity)}</Badge>
-              <span>{kindLabel(current)}</span>
-              <span className="review-position">{index + 1} of {queue.length}</span>
-            </div>
-            <h2 id="review-subject" ref={headingRef} tabIndex={-1}>{current.finding.label}</h2>
-            <p className="row-meta">{current.finding.documentTitle}</p>
-            <p className="review-why">{current.reason}</p>
-            <p className="source-line">{sourceLine(current.finding)}</p>
-            <Comparison finding={current.finding} projectId={projectId} />
-            <div className="finding-actions">
-              <Button type="button" disabled={pendingKey === current.finding.subjectKey} aria-keyshortcuts="A" onClick={() => void review(current.finding, "ACCEPTED")}>
-                Accept <kbd>A</kbd>
-              </Button>
-              <Button type="button" variant={armed === "DISMISSED" ? "default" : "outline"} disabled={pendingKey === current.finding.subjectKey} aria-keyshortcuts="D" onClick={() => void review(current.finding, "DISMISSED")}>
-                Dismiss <kbd>D</kbd>
-              </Button>
-              <Button type="button" variant={armed === "FLAGGED" ? "default" : "ghost"} disabled={pendingKey === current.finding.subjectKey} aria-keyshortcuts="F" onClick={() => void review(current.finding, "FLAGGED")}>
-                Flag <kbd>F</kbd>
-              </Button>
-              <span className="review-move">
-                <Button type="button" variant="ghost" size="sm" disabled={queue.length < 2} aria-keyshortcuts="ArrowUp" onClick={() => move(-1)}>Previous</Button>
-                <Button type="button" variant="ghost" size="sm" disabled={queue.length < 2} aria-keyshortcuts="ArrowDown" onClick={() => move(1)}>Next</Button>
-              </span>
-            </div>
-            {armed && (
-              <label className="review-reason">
-                <span>{armed === "DISMISSED" ? "Why are you dismissing this?" : "Why are you flagging this?"}</span>
-                <Input
-                  ref={reasonRef}
-                  value={reason}
-                  onChange={(event) => setReason(event.target.value)}
-                  maxLength={500}
-                  placeholder="Required"
-                  aria-invalid={Boolean(error)}
-                />
-              </label>
-            )}
-          </article>
-          <ol className="review-queue">
-            {queue.map((item, itemIndex) => (
-              <li key={item.finding.subjectKey}>
-                <button
-                  type="button"
-                  className="review-queue-item"
-                  aria-current={itemIndex === index ? "true" : undefined}
-                  onClick={() => selectIndex(itemIndex)}
-                >
-                  <Badge className={severityClass(item.severity)}>{severityLabel(item.severity)}</Badge>
-                  <span>{item.finding.label}</span>
-                </button>
-              </li>
-            ))}
-          </ol>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Comparison({ finding, projectId }: { finding: FindingDto; projectId: string }) {
   const sides = [
     finding.before ? { title: sideTitle(finding, "before"), value: finding.before } : null,
     finding.after ? { title: sideTitle(finding, "after"), value: finding.after } : null,
   ].filter((side) => side !== null);
-  if (!sides.length) return null;
+
   return (
-    <div className={sides.length > 1 ? "compare" : "compare compare-single"}>
-      {sides.map((side) => (
-        <div key={side.title}>
-          <h3>{side.title}</h3>
-          <p className="compare-value">{side.value.summary}</p>
-          <EvidenceQuotes items={side.value.evidence} returnTo={decisionReturnPath(projectId, finding.subjectKey)} />
+    <div ref={deskRef} className="review-workspace" aria-label="Change review">
+      <nav className="change-queue" aria-label="Findings">
+        <div className="queue-heading">Open <span>{items.length}</span></div>
+        {!items.length && <p className="queue-empty">All decisions recorded.</p>}
+        {items.map((item) => <button key={item.finding.subjectKey} className={`change-row ${finding.subjectKey === item.finding.subjectKey ? "is-selected" : ""}`} aria-current={finding.subjectKey === item.finding.subjectKey ? "true" : undefined} disabled={busy} onClick={() => select(item.finding)}><span className={`severity-dot severity-dot-${item.severity}`} /><span><strong>{reviewTitle(item.finding)}</strong><small>{comparisonLabel(item.finding)}</small><small>{item.finding.documentTitle}</small></span>{item.disposition === "reviewer_flag" && <Flag size={13} aria-label="Flagged" />}</button>)}
+        {settled.length > 0 && <><div className="queue-heading settled-heading">Settled <span>{settled.length}</span></div>{settled.map((item) => <button key={item.subjectKey} className={`change-row settled-row ${finding.subjectKey === item.subjectKey ? "is-selected" : ""}`} aria-current={finding.subjectKey === item.subjectKey ? "true" : undefined} disabled={busy} onClick={() => select(item)}><Check size={14} aria-hidden /><span><strong>{reviewTitle(item)}</strong><small>{item.currentDecision?.decision.toLowerCase() ?? "No decision required"}</small></span></button>)}</>}
+      </nav>
+      <article className="change-detail" id={findingDomId(finding.subjectKey)} aria-labelledby="finding-title" aria-busy={busy}>
+        <div className="attention-kicker">{activeItem ? <Badge className={`severity-${activeItem.severity}`}>{activeItem.severity}</Badge> : <Badge className={finding.currentDecision?.decision === "ACCEPTED" ? "status-processed" : "status-pending"}>{finding.currentDecision?.decision ?? "Recorded"}</Badge>}<span>{activeItem ? kindLabel(activeItem) : "Settled finding"}</span></div>
+        <p className="row-meta">{finding.documentTitle} · {finding.revisionLabel}</p>
+        <h3 ref={headingRef} tabIndex={-1} id="finding-title">{reviewTitle(finding)}</h3>
+        <p className="finding-summary">{finding.label}</p>
+        <div className={sides.length > 1 ? "compare" : "compare compare-single"}>
+          {sides.map((side, index) => <div className={`comparison-side ${index === 0 && sides.length > 1 ? "comparison-before" : "comparison-after"}`} key={side.title}><h4>{side.title}</h4><p className="compare-value">{side.value.displayValue ?? side.value.summary}</p></div>)}
+          {sides.length > 1 && <ArrowRight className="comparison-arrow" size={18} aria-hidden />}
         </div>
-      ))}
+        <div className="change-explanation"><h4>Why this matters</h4><p>{activeItem?.reason ?? finding.assessment?.reason ?? "This finding has been recorded in the project review."}</p></div>
+        {finding.currentDecision && <p className="decision-record">{finding.currentDecision.decision.toLowerCase()} by <strong>{finding.currentDecision.reviewerId}</strong>{finding.currentDecision.reason && ` · ${finding.currentDecision.reason}`}</p>}
+        {activeItem && <form className="decision-form" onSubmit={(event) => { event.preventDefault(); void review(finding, armed ?? "ACCEPTED"); }}>
+          <span className="sr-only" role="status">{status}</span>
+          <div className="decision-heading"><h4>Record a decision</h4><span>Saved to project history</span></div>
+          <div className="form-stack review-fields"><label><span>Reviewer</span><Input ref={reviewerRef} value={reviewerId} onChange={(event) => {
+            const value = event.target.value;
+            setReviewerDraft(value);
+            try { window.localStorage.setItem(reviewerStorageKey, value); } catch { /* Review remains usable when browser storage is unavailable. */ }
+          }} autoComplete="name" maxLength={120} placeholder="Alex Chen" disabled={busy} /></label><label><span>Reason <small>{armed === "DISMISSED" ? "Confirm dismissal with Enter" : armed === "FLAGGED" ? "Confirm flag with Enter" : "Required to dismiss or flag"}</small></span><Input ref={reasonRef} value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} placeholder="Add your review context…" disabled={busy} /></label></div>
+          {error && <p className="form-error" role="alert">{error}</p>}
+          <div className="finding-actions">{decisions.map((decision) => <Button key={decision} aria-keyshortcuts={decision === "ACCEPTED" ? "A" : decision === "DISMISSED" ? "D" : "F"} type="button" size="sm" variant={decision === "ACCEPTED" ? "default" : "outline"} className={decision === "ACCEPTED" ? "accept-button" : decision === "FLAGGED" ? "flag-button" : ""} disabled={busy} onClick={() => void review(finding, decision)}>{decision === "ACCEPTED" ? <Check size={14} aria-hidden /> : decision === "DISMISSED" ? <X size={14} aria-hidden /> : <Flag size={14} aria-hidden />}{decision === "ACCEPTED" ? "Accept" : decision === "DISMISSED" ? "Dismiss" : "Flag"}</Button>)}{busy && <span role="status" className="row-meta">Saving decision…</span>}</div>
+          <div className="review-navigation"><span>A accept · D dismiss · F flag</span><div><Button type="button" variant="ghost" size="sm" disabled={busy || items.length < 2} aria-keyshortcuts="ArrowUp" onClick={() => move(-1)}>Previous</Button><Button type="button" variant="ghost" size="sm" disabled={busy || items.length < 2} aria-keyshortcuts="ArrowDown" onClick={() => move(1)}>Next</Button></div></div>
+        </form>}
+      </article>
+      <aside className="evidence-panel" aria-label="Source evidence"><div className="context-heading"><FileText size={15} aria-hidden /><h4>Source evidence</h4></div><p className="context-help">Exact excerpts from the uploaded revisions. Open a quote to verify its location.</p>
+        {sides.map((side) => <section className="evidence-section" key={side.title}><h5>{side.title}</h5>{side.value.evidence.length ? <EvidenceQuotes items={side.value.evidence} returnTo={decisionReturnPath(projectId, finding.subjectKey)} /> : <p className="row-meta">No linked excerpt available.</p>}</section>)}
+        <div className="source-links">{finding.sources.map((source) => <Link key={source.revisionId} href={`/revisions/${source.revisionId}`}><FileText size={14} aria-hidden />{source.revisionLabel}<ArrowRight size={14} aria-hidden /></Link>)}</div>
+      </aside>
     </div>
   );
 }
@@ -270,41 +188,26 @@ function sideTitle(finding: FindingDto, side: "before" | "after") {
   if (finding.before && finding.after) return side === "before" ? "Previous" : "Current";
   if (finding.subject.type === "revision_change" && finding.subject.changeType === "REMOVED") return "Removed";
   if (finding.subject.type === "revision_change" && finding.subject.changeType === "ADDED") return "Added";
-  return "From the document";
-}
-
-function sourceLine(finding: FindingDto) {
-  return finding.sources.map((source, sourceIndex) => (
-    <span key={source.revisionId}>
-      {sourceIndex > 0 && <span className="source-joiner"> to </span>}
-      <Link href={`/revisions/${source.revisionId}`}>{source.role === "previous" ? "Previous" : source.role === "current" ? "Current" : "Source"} {source.revisionLabel}</Link>
-    </span>
-  ));
+  return "Extracted";
 }
 
 function kindLabel(item: AttentionItemDto) {
-  if (item.disposition === "proven_conflict") return "Conflict";
-  if (item.disposition === "material_change") return "Change";
+  if (item.disposition === "proven_conflict") return "Proven conflict";
+  if (item.disposition === "material_change") return "Material change";
+  if (item.disposition === "change_detected") return "Change detected";
   if (item.disposition === "reviewer_flag") return "Flagged";
-  return "New";
+  return "Unreviewed fact";
 }
 
-function severityLabel(severity: AttentionItemDto["severity"]) {
-  if (severity === "critical") return "Critical";
-  if (severity === "high") return "High";
-  if (severity === "low") return "Low";
-  return "Medium";
+function reviewTitle(finding: FindingDto) {
+  const category = (finding.after ?? finding.before)?.category;
+  const label = category === "equipment_requirement" ? "Equipment requirement" : category === "schedule_date" ? "Schedule date" : category === "quantity" ? "Quantity" : "Finding";
+  if (finding.subject.type === "proposed_fact") return `${label} to review`;
+  return `${label} ${finding.subject.changeType === "ADDED" ? "added" : finding.subject.changeType === "REMOVED" ? "removed" : "changed"}`;
 }
 
-function severityClass(severity: AttentionItemDto["severity"]) {
-  if (severity === "critical") return "severity-critical";
-  if (severity === "high") return "severity-high";
-  if (severity === "low") return "severity-low";
-  return "severity-medium";
-}
-
-function decisionLabel(decision: Decision) {
-  if (decision === "ACCEPTED") return "Accepted";
-  if (decision === "DISMISSED") return "Dismissed";
-  return "Flagged";
+function comparisonLabel(finding: FindingDto) {
+  const before = finding.before?.displayValue;
+  const after = finding.after?.displayValue;
+  return before && after ? `${before} → ${after}` : before ?? after ?? finding.revisionLabel;
 }

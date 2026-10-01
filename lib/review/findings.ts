@@ -27,6 +27,8 @@ export type FindingEvidence = EvidenceLocation;
 
 export interface FindingValue {
   summary: string;
+  displayValue?: string;
+  category?: ProjectFactContext["factType"];
   evidence: FindingEvidence[];
 }
 
@@ -172,6 +174,10 @@ function findingValue(
 ): FindingValue {
   return {
     summary: describeFact(fact),
+    category: fact.factType,
+    displayValue: fact.factType === "equipment_requirement" ? fact.payload.equipment ?? undefined
+      : fact.factType === "schedule_date" ? fact.payload.date ?? fact.payload.dateText ?? undefined
+      : `${fact.payload.amount} ${fact.payload.unit}`,
     evidence: fact.evidence.map((item) => ({
       documentPageId: item.documentPageId ?? null,
       pageNumber: item.pageNumber,
