@@ -4,12 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "postinstall": "prisma generate",
+    "postinstall": "prisma generate && node scripts/link-typescript-for-eslint.mjs",
     "dev": "next dev",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint app components lib tests",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node ./node_modules/typescript/lib/tsc.js --noEmit",
     "test": "node --env-file-if-exists=.env ./node_modules/vitest/vitest.mjs run",
     "test:unit": "node --env-file-if-exists=.env ./node_modules/vitest/vitest.mjs run --project unit",
     "test:integration": "node --env-file-if-exists=.env ./node_modules/vitest/vitest.mjs run --project integration",
@@ -49,6 +49,7 @@
     "prisma": "6.19.3",
     "tsx": "4.23.15",
     "typescript": "7.0.2",
+    "typescript-6": "npm:typescript@6.0.2",
     "vitest": "5.0.3"
   }
 }

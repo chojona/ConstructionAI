@@ -14,6 +14,10 @@ updates:
       - dependency-name: eslint
         update-types:
           - version-update:semver-major
+      # typescript-6 is the TypeScript 6 API for typescript-eslint. The compiler itself is `typescript` 7.
+      - dependency-name: typescript-6
+        update-types:
+          - version-update:semver-major
     groups:
       prisma:
         patterns:
