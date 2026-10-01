@@ -19,7 +19,7 @@ export default async function ProjectsPage() {
   return (
     <main className="page">
       <div className="page-heading">
-        <div><p className="eyebrow">Portfolio</p><h1>Projects</h1><p className="lede">Open a project to review the exceptions that still need a decision.</p></div>
+        <div><p className="eyebrow">Portfolio</p><h1>Projects</h1><p className="lede">Open a project to decide the changes that are still open.</p></div>
         <details className="create-panel panel">
           <summary><Button asChild><span><Plus size={14} aria-hidden />New project</span></Button></summary>
           <CreateProjectForm />

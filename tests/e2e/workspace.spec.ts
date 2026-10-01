@@ -78,17 +78,22 @@ test("workspace navigation, evidence, decisions, and responsive layout", async (
   await page.getByRole("button", { name: "Accept", exact: true }).click();
   await expect(page.locator(".decision-form").getByRole("alert")).toHaveText("Enter a reviewer id before recording a decision.");
   await page.getByLabel("Reviewer", { exact: true }).fill("pm-workspace-qa");
+  await page.reload();
+  await expect(page.getByLabel("Reviewer", { exact: true })).toHaveValue("pm-workspace-qa");
   await page.getByRole("button", { name: "Flag", exact: true }).click();
   await expect(page.locator(".decision-form").getByRole("alert")).toHaveText("Dismissing or flagging a finding requires a reason.");
   await page.getByLabel(/Reason/).fill("Confirm revised earthworks volume with the field team.");
   await page.getByRole("button", { name: "Flag", exact: true }).click();
   await expect(page.locator(".attention-kicker")).toContainText("Flagged");
-  await page.getByRole("button", { name: "Accept", exact: true }).click();
+  await page.locator("#finding-title").focus();
+  await page.keyboard.press("a");
   await expect(page.locator(".settled-row")).toHaveCount(1);
   await expect(page.locator(".change-row:not(.settled-row)")).toHaveCount(1);
   await page.getByLabel("Reviewer", { exact: true }).fill("pm-workspace-qa");
+  await page.locator("#finding-title").focus();
+  await page.keyboard.press("d");
   await page.getByLabel(/Reason/).fill("Superseded by Rev 05.");
-  await page.getByRole("button", { name: "Dismiss", exact: true }).click();
+  await page.keyboard.press("Enter");
   await expect(page.locator(".settled-row")).toHaveCount(2);
   await expect(page.getByRole("button", { name: "Accept", exact: true })).toHaveCount(0);
   await page.getByRole("navigation", { name: "Project", exact: true }).getByRole("link", { name: "Documents", exact: true }).click();
@@ -107,4 +112,6 @@ test("workspace navigation, evidence, decisions, and responsive layout", async (
     }
   }
   expect(errors).toEqual([]);
+  const decisions = await db.reviewDecision.findMany({ where: { projectId }, orderBy: { createdAt: "asc" } });
+  expect(decisions.map((decision) => decision.decision)).toEqual(["FLAGGED", "ACCEPTED", "DISMISSED"]);
 });

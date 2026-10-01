@@ -54,24 +54,23 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         ))}</div> : <div className="empty">No documents yet. Add a logical document before uploading revisions.</div>}
       </section>}
       {view === "overview" && <section className="review-block">
-        <div className="section-heading"><h2>Accepted project state</h2><span className="count">{review.state.facts.length} accepted</span></div>
+        <div className="section-heading"><h2>Current project values</h2><span className="count">{review.state.facts.length} accepted</span></div>
         <p className="field-help">Current facts accepted by your team, with the evidence behind each decision.</p>
         {review.state.facts.length ? <div className="list">{review.state.facts.map((fact) => (
           <div className="list-row" id={findingDomId(fact.proposedFactId)} key={fact.proposedFactId}>
             <div>
               <p className="row-title">{fact.summary}</p>
-              <p className="evidence-kicker">Reading</p>
-              <p className="row-meta">{fact.documentTitle} · {fact.revisionLabel} · accepted by {fact.reviewerId} on {dateTime(fact.acceptedAt)}</p>
+                            <p className="row-meta">{fact.documentTitle} · {fact.revisionLabel} · accepted by {fact.reviewerId} on {dateTime(fact.acceptedAt)}</p>
               <EvidenceQuotes
                 items={fact.evidence.map((item) => ({ ...item, revisionId: fact.documentRevisionId, revisionLabel: fact.revisionLabel, documentTitle: fact.documentTitle }))}
                 returnTo={decisionReturnPath(project.id, fact.proposedFactId)}
               />
-              {fact.supersedesProposedFactId && <p className="row-meta">Supersedes {review.state.retirements.find((retirement) => retirement.proposedFactId === fact.supersedesProposedFactId)?.summary ?? "an earlier accepted fact"}</p>}
+              {fact.supersedesProposedFactId && <p className="row-meta">Replaces {review.state.retirements.find((retirement) => retirement.proposedFactId === fact.supersedesProposedFactId)?.summary ?? "an earlier accepted value"}</p>}
             </div>
           </div>
         ))}</div> : <div className="empty">No accepted facts yet.</div>}
         {review.state.retirements.length > 0 && <div className="retired">{review.state.retirements.map((retirement) => (
-          <p key={`${retirement.proposedFactId}-${retirement.decisionId}`}>{retirement.supersededByProposedFactId ? `“${retirement.summary}” was superseded. Recorded by ${retirement.reviewerId}.` : `“${retirement.summary}” was removed from the current projection by ${retirement.reviewerId}.`}</p>
+          <p key={`${retirement.proposedFactId}-${retirement.decisionId}`}>{retirement.supersededByProposedFactId ? `“${retirement.summary}” was replaced. Recorded by ${retirement.reviewerId}.` : `“${retirement.summary}” was removed from the current values by ${retirement.reviewerId}.`}</p>
         ))}</div>}
       </section>}
     </main>

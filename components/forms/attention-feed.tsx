@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Check, CheckCheck, Flag, FileText, X } from "lucide-react";
@@ -11,12 +11,30 @@ import { Input } from "@/components/ui/input";
 import type { AttentionItemDto, FindingDto } from "@/lib/review/dto";
 import { decisionReturnPath, findingDomId } from "@/lib/review/evidenceLocation";
 
+import { nextQueueIndex, reviewShortcut, type ArmedDecision } from "@/lib/review/reviewShortcuts";
+
+const reviewerStorageKey = "construction-ai.reviewer-name";
+function readStoredReviewer() {
+  try { return window.localStorage.getItem(reviewerStorageKey) ?? ""; } catch { return ""; }
+}
+function subscribeToReviewer(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+}
+
 const decisions = ["ACCEPTED", "DISMISSED", "FLAGGED"] as const;
 
 export function AttentionFeed({ projectId, items, settled = [] }: { projectId: string; items: AttentionItemDto[]; settled?: FindingDto[] }) {
   const router = useRouter();
   const [selectedKey, setSelectedKey] = useState("");
-  const [reviewerId, setReviewerId] = useState("");
+  const storedReviewer = useSyncExternalStore(subscribeToReviewer, readStoredReviewer, () => "");
+  const [reviewerDraft, setReviewerDraft] = useState<string | null>(null);
+  const reviewerId = reviewerDraft ?? storedReviewer;
+  const [armed, setArmed] = useState<ArmedDecision | null>(null);
+  const [status, setStatus] = useState("");
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const deskRef = useRef<HTMLDivElement>(null);
+  const moveFocus = useRef(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [pendingKey, setPendingKey] = useState("");
@@ -46,7 +64,9 @@ export function AttentionFeed({ projectId, items, settled = [] }: { projectId: s
 
   function select(finding: FindingDto) {
     if (submitting.current || refreshing) return;
+    moveFocus.current = true;
     setSelectedKey(finding.subjectKey);
+    setArmed(null);
     setReason("");
     setError("");
     window.history.replaceState(null, "", `#${findingDomId(finding.subjectKey)}`);
@@ -56,7 +76,7 @@ export function AttentionFeed({ projectId, items, settled = [] }: { projectId: s
     if (submitting.current || refreshing) return;
     setError("");
     if (!reviewerId.trim()) { setError("Enter a reviewer id before recording a decision."); reviewerRef.current?.focus(); return; }
-    if (decision !== "ACCEPTED" && !reason.trim()) { setError("Dismissing or flagging a finding requires a reason."); reasonRef.current?.focus(); return; }
+    if (decision !== "ACCEPTED" && !reason.trim()) { setArmed(decision); setError("Dismissing or flagging a finding requires a reason."); reasonRef.current?.focus(); return; }
     submitting.current = true;
     setPendingKey(finding.subjectKey);
     try {
@@ -68,10 +88,13 @@ export function AttentionFeed({ projectId, items, settled = [] }: { projectId: s
       const result = await response.json();
       if (!response.ok) { setError(result.error?.message ?? "Could not record the review."); return; }
       setReason("");
+      setArmed(null);
+      setStatus(`${decision.toLowerCase()} “${finding.label}”.`);
       if (decision !== "FLAGGED") {
         const index = items.findIndex((item) => item.finding.subjectKey === finding.subjectKey);
         const next = items[index + 1] ?? items.find((item) => item.finding.subjectKey !== finding.subjectKey);
         const nextKey = next?.finding.subjectKey ?? finding.subjectKey;
+        moveFocus.current = true;
         setSelectedKey(nextKey);
         nextSelection.current = { reviewedKey: finding.subjectKey, nextKey };
       }
@@ -79,6 +102,40 @@ export function AttentionFeed({ projectId, items, settled = [] }: { projectId: s
     } catch { setError("Could not record the review. Check your connection and try again."); }
     finally { submitting.current = false; setPendingKey(""); }
   }
+
+  useEffect(() => {
+    if (!moveFocus.current) return;
+    moveFocus.current = false;
+    headingRef.current?.focus();
+  }, [selectedKey]);
+
+  function move(direction: -1 | 1) {
+    if (busy || items.length < 2) return;
+    const index = items.findIndex((item) => item.finding.subjectKey === finding?.subjectKey);
+    select(items[nextQueueIndex(Math.max(index, 0), items.length, direction)]!.finding);
+  }
+
+  const handleShortcut = useEffectEvent((event: KeyboardEvent) => {
+    if (event.metaKey || event.ctrlKey || event.altKey || busy || !activeItem) return;
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest("dialog")) return;
+    const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable);
+    const insideDesk = target instanceof Node && Boolean(deskRef.current?.contains(target));
+    if (target instanceof HTMLElement && !insideDesk && target.closest("input, textarea, button, a, select, summary")) return;
+    const action = reviewShortcut(event.key, { typing, armed, reasonReady: reason.trim().length > 0 });
+    if (!action) return;
+    event.preventDefault();
+    if (action.type === "accept") void review(activeItem.finding, "ACCEPTED");
+    if (action.type === "arm") { setArmed(action.decision); setError(""); reasonRef.current?.focus(); }
+    if (action.type === "confirm" && armed) void review(activeItem.finding, armed);
+    if (action.type === "cancel") { setArmed(null); setError(""); headingRef.current?.focus(); }
+    if (action.type === "move") move(action.direction);
+  });
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => handleShortcut(event);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   if (!finding) return <div className="empty"><CheckCheck size={24} aria-hidden /><strong>No open exceptions</strong><span>Material changes and unreviewed facts will appear here.</span></div>;
 
@@ -88,7 +145,7 @@ export function AttentionFeed({ projectId, items, settled = [] }: { projectId: s
   ].filter((side) => side !== null);
 
   return (
-    <div className="review-workspace" aria-label="Change review">
+    <div ref={deskRef} className="review-workspace" aria-label="Change review">
       <nav className="change-queue" aria-label="Findings">
         <div className="queue-heading">Open <span>{items.length}</span></div>
         {!items.length && <p className="queue-empty">All decisions recorded.</p>}
@@ -98,7 +155,7 @@ export function AttentionFeed({ projectId, items, settled = [] }: { projectId: s
       <article className="change-detail" id={findingDomId(finding.subjectKey)} aria-labelledby="finding-title" aria-busy={busy}>
         <div className="attention-kicker">{activeItem ? <Badge className={`severity-${activeItem.severity}`}>{activeItem.severity}</Badge> : <Badge className={finding.currentDecision?.decision === "ACCEPTED" ? "status-processed" : "status-pending"}>{finding.currentDecision?.decision ?? "Recorded"}</Badge>}<span>{activeItem ? kindLabel(activeItem) : "Settled finding"}</span></div>
         <p className="row-meta">{finding.documentTitle} · {finding.revisionLabel}</p>
-        <h3 id="finding-title">{reviewTitle(finding)}</h3>
+        <h3 ref={headingRef} tabIndex={-1} id="finding-title">{reviewTitle(finding)}</h3>
         <p className="finding-summary">{finding.label}</p>
         <div className={sides.length > 1 ? "compare" : "compare compare-single"}>
           {sides.map((side, index) => <div className={`comparison-side ${index === 0 && sides.length > 1 ? "comparison-before" : "comparison-after"}`} key={side.title}><h4>{side.title}</h4><p className="compare-value">{side.value.displayValue ?? side.value.summary}</p></div>)}
@@ -106,11 +163,17 @@ export function AttentionFeed({ projectId, items, settled = [] }: { projectId: s
         </div>
         <div className="change-explanation"><h4>Why this matters</h4><p>{activeItem?.reason ?? finding.assessment?.reason ?? "This finding has been recorded in the project review."}</p></div>
         {finding.currentDecision && <p className="decision-record">{finding.currentDecision.decision.toLowerCase()} by <strong>{finding.currentDecision.reviewerId}</strong>{finding.currentDecision.reason && ` · ${finding.currentDecision.reason}`}</p>}
-        {activeItem && <form className="decision-form" onSubmit={(event) => { event.preventDefault(); void review(finding, "ACCEPTED"); }}>
+        {activeItem && <form className="decision-form" onSubmit={(event) => { event.preventDefault(); void review(finding, armed ?? "ACCEPTED"); }}>
+          <span className="sr-only" role="status">{status}</span>
           <div className="decision-heading"><h4>Record a decision</h4><span>Saved to project history</span></div>
-          <div className="form-stack review-fields"><label><span>Reviewer</span><Input ref={reviewerRef} value={reviewerId} onChange={(event) => setReviewerId(event.target.value)} maxLength={120} placeholder="pm-1" disabled={busy} /></label><label><span>Reason <small>Required to dismiss or flag</small></span><Input ref={reasonRef} value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} placeholder="Add your review context…" disabled={busy} /></label></div>
+          <div className="form-stack review-fields"><label><span>Reviewer</span><Input ref={reviewerRef} value={reviewerId} onChange={(event) => {
+            const value = event.target.value;
+            setReviewerDraft(value);
+            try { window.localStorage.setItem(reviewerStorageKey, value); } catch { /* Review remains usable when browser storage is unavailable. */ }
+          }} autoComplete="name" maxLength={120} placeholder="Alex Chen" disabled={busy} /></label><label><span>Reason <small>{armed === "DISMISSED" ? "Confirm dismissal with Enter" : armed === "FLAGGED" ? "Confirm flag with Enter" : "Required to dismiss or flag"}</small></span><Input ref={reasonRef} value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} placeholder="Add your review context…" disabled={busy} /></label></div>
           {error && <p className="form-error" role="alert">{error}</p>}
-          <div className="finding-actions">{decisions.map((decision) => <Button key={decision} type="button" size="sm" variant={decision === "ACCEPTED" ? "default" : "outline"} className={decision === "ACCEPTED" ? "accept-button" : decision === "FLAGGED" ? "flag-button" : ""} disabled={busy} onClick={() => void review(finding, decision)}>{decision === "ACCEPTED" ? <Check size={14} aria-hidden /> : decision === "DISMISSED" ? <X size={14} aria-hidden /> : <Flag size={14} aria-hidden />}{decision === "ACCEPTED" ? "Accept" : decision === "DISMISSED" ? "Dismiss" : "Flag"}</Button>)}{busy && <span role="status" className="row-meta">Saving decision…</span>}</div>
+          <div className="finding-actions">{decisions.map((decision) => <Button key={decision} aria-keyshortcuts={decision === "ACCEPTED" ? "A" : decision === "DISMISSED" ? "D" : "F"} type="button" size="sm" variant={decision === "ACCEPTED" ? "default" : "outline"} className={decision === "ACCEPTED" ? "accept-button" : decision === "FLAGGED" ? "flag-button" : ""} disabled={busy} onClick={() => void review(finding, decision)}>{decision === "ACCEPTED" ? <Check size={14} aria-hidden /> : decision === "DISMISSED" ? <X size={14} aria-hidden /> : <Flag size={14} aria-hidden />}{decision === "ACCEPTED" ? "Accept" : decision === "DISMISSED" ? "Dismiss" : "Flag"}</Button>)}{busy && <span role="status" className="row-meta">Saving decision…</span>}</div>
+          <div className="review-navigation"><span>A accept · D dismiss · F flag</span><div><Button type="button" variant="ghost" size="sm" disabled={busy || items.length < 2} aria-keyshortcuts="ArrowUp" onClick={() => move(-1)}>Previous</Button><Button type="button" variant="ghost" size="sm" disabled={busy || items.length < 2} aria-keyshortcuts="ArrowDown" onClick={() => move(1)}>Next</Button></div></div>
         </form>}
       </article>
       <aside className="evidence-panel" aria-label="Source evidence"><div className="context-heading"><FileText size={15} aria-hidden /><h4>Source evidence</h4></div><p className="context-help">Exact excerpts from the uploaded revisions. Open a quote to verify its location.</p>

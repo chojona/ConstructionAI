@@ -18,12 +18,12 @@ Equipment substitutions follow the existing engine's removal/addition behavior. 
 
 At wider desktop sizes the queue, finding, and source context sit side by side. At intermediate widths evidence moves below the finding while the queue remains to its left. At small widths navigation becomes a compact header and the review regions stack. Source inspection retains a page index and integrated project navigation.
 
-Keyboard support includes native links and buttons, visible focus rings, a skip link, and a modal command palette with arrow navigation, Enter, and Escape. The mobile search button retains an accessible name when its visible label is hidden. Reduced motion preferences disable transitions.
+Review also retains CON-25’s remembered reviewer name, A/D/F decision shortcuts, arrow navigation, Enter confirmation for reasons, and focus movement to the selected finding. Keyboard support includes native links and buttons, visible focus rings, a skip link, and a modal command palette with arrow navigation, Enter, and Escape. The mobile search button retains an accessible name when its visible label is hidden. Reduced motion preferences disable transitions.
 
 ## Validation
 
 - Typecheck and lint pass.
-- All 128 unit/integration tests pass with local PostgreSQL access.
+- All 133 unit/integration tests pass with local PostgreSQL access.
 - Both Playwright workflows pass, including source upload and the workspace decision flow.
 - Production build passes.
 - Browser screenshots inspected for Projects, Project/Change Review, Documents, Revision source, and Needs attention at 1440, 1024, and 390 pixels. No horizontal overflow detected.
