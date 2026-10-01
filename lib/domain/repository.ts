@@ -95,6 +95,27 @@ export interface AppendReviewDecisionInput {
   createdAt: Date;
 }
 
+export interface SaveExportPacketInput {
+  organizationId: string;
+  projectId: string;
+  contentHash: string;
+  storageKey: string;
+  payload: Buffer;
+  reviewDecisionIds: string[];
+  createdAt: Date;
+}
+
+export interface StoredExportPacket {
+  id: string;
+  projectId: string;
+  contentHash: string;
+  storageKey: string;
+  payload: Buffer;
+  byteSize: number;
+  createdAt: Date;
+  reviewDecisionIds: string[];
+}
+
 export interface ConstructionRepository {
   organizationExists(organizationId: string): Promise<boolean>;
   createProject(input: {
@@ -128,4 +149,5 @@ export interface ConstructionRepository {
   getProjectReviewSource(organizationId: string, projectId: string): Promise<ProjectReviewSource | null>;
   listReviewDecisions(organizationId: string, projectId: string): Promise<ReviewDecisionRecord[] | null>;
   appendReviewDecision(input: AppendReviewDecisionInput): Promise<ReviewDecisionRecord | null>;
+  saveExportPacket(input: SaveExportPacketInput): Promise<StoredExportPacket | null>;
 }

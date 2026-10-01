@@ -40,6 +40,7 @@ model Project {
   organization          Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   documents             Document[]
   reviewDecisions       ReviewDecision[]
+  exportPackets         ExportPacket[]
   heavyJobSourceObjects HeavyJobSourceObject[]
 
   @@index([organizationId, createdAt])
@@ -189,8 +190,9 @@ model ReviewDecision {
   proposedFact       ProposedFact    @relation("DecisionSubject", fields: [proposedFactId], references: [id], onDelete: Restrict)
   beforeProposedFact ProposedFact?   @relation("DecisionBefore", fields: [beforeProposedFactId], references: [id], onDelete: Restrict)
   afterProposedFact  ProposedFact?   @relation("DecisionAfter", fields: [afterProposedFactId], references: [id], onDelete: Restrict)
-  supersedes         ReviewDecision? @relation("ReviewSupersession", fields: [supersedesDecisionId], references: [id], onDelete: Restrict)
-  supersededBy       ReviewDecision? @relation("ReviewSupersession")
+  supersedes         ReviewDecision?        @relation("ReviewSupersession", fields: [supersedesDecisionId], references: [id], onDelete: Restrict)
+  supersededBy       ReviewDecision?        @relation("ReviewSupersession")
+  exportPackets      ExportPacketDecision[]
 
   @@index([projectId, subjectKey, createdAt])
   @@index([projectId, createdAt])
@@ -213,6 +215,38 @@ model ProposedFactEvidence {
 
   @@unique([proposedFactId, ordinal])
   @@index([documentPageId])
+}
+
+/// Frozen approved-change packet. Payload bytes live on the row.
+/// storageKey names the packet; it is not a local filesystem path.
+/// Decisions linked here are ACCEPTED review decisions only.
+model ExportPacket {
+  id          String   @id @default(cuid())
+  projectId   String
+  contentHash String
+  storageKey  String   @unique
+  payload     Bytes
+  byteSize    Int
+  createdAt   DateTime @default(now())
+
+  project   Project                 @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  decisions ExportPacketDecision[]
+
+  @@unique([projectId, contentHash])
+  @@index([projectId, createdAt])
+}
+
+model ExportPacketDecision {
+  exportPacketId   String
+  reviewDecisionId String
+  ordinal          Int
+
+  exportPacket   ExportPacket   @relation(fields: [exportPacketId], references: [id], onDelete: Restrict)
+  reviewDecision ReviewDecision @relation(fields: [reviewDecisionId], references: [id], onDelete: Restrict)
+
+  @@id([exportPacketId, reviewDecisionId])
+  @@unique([exportPacketId, ordinal])
+  @@index([reviewDecisionId])
 }
 
 enum HeavyJobObjectType {

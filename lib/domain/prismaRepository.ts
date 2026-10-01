@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { DomainError } from "./errors";
 import { isSerializationConflict, serializationAttempts, uniqueConstraintTargets } from "./transactionConflict";
+import { EXPORT_BLOCKED_MESSAGE } from "@/lib/review/exportPacket";
 import type {
   AppendReviewDecisionInput,
   CommitProposedFactsInput,
@@ -10,6 +11,8 @@ import type {
   CreateRevisionRecordInput,
   ExtractionRunTransitionInput,
   FailOpenExtractionInput,
+  SaveExportPacketInput,
+  StoredExportPacket,
 } from "./repository";
 import type {
   DocumentDetail,
@@ -481,6 +484,62 @@ export class PrismaConstructionRepository implements ConstructionRepository {
     }
     throw new Error("Review decision transaction retry limit exceeded.");
   }
+
+  async saveExportPacket(input: SaveExportPacketInput): Promise<StoredExportPacket | null> {
+    const project = await this.db.project.findFirst({
+      where: { id: input.projectId, organizationId: input.organizationId },
+      select: { id: true },
+    });
+    if (!project) return null;
+    if (input.reviewDecisionIds.length === 0) {
+      throw new DomainError("INVALID_INPUT", EXPORT_BLOCKED_MESSAGE, 400);
+    }
+    const existing = await this.findExportPacket(input.projectId, input.contentHash);
+    if (existing) return existing;
+
+    try {
+      return await this.db.$transaction(async (tx) => {
+        const decisions = await tx.reviewDecision.findMany({
+          where: { projectId: input.projectId, id: { in: input.reviewDecisionIds } },
+          select: { id: true, decision: true },
+        });
+        const byId = new Map(decisions.map((decision) => [decision.id, decision.decision]));
+        if (input.reviewDecisionIds.some((id) => byId.get(id) !== "ACCEPTED")) {
+          throw new DomainError("INVALID_INPUT", "Only an approved change can be exported.", 400);
+        }
+        const created = await tx.exportPacket.create({
+          data: {
+            projectId: input.projectId,
+            contentHash: input.contentHash,
+            storageKey: input.storageKey,
+            payload: new Uint8Array(input.payload),
+            byteSize: input.payload.byteLength,
+            createdAt: input.createdAt,
+            decisions: {
+              create: input.reviewDecisionIds.map((reviewDecisionId, ordinal) => ({ reviewDecisionId, ordinal })),
+            },
+          },
+        });
+        return toStoredExportPacket(created, input.reviewDecisionIds);
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (error instanceof DomainError) throw error;
+      if (uniqueConstraintTargets(error)) {
+        const raced = await this.findExportPacket(input.projectId, input.contentHash);
+        if (raced) return raced;
+      }
+      throw error;
+    }
+  }
+
+  private async findExportPacket(projectId: string, contentHash: string): Promise<StoredExportPacket | null> {
+    const packet = await this.db.exportPacket.findUnique({
+      where: { projectId_contentHash: { projectId, contentHash } },
+      include: { decisions: { orderBy: { ordinal: "asc" }, select: { reviewDecisionId: true } } },
+    });
+    if (!packet) return null;
+    return toStoredExportPacket(packet, packet.decisions.map((decision) => decision.reviewDecisionId));
+  }
 }
 
 const proposedFactSelect = {
@@ -501,6 +560,13 @@ const proposedFactSelect = {
     },
   },
 } as const;
+
+function toStoredExportPacket(
+  packet: { id: string; projectId: string; contentHash: string; storageKey: string; payload: Uint8Array; byteSize: number; createdAt: Date },
+  reviewDecisionIds: string[],
+): StoredExportPacket {
+  return { ...packet, payload: Buffer.from(packet.payload), reviewDecisionIds };
+}
 
 function toReviewDecisionRecord(decision: {
   id: string;

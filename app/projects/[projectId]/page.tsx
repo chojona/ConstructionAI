@@ -14,6 +14,7 @@ import { toHeavyJobSourceObjectDto } from "@/lib/heavyjob/dto";
 import { listHeavyJobSourceObjects } from "@/lib/heavyjob/service";
 import { getProject } from "@/lib/projects/service";
 import { listAttention } from "@/lib/review/attention";
+import { approvedChangePreview } from "@/lib/review/exportPacket";
 import { uploadRevisionHref } from "@/lib/review/emptyState";
 import { toAttentionDto } from "@/lib/review/dto";
 import { decisionReturnPath, findingDomId } from "@/lib/review/evidenceLocation";
@@ -50,7 +51,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       <ProjectNavigation projectId={project.id} active={view} openCount={attention.length} />
       {view !== "documents" && view !== "heavyjob" && <section>
         <div className="section-heading"><h2>Changes <span className="heading-sub">Needs attention</span></h2><span className="count">{attention.length} open</span></div>
-        <ChangeReview projectId={project.id} items={attention.map(toAttentionDto)} uploadHref={uploadRevisionHref(project.id, project.documents)} />
+        <ChangeReview projectId={project.id} items={attention.map(toAttentionDto)} approved={approvedChangePreview(review.findings)} uploadHref={uploadRevisionHref(project.id, project.documents)} />
       </section>}
       {view !== "changes" && view !== "heavyjob" && <section className="review-block">
         <div className="section-heading"><h2>Documents</h2><span className="count">{project.documents.length} total</span></div>

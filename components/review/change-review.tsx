@@ -4,9 +4,11 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { EvidenceQuotes } from "@/components/review/evidence-quotes";
 import { EmptyChanges } from "@/components/review/changes-empty";
+import { ExportPacketControl } from "@/components/review/export-packet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { AttentionItemDto, FindingDto } from "@/lib/review/dto";
+import type { ApprovedChangePreview } from "@/lib/review/exportPacket";
 import { changeEvidenceLead, changePageChip, changeRowTitle } from "@/lib/review/changeRow";
 import { decisionReturnPath, findingDomId } from "@/lib/review/evidenceLocation";
 
@@ -25,10 +27,12 @@ export function ChangeReview({
   projectId,
   items,
   uploadHref,
+  approved = [],
 }: {
   projectId: string;
   items: AttentionItemDto[];
   uploadHref: string;
+  approved?: readonly ApprovedChangePreview[];
 }) {
   const router = useRouter();
   const [selectedKey, setSelectedKey] = useState("");
@@ -102,6 +106,7 @@ export function ChangeReview({
   return (
     <div className="change-desk">
       <div className="change-list-pane">
+        <ExportPacketControl projectId={projectId} changes={approved} />
         {items.length === 0 ? <EmptyChanges href={uploadHref} /> : (
           <ul className="change-list">
             {items.map((item) => {

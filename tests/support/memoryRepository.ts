@@ -7,7 +7,10 @@ import type {
   CreateRevisionRecordInput,
   ExtractionRunTransitionInput,
   FailOpenExtractionInput,
+  SaveExportPacketInput,
+  StoredExportPacket,
 } from "@/lib/domain/repository";
+import { EXPORT_BLOCKED_MESSAGE } from "@/lib/review/exportPacket";
 import type {
   DocumentDetail,
   DocumentRecord,
@@ -32,6 +35,7 @@ export class MemoryRepository implements ConstructionRepository {
   readonly extractionRuns: ExtractionRunRecord[] = [];
   readonly proposedFacts: ProposedFactRecord[] = [];
   readonly reviewDecisions: ReviewDecisionRecord[] = [];
+  readonly exportPackets: StoredExportPacket[] = [];
   private sequence = 0;
 
   addOrganization(id: string) { this.organizations.add(id); }
@@ -319,6 +323,32 @@ export class MemoryRepository implements ConstructionRepository {
     return { ...decision };
   }
 
+  async saveExportPacket(input: SaveExportPacketInput): Promise<StoredExportPacket | null> {
+    const project = this.projects.find((item) => item.id === input.projectId && item.organizationId === input.organizationId);
+    if (!project) return null;
+    if (input.reviewDecisionIds.length === 0) {
+      throw new DomainError("INVALID_INPUT", EXPORT_BLOCKED_MESSAGE, 400);
+    }
+    const linked = input.reviewDecisionIds.map((id) => this.reviewDecisions.find((decision) => decision.id === id && decision.projectId === input.projectId));
+    if (linked.some((decision) => decision?.decision !== "ACCEPTED")) {
+      throw new DomainError("INVALID_INPUT", "Only an approved change can be exported.", 400);
+    }
+    const existing = this.exportPackets.find((packet) => packet.projectId === input.projectId && packet.contentHash === input.contentHash);
+    if (existing) return copyExportPacket(existing);
+    const stored: StoredExportPacket = {
+      id: this.id("packet"),
+      projectId: input.projectId,
+      contentHash: input.contentHash,
+      storageKey: input.storageKey,
+      payload: Buffer.from(input.payload),
+      byteSize: input.payload.byteLength,
+      createdAt: input.createdAt,
+      reviewDecisionIds: [...input.reviewDecisionIds],
+    };
+    this.exportPackets.push(stored);
+    return copyExportPacket(stored);
+  }
+
   private extractionRunInOrganization(organizationId: string, extractionRunId: string) {
     const run = this.extractionRuns.find((item) => item.id === extractionRunId);
     if (!run) return null;
@@ -339,6 +369,10 @@ export class MemoryRepository implements ConstructionRepository {
       evidence: fact.evidence.map((item) => ({ ...item })),
     };
   }
+}
+
+function copyExportPacket(packet: StoredExportPacket): StoredExportPacket {
+  return { ...packet, payload: Buffer.from(packet.payload), reviewDecisionIds: [...packet.reviewDecisionIds] };
 }
 
 export async function seededRepository() {

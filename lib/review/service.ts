@@ -6,6 +6,13 @@ import type { ProjectReviewSource, ReviewDecisionRecord, RevisionChangeType } fr
 import { CONSTRUCTION_FACTS_EXTRACTOR } from "@/lib/extractions/constructionFacts";
 import { type ProcessingRun, withProcessingRun } from "@/lib/observability/pipelineTiming";
 import { compareFacts, toComparableFact, type RevisionFactChange } from "@/lib/revisions/compareFacts";
+import {
+  buildApprovedChangePacket,
+  canonicalPacketBytes,
+  exportPacketStorageKey,
+  packetContentHash,
+  packetFromStored,
+} from "./exportPacket";
 import { listProjectFindings, type ProjectFinding } from "./findings";
 import { projectEffectiveState, type EffectiveProjectState } from "./projectState";
 import { proposedFactSubjectKey, removalSubjectKey } from "./subjects";
@@ -184,6 +191,42 @@ function requireRun(source: ProjectReviewSource, revisionId: string) {
     .sort((left, right) => right.attemptNumber - left.attemptNumber)[0];
   if (!run) throw new DomainError("INVALID_INPUT", "Revision has no succeeded construction-facts-v1 extraction.", 400);
   return run;
+}
+
+const exportQuerySchema = z.object({
+  subjectKey: z.string().trim().min(1).max(2000).optional(),
+});
+
+export async function exportApprovedChangePacket(
+  organizationId: string,
+  projectId: string,
+  rawQuery: { subjectKey?: string | null } = {},
+  repository: ConstructionRepository = constructionRepository,
+  clock: Clock = () => new Date(),
+) {
+  const subjectKey = exportQuerySchema.parse({
+    subjectKey: rawQuery.subjectKey?.trim() || undefined,
+  }).subjectKey;
+  const { source, decisions } = await load(organizationId, projectId, repository);
+  const built = buildApprovedChangePacket({
+    projectId,
+    findings: listProjectFindings(source, decisions),
+    revisions: source.revisions,
+    subjectKey,
+  });
+  const payload = canonicalPacketBytes(built);
+  const contentHash = packetContentHash(built);
+  const stored = await repository.saveExportPacket({
+    organizationId,
+    projectId,
+    contentHash,
+    storageKey: exportPacketStorageKey(projectId, contentHash),
+    payload,
+    reviewDecisionIds: built.changes.map((change) => change.decisionId),
+    createdAt: clock(),
+  });
+  if (!stored) throw new DomainError("NOT_FOUND", "Project not found.", 404);
+  return packetFromStored(stored);
 }
 
 async function load(organizationId: string, projectId: string, repository: ConstructionRepository) {
