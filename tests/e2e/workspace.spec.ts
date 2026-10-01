@@ -126,7 +126,7 @@ test("empty changes view explains the gap and opens the first upload", async ({ 
   const project = await db.project.create({ data: { organizationId, name } });
   try {
     await page.goto("/projects");
-    const row = page.locator(".project-cards").getByRole("link", { name: new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) });
+    const row = page.locator(".project-list").getByRole("link", { name: new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) });
     await expect(row).toContainText("No project number");
     await expect(row).toContainText("0 docs · All clear");
     await row.click();

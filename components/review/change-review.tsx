@@ -7,7 +7,7 @@ import { EmptyChanges } from "@/components/review/changes-empty";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { AttentionItemDto, FindingDto } from "@/lib/review/dto";
-import { changePageChip, changeRowTitle } from "@/lib/review/changeRow";
+import { changeEvidenceLead, changePageChip, changeRowTitle } from "@/lib/review/changeRow";
 import { decisionReturnPath, findingDomId } from "@/lib/review/evidenceLocation";
 
 const reviewerStorageKey = "construction-ai.reviewer-name";
@@ -97,6 +97,7 @@ export function ChangeReview({
     selected.before ? { title: "Previous", value: selected.before, tone: "comparison-before" } : null,
     selected.after ? { title: "Current", value: selected.after, tone: "comparison-after" } : null,
   ].filter((side) => side !== null) : [];
+  const evidenceLead = selected ? changeEvidenceLead(selected) : null;
 
   return (
     <div className="change-desk">
@@ -124,6 +125,12 @@ export function ChangeReview({
         {selected ? (
           <>
             <div className="evidence-rail-body">
+              {evidenceLead && (
+                <div className="evidence-rail-lead">
+                  <span className="page-chip">{changePageChip(selected)}</span>
+                  <p className="evidence-rail-excerpt">{evidenceLead.excerpt}</p>
+                </div>
+              )}
               <p className="row-meta">{selected.documentTitle} · {selected.revisionLabel}</p>
               <h3 id="finding-title" tabIndex={-1}>{changeRowTitle(selected)}</h3>
               <p className="finding-summary">{selected.label}</p>
