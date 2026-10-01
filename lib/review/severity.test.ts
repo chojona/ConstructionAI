@@ -92,8 +92,11 @@ describe("scoreRevisionChange", () => {
       before: schedule("civil drawings", "2025-06-01", "June 1, 2025"),
       after: schedule("civil drawings", "2025-06-08", "June 8, 2025"),
     });
-    expect(shortShift).toMatchObject({ severity: "medium", rule: "schedule.short_shift" });
-    expect(shortShift.reason).toContain("a shift of 2 days");
+    expect(shortShift).toMatchObject({
+      severity: "medium",
+      rule: "schedule.short_shift",
+      reason: "Schedule date for civil drawings changed from June 1, 2025 to June 3, 2025, a shift of 2 days.",
+    });
     expect(longShift).toMatchObject({
       severity: "high",
       rule: "schedule.day_shift",
@@ -125,7 +128,11 @@ describe("scoreRevisionChange", () => {
       basis: "numeric",
       before: quantity("trench excavation", "100", "cubic yards"),
       after: quantity("trench excavation", "91", "cubic yards"),
-    })).toMatchObject({ severity: "medium", rule: "quantity.small_change" });
+    })).toMatchObject({
+      severity: "medium",
+      rule: "quantity.small_change",
+      reason: "Quantity for trench excavation changed from 100 cubic yards to 91 cubic yards, a 9.0% change.",
+    });
     expect(scoreRevisionChange({
       changeType: "MODIFIED",
       category: "quantity",
