@@ -11,3 +11,5 @@ export function toHeavyJobSourceObjectDto(record: HeavyJobSourceObjectRecord) {
     createdAt: record.createdAt.toISOString(),
   };
 }
+
+export type HeavyJobSourceObjectDto = ReturnType<typeof toHeavyJobSourceObjectDto>;
