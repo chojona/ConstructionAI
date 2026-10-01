@@ -24,7 +24,7 @@ export function RevisionHistory({
   findings: readonly RevisionFindingView[];
 }) {
   if (revisions.length === 0) {
-    return <div className="empty">No revisions yet. Upload the first PDF for this document.</div>;
+    return <div className="empty"><strong>No revisions yet</strong><span>Upload the first PDF for this document.</span></div>;
   }
 
   const latestOrder = Math.max(...revisions.map((revision) => revision.revisionOrder));

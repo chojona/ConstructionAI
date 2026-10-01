@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { RevisionHistory } from "@/components/documents/revision-history";
 import { ProjectNavigation } from "@/components/workspace/project-navigation";
 import { UploadRevisionForm } from "@/components/forms/upload-revision-form";
-import { Button } from "@/components/ui/button";
 import { getDocument } from "@/lib/documents/service";
 import { describeReading } from "@/lib/documents/revisionExperience";
 import { DomainError } from "@/lib/domain/errors";
@@ -57,7 +56,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ docum
       </nav>
       <div className="page-heading">
         <div>
-          <p className="identity-line">{identity}</p>
+          <p className="eyebrow">{identity}</p>
           <h1>{document.title}</h1>
           <p className="lede">
             {document.revisions.length === 0
@@ -67,7 +66,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ docum
           </p>
         </div>
         <details className="create-panel panel" id="upload">
-          <summary><Button asChild><span>Upload revision</span></Button></summary>
+          <summary className="primary-summary">Upload revision</summary>
           <UploadRevisionForm documentId={document.id} />
         </details>
       </div>

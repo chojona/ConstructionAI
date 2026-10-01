@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Check, CheckCheck, Flag, FileText, X } from "lucide-react";
 import { EvidenceQuotes } from "@/components/review/evidence-quotes";
-import { Badge } from "@/components/ui/badge";
+import { Badge, SeverityBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { AttentionItemDto, FindingDto } from "@/lib/review/dto";
@@ -150,7 +150,7 @@ export function AttentionFeed({ projectId, items, settled = [] }: { projectId: s
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  if (!finding) return <div className="empty"><CheckCheck size={24} aria-hidden /><strong>No open exceptions</strong><span>Material changes and new items will appear here.</span></div>;
+  if (!finding) return <div className="empty"><CheckCheck size={20} aria-hidden /><strong>Nothing needs attention</strong><span>Material changes and new items will appear here.</span></div>;
 
   const showReviewerField = editingReviewer || !reviewerId.trim();
   const showSettled = settledOpen || settled.some((item) => item.subjectKey === finding.subjectKey);
@@ -169,7 +169,7 @@ export function AttentionFeed({ projectId, items, settled = [] }: { projectId: s
         {settled.length > 0 && <><button type="button" className="queue-heading settled-heading" aria-expanded={showSettled} onClick={() => setSettledOpen((open) => !open)}>Settled <span>{settled.length}</span></button>{showSettled && settled.map((item) => <button key={item.subjectKey} className={`change-row settled-row ${finding.subjectKey === item.subjectKey ? "is-selected" : ""}`} aria-current={finding.subjectKey === item.subjectKey ? "true" : undefined} disabled={busy} onClick={() => select(item)}><Check size={14} aria-hidden /><span><strong>{reviewTitle(item)}</strong><small>{settledLabel(item)}</small></span></button>)}</>}
       </nav>
       <article className="change-detail" id={findingDomId(finding.subjectKey)} aria-labelledby="finding-title" aria-busy={busy}>
-        <div className="attention-kicker">{activeItem ? <Badge className={`severity-${activeItem.severity}`}>{activeItem.severity}</Badge> : <Badge className={finding.currentDecision?.decision === "ACCEPTED" ? "status-processed" : "status-pending"}>{decisionLabel(finding.currentDecision?.decision) ?? "Recorded"}</Badge>}<span>{activeItem ? kindLabel(activeItem) : "Settled"}</span></div>
+        <div className="attention-kicker">{activeItem ? <SeverityBadge severity={activeItem.severity} /> : <Badge className={finding.currentDecision?.decision === "ACCEPTED" ? "status-processed" : "status-pending"}>{decisionLabel(finding.currentDecision?.decision) ?? "Recorded"}</Badge>}<span>{activeItem ? kindLabel(activeItem) : "Settled"}</span></div>
         <p className="row-meta">{finding.documentTitle} · {finding.revisionLabel}</p>
         <h3 ref={headingRef} tabIndex={-1} id="finding-title">{reviewTitle(finding)}</h3>
         <p className="finding-summary">{finding.label}</p>
@@ -194,7 +194,7 @@ export function AttentionFeed({ projectId, items, settled = [] }: { projectId: s
       </article>
       <aside className="evidence-panel" aria-label="Source evidence"><div className="context-heading"><FileText size={15} aria-hidden /><h4>Source evidence</h4></div><p className="context-help">Exact excerpts from the uploaded revisions. Open a quote to verify its location.</p>
         {sides.map((side) => <section className="evidence-section" key={side.title}><h5>{side.title}</h5>{side.value.evidence.length ? <EvidenceQuotes items={side.value.evidence} returnTo={decisionReturnPath(projectId, finding.subjectKey)} /> : <p className="row-meta">No linked excerpt available.</p>}</section>)}
-        <div className="source-links">{finding.sources.map((source) => <Link key={source.revisionId} href={`/revisions/${source.revisionId}`}><FileText size={14} aria-hidden />{source.revisionLabel}<ArrowRight size={14} aria-hidden /></Link>)}</div>
+        <div className="source-links">{finding.sources.map((source) => <Link key={source.revisionId} href={`/revisions/${source.revisionId}`}><FileText size={14} aria-hidden />{source.revisionLabel}</Link>)}</div>
       </aside>
     </div>
   );
