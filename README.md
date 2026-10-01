@@ -35,7 +35,14 @@ npx prisma migrate deploy
 npm run db:seed
 ```
 
-The Vercel build runs `prisma migrate deploy` and `npm run db:seed` before `next build`. Migrate uses `DIRECT_DATABASE_URL` when it is set and `DATABASE_URL` otherwise. Seed upserts the organization selected by `APP_ORGANIZATION_ID`, or `org_demo` when that variable is unset, and loads HeavyJob fixture snapshots onto the demo project `project_heavyjob_demo`. For `org_demo`, seed also creates `project_demo_review` (North River Bridge) with two revisions of the existing quantity fixture and one open quantity change so change review can be exercised. `prisma generate` still runs during dependency installation.
+The Vercel build runs `prisma migrate deploy` and `npm run db:seed` before `next build`. Migrate uses `DIRECT_DATABASE_URL` when it is set and `DATABASE_URL` otherwise. Seed upserts the organization selected by `APP_ORGANIZATION_ID`, or `org_demo` when that variable is unset, and loads HeavyJob fixture snapshots onto the demo project `project_heavyjob_demo`. For `org_demo`, seed also loads the demo portfolio. Running `npm run db:seed` again adds any missing rows and leaves review decisions that are already stored. `prisma generate` still runs during dependency installation.
+
+After seeding, open:
+
+- [Projects](http://localhost:3000/projects) for the portfolio. North River Bridge (`project_demo_review`, civil) and Harbor Warehouse Fit-Out (`project_demo_harbor`, commercial) still have open proposed facts. Pike Street Bus Corridor, I-405 Bellevue Widening, and Fremont Clinic TI are already reviewed.
+- [Changes](http://localhost:3000/changes) for the open queue across those jobs.
+- [North River Bridge documents](http://localhost:3000/projects/project_demo_review?view=documents) and [its changes](http://localhost:3000/projects/project_demo_review?view=changes). Earthworks keeps revisions `revision_demo_earthworks_04` and `revision_demo_earthworks_05`.
+- [HeavyJob snapshots](http://localhost:3000/projects/project_heavyjob_demo?view=heavyjob) on Northstar River Road Reconstruction. Rows stay unlabeled: type, source id, fetched-at, and raw payload.
 
 Document files currently use local filesystem storage. Vercel function filesystems are temporary, so uploaded documents will not persist reliably across requests or deployments on Vercel. Use a persistent object-storage backend before relying on document uploads in a hosted environment.
 

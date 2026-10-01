@@ -6,7 +6,7 @@ import {
   type HeavyJobFixture,
 } from "./fixtures";
 
-const FORBIDDEN_LABEL = /\b(entitlement|dsc|force account|change[- ]order|overrun|candidate|evidence package|detected)\b/i;
+const FORBIDDEN_LABEL = /\b(dsc|fa|force account|force-account|change orders?|co|pco|entitlement|candidate|unpaid|claim|overrun|evidence package|detected)\b/i;
 
 function fixtureOf(objectType: HeavyJobFixture["objectType"]) {
   const fixture = heavyJobFixtures.find((item) => item.objectType === objectType);
@@ -53,6 +53,29 @@ describe("HeavyJob fixtures", () => {
     expect(attachment.name).toBe("sta-12-40-subgrade.jpg");
     expect(attachment).not.toHaveProperty("bytes");
     expect(attachment).not.toHaveProperty("content");
+  });
+
+  it("spreads timecards, installed quantities, diaries, and photos across the job", () => {
+    const timecards = heavyJobFixtures.filter((fixture) => fixture.objectType === "timecard");
+    expect(new Set(timecards.map((fixture) => String(fixture.raw.date))).size).toBeGreaterThanOrEqual(3);
+
+    const quantities = heavyJobFixtures.filter((fixture) => fixture.objectType === "quantity");
+    expect(new Set(quantities.map((fixture) => String(fixture.raw.date))).size).toBeGreaterThanOrEqual(2);
+    expect(new Set(quantities.map((fixture) => String(fixture.raw.costCodeId))).size).toBeGreaterThanOrEqual(2);
+    const costCodeIds = new Set(heavyJobFixtures.filter((fixture) => fixture.objectType === "cost_code").map((fixture) => fixture.sourceId));
+    expect([...new Set(quantities.map((fixture) => String(fixture.raw.costCodeId)))].every((id) => costCodeIds.has(id))).toBe(true);
+
+    const diaries = heavyJobFixtures.filter((fixture) => fixture.objectType === "diary");
+    expect(diaries.length).toBeGreaterThanOrEqual(2);
+    for (const diary of diaries) {
+      const note = `${String(diary.raw.note)} ${String(diary.raw.workingConditions)}`;
+      expect(note).toMatch(/rain|clear|overcast|wind|degree|wet/i);
+      expect(note).not.toMatch(FORBIDDEN_LABEL);
+    }
+
+    const attachments = heavyJobFixtures.filter((fixture) => fixture.objectType === "attachment");
+    expect(attachments.some((fixture) => JSON.stringify(fixture.raw.fileReferences).includes("costCode"))).toBe(true);
+    expect(attachments.some((fixture) => /Sta\s+\d/.test(`${String(fixture.raw.note)} ${String(fixture.raw.name)}`))).toBe(true);
   });
 
   it("builds insert rows that keep provenance on the given project", () => {
