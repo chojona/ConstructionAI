@@ -35,7 +35,7 @@ npx prisma migrate deploy
 npm run db:seed
 ```
 
-The Vercel build runs `prisma migrate deploy` and `npm run db:seed` before `next build`. Migrate uses `DIRECT_DATABASE_URL` when it is set and `DATABASE_URL` otherwise. Seed upserts the organization selected by `APP_ORGANIZATION_ID`, or `org_demo` when that variable is unset. `prisma generate` still runs during dependency installation.
+The Vercel build runs `prisma migrate deploy` and `npm run db:seed` before `next build`. Migrate uses `DIRECT_DATABASE_URL` when it is set and `DATABASE_URL` otherwise. Seed upserts the organization selected by `APP_ORGANIZATION_ID`, or `org_demo` when that variable is unset, and loads HeavyJob fixture snapshots onto the demo project `project_heavyjob_demo`. `prisma generate` still runs during dependency installation.
 
 Document files currently use local filesystem storage. Vercel function filesystems are temporary, so uploaded documents will not persist reliably across requests or deployments on Vercel. Use a persistent object-storage backend before relying on document uploads in a hosted environment.
 
@@ -49,4 +49,10 @@ npm run test:e2e
 npm run build
 ```
 
-No AI extraction, change detection, OCR, email, HCSS, or external construction-system integrations are included in Phase 1.
+## HeavyJob source snapshots
+
+`npm run db:seed` stores checked-in HeavyJob-shaped fixtures for one demo project. Each row is a fetch snapshot (`HeavyJobSourceObject`) linked to that project, with `sourceId`, `fetchedAt`, the raw payload, and an object type of `timecard`, `cost_code`, `quantity`, `diary`, or `attachment`. Loading the same snapshot again does not rewrite it. Timecard `isTm` and `isRework` flags stay inside the raw payload as source data.
+
+Read them with `GET /api/projects/{projectId}/heavyjob-objects`, optionally filtered by `objectType`. The same organization header used by the rest of the API applies.
+
+This layer does not call HCSS, and it does not classify entitlements or build a review queue. Phase 1 still has no live external construction-system integration, OCR, or email.

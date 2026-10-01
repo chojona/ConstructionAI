@@ -37,9 +37,10 @@ model Project {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  documents       Document[]
-  reviewDecisions ReviewDecision[]
+  organization          Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  documents             Document[]
+  reviewDecisions       ReviewDecision[]
+  heavyJobSourceObjects HeavyJobSourceObject[]
 
   @@index([organizationId, createdAt])
 }
@@ -212,4 +213,31 @@ model ProposedFactEvidence {
 
   @@unique([proposedFactId, ordinal])
   @@index([documentPageId])
+}
+
+enum HeavyJobObjectType {
+  timecard
+  cost_code
+  quantity
+  diary
+  attachment
+}
+
+/// Immutable HeavyJob fetch snapshot for one Project.
+/// raw is the external payload. Timecard isTm / isRework flags stay inside raw as data.
+/// This table does not classify entitlements, and inserting a row must not rewrite
+/// Project, Document, or DocumentRevision truth.
+model HeavyJobSourceObject {
+  id         String             @id @default(cuid())
+  projectId  String
+  objectType HeavyJobObjectType
+  sourceId   String
+  fetchedAt  DateTime
+  raw        Json
+  createdAt  DateTime           @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, objectType, sourceId, fetchedAt])
+  @@index([projectId, objectType, fetchedAt])
 }
