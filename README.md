@@ -23,8 +23,8 @@ Files are stored under `DOCUMENT_STORAGE_DIR` using generated keys. The original
 
 Vercel detects the Next.js app automatically; `vercel.json` pins the framework preset. Import the repository into Vercel, then create a Neon PostgreSQL database and add these environment variables to the Vercel project:
 
-- `DATABASE_URL`: Neon pooled connection string for application traffic.
-- `DIRECT_DATABASE_URL`: Neon direct (non-pooled) connection string for Prisma schema changes.
+- `DATABASE_URL`: Neon pooled connection string. The app passes it to the PostgreSQL driver adapter.
+- `DIRECT_DATABASE_URL`: Neon direct (non-pooled) connection string. Prisma Migrate reads it from `prisma.config.ts`.
 - `APP_ORGANIZATION_ID`: organization id used by the UI, such as `org_demo` after seeding.
 - `DOCUMENT_STORAGE_DIR`: optional for local development only.
 
