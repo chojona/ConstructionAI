@@ -51,19 +51,22 @@ export async function runLatencyBenchmark(input: {
   }
 
   const summary = summarizeLatency(runs);
+  const cache = cacheCounts(runs);
   return {
     runs,
     summary,
     report: formatLatencyReport(summary, {
       generatedAt: new Date().toISOString(),
       iterations,
+      title: "Document intelligence latency optimization",
       workload: workloadLines(runs, pages),
       notes: [
         `Runtime ${process.version} on ${process.platform}/${process.arch}.`,
         `One warmup pass is excluded so percentiles describe steady-state processing. Warmup PDF parsing took ${warmupParseMs.toFixed(3)} ms.`,
         "The model client is an in-process baseline stub that returns valid facts immediately. ai_extraction therefore excludes provider network time.",
+        `Measured PDF parses used ${cache.hits} cache hits, ${cache.misses} misses, and ${cache.coalesced} coalesced in-flight results after warmup.`,
+        "The repeated-content workload measures validated reuse; a unique PDF remains a cache miss and follows the unchanged parser path.",
         "Timing context stores byte size, page count, and text length only. Source text, filenames, storage keys, and excerpts are omitted.",
-        "Use this baseline before optimizing extraction or comparison.",
       ],
     }),
   };
@@ -176,6 +179,17 @@ function range(values: number[]) {
   const min = Math.min(...values);
   const max = Math.max(...values);
   return min === max ? String(min) : `${min}-${max}`;
+}
+
+function cacheCounts(runs: readonly ProcessingRunTiming[]) {
+  const contexts = runs.flatMap((run) => run.stages
+    .filter((stage) => stage.stage === "pdf_parsing")
+    .map((stage) => stage.context));
+  return {
+    hits: contexts.reduce((sum, context) => sum + (context.pdfCacheHitCount ?? 0), 0),
+    misses: contexts.reduce((sum, context) => sum + (context.pdfCacheMissCount ?? 0), 0),
+    coalesced: contexts.reduce((sum, context) => sum + (context.pdfCacheCoalescedCount ?? 0), 0),
+  };
 }
 
 export async function withBenchmarkStorage<T>(fn: (storage: DocumentStorage) => Promise<T>) {

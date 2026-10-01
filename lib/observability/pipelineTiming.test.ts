@@ -15,7 +15,11 @@ describe("processing run timings", () => {
     await run.stage("upload_validation", async () => {
       now += 4;
     }, { byteSize: 1200 });
-    expect(sanitizeStageContext({ byteSize: 1200, pageText: "CONFIDENTIAL sheet note" })).toEqual({ byteSize: 1200 });
+    expect(sanitizeStageContext({
+      byteSize: 1200,
+      pdfCacheHitCount: 1,
+      pageText: "CONFIDENTIAL sheet note",
+    })).toEqual({ byteSize: 1200, pdfCacheHitCount: 1 });
     await run.stage("pdf_parsing", async () => {
       now += 30;
       return { pageCount: 2 };

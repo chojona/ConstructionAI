@@ -4,7 +4,7 @@ import { DomainError } from "@/lib/domain/errors";
 import { constructionRepository } from "@/lib/domain/prismaRepository";
 import type { ConstructionRepository } from "@/lib/domain/repository";
 import { type ProcessingRun, withProcessingRun } from "@/lib/observability/pipelineTiming";
-import { extractPdfDocument, PdfExtractionError } from "./extractPdf";
+import { extractPdfDocumentCached, PdfExtractionError, type PdfExtractor } from "./extractPdf";
 import { hasUsableText } from "./pageText";
 import { displayFilename, getDocumentStorage, type DocumentStorage } from "./storage";
 import { validatePdfUpload } from "./validateUpload";
@@ -25,13 +25,13 @@ export async function ingestRevision(
   dependencies: {
     repository?: ConstructionRepository;
     storage?: DocumentStorage;
-    extract?: typeof extractPdfDocument;
+    extract?: PdfExtractor;
     timings?: ProcessingRun;
   } = {},
 ) {
   const repository = dependencies.repository ?? constructionRepository;
   const storage = dependencies.storage ?? getDocumentStorage();
-  const extract = dependencies.extract ?? extractPdfDocument;
+  const extract = dependencies.extract ?? extractPdfDocumentCached;
   return withProcessingRun(dependencies.timings, "ingest", async (run) => {
     const document = await repository.getDocument(organizationId, documentId);
     if (!document) throw new DomainError("NOT_FOUND", "Document not found.", 404);
@@ -68,6 +68,9 @@ export async function ingestRevision(
       byteSize: rawInput.bytes.length,
       pageCount: result.pageCount,
       pageTextBytes: result.pages.reduce((sum, page) => sum + Buffer.byteLength(page.text), 0),
+      pdfCacheHitCount: result.cacheStatus === "hit" ? 1 : 0,
+      pdfCacheMissCount: result.cacheStatus === "miss" ? 1 : 0,
+      pdfCacheCoalescedCount: result.cacheStatus === "coalesced" ? 1 : 0,
     }));
 
     const usableText = hasUsableText(extracted.pages);

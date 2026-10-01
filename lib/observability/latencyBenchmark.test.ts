@@ -25,10 +25,16 @@ describe("document intelligence latency benchmark", () => {
     expect(result.runs[0]?.outcome).toBe("success");
     expect(result.summary.total.p50Ms).not.toBeNull();
     expect(result.summary.bottleneck).not.toBeNull();
+    expect(result.runs[0]?.stages.filter((stage) => stage.stage === "pdf_parsing"))
+      .toMatchObject([
+        { context: { pdfCacheHitCount: 1 } },
+        { context: { pdfCacheHitCount: 1 } },
+      ]);
     const serialized = JSON.stringify(result.runs) + result.report;
     expect(serialized).not.toContain("Excavation quantity");
     expect(serialized).not.toContain("Benchmark filler");
     expect(serialized).not.toContain("baseline-a.pdf");
     expect(result.report).toContain("end_to_end");
+    expect(result.report).toContain("2 cache hits, 0 misses");
   });
 });
