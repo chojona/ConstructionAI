@@ -33,7 +33,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
       <ScrollToFinding />
       <nav className="breadcrumb"><Link href="/projects">Projects</Link><span>/</span><span>{project.name}</span></nav>
       <div className="page-heading">
-        <div><p className="eyebrow">{project.projectNumber || "Project"}</p><h1>{project.name}</h1><p className="lede">Open exceptions from document changes and unreviewed facts.</p></div>
+        <div><p className="eyebrow">{project.projectNumber || "Project"}</p><h1>{project.name}</h1><p className="lede">Decide what changed, then move to the next item.</p></div>
         <details className="create-panel panel"><summary><Button asChild><span>Add document</span></Button></summary><CreateDocumentForm projectId={project.id} /></details>
       </div>
       <section>
@@ -47,31 +47,31 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
             <div><p className="row-title">{document.title}</p><p className="row-meta">{document.documentType || "Unclassified document"}</p></div>
             <div className="row-side"><span>{document.revisionCount} {document.revisionCount === 1 ? "revision" : "revisions"}</span><span aria-hidden>→</span></div>
           </Link>
-        ))}</div> : <div className="empty">No documents yet. Add a logical document before uploading revisions.</div>}
+        ))}</div> : <div className="empty">No documents yet. Add a document before uploading revisions.</div>}
       </section>
       <section className="review-block">
-        <div className="section-heading"><h2>Accepted project state</h2><span className="count">{review.state.facts.length} accepted</span></div>
-        <p className="field-help">Accepted findings are projected here. Source revisions and extraction runs stay unchanged.</p>
+        <div className="section-heading"><h2>Current project values</h2><span className="count">{review.state.facts.length} accepted</span></div>
+        <p className="field-help">These are the values in use after review.</p>
         {review.state.facts.length ? <div className="list">{review.state.facts.map((fact) => (
           <div className="list-row" id={findingDomId(fact.proposedFactId)} key={fact.proposedFactId}>
             <div>
               <p className="row-title">{fact.summary}</p>
-              <p className="evidence-kicker">Reading</p>
               <p className="row-meta">{fact.documentTitle} · {fact.revisionLabel} · accepted by {fact.reviewerId} on {dateTime(fact.acceptedAt)}</p>
               <EvidenceQuotes
                 items={fact.evidence.map((item) => ({ ...item, revisionId: fact.documentRevisionId, revisionLabel: fact.revisionLabel, documentTitle: fact.documentTitle }))}
                 returnTo={decisionReturnPath(project.id, fact.proposedFactId)}
               />
-              {fact.supersedesProposedFactId && <p className="row-meta">Supersedes {review.state.retirements.find((retirement) => retirement.proposedFactId === fact.supersedesProposedFactId)?.summary ?? "an earlier accepted fact"}</p>}
+              {fact.supersedesProposedFactId && <p className="row-meta">Replaces {review.state.retirements.find((retirement) => retirement.proposedFactId === fact.supersedesProposedFactId)?.summary ?? "an earlier accepted value"}</p>}
             </div>
           </div>
-        ))}</div> : <div className="empty">No accepted facts yet.</div>}
+        ))}</div> : <div className="empty">Nothing accepted yet.</div>}
         {review.state.retirements.length > 0 && <div className="retired">{review.state.retirements.map((retirement) => (
-          <p key={`${retirement.proposedFactId}-${retirement.decisionId}`}>{retirement.supersededByProposedFactId ? `“${retirement.summary}” was superseded. Recorded by ${retirement.reviewerId}.` : `“${retirement.summary}” was removed from the current projection by ${retirement.reviewerId}.`}</p>
+          <p key={`${retirement.proposedFactId}-${retirement.decisionId}`}>{retirement.supersededByProposedFactId ? `“${retirement.summary}” was replaced. Recorded by ${retirement.reviewerId}.` : `“${retirement.summary}” was removed from the current values by ${retirement.reviewerId}.`}</p>
         ))}</div>}
       </section>
       {settled.length > 0 && <section className="review-block">
-        <div className="section-heading"><h2>Already recorded</h2><span className="count">{settled.length}</span></div>
+        <details className="settled-fold">
+        <summary className="section-heading"><h2>Settled and wording-only</h2><span className="count">{settled.length}</span></summary>
         <div className="list">{settled.map((finding) => (
           <div className="list-row" id={findingDomId(finding.subjectKey)} key={finding.subjectKey}>
             <div>
@@ -84,6 +84,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
             </div>
           </div>
         ))}</div>
+        </details>
       </section>}
     </main>
   );
