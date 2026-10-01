@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { RevisionHistory } from "@/components/documents/revision-history";
+import { ProjectNavigation } from "@/components/workspace/project-navigation";
 import { UploadRevisionForm } from "@/components/forms/upload-revision-form";
 import { Button } from "@/components/ui/button";
 import { getDocument } from "@/lib/documents/service";
@@ -70,6 +71,17 @@ export default async function DocumentPage({ params }: { params: Promise<{ docum
           <UploadRevisionForm documentId={document.id} />
         </details>
       </div>
+      <ProjectNavigation projectId={document.project.id} active="documents" />
+      {latest ? (
+        <section className="document-context">
+          <div>
+            <p className="eyebrow">Latest uploaded revision</p>
+            <h2>{latest.revisionLabel}</h2>
+            <p>{latest.originalFilename} · Uploaded {date(latest.createdAt)}{reading ? ` · ${reading.label}` : ""}</p>
+          </div>
+          <Link href={`/projects/${document.project.id}?view=changes`}>Review project changes</Link>
+        </section>
+      ) : null}
       <section aria-labelledby="history-heading">
         <div className="section-heading">
           <h2 id="history-heading">Revision history</h2>

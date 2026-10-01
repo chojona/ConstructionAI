@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { RevisionInspection } from "@/components/documents/revision-inspection";
 import { SourceDocument } from "@/components/review/source-document";
+import { ProjectNavigation } from "@/components/workspace/project-navigation";
 import { getDocument, getRevision, listRevisionAnalysis } from "@/lib/documents/service";
 import { DomainError } from "@/lib/domain/errors";
 import { parseEvidenceTarget, safeReturnPath } from "@/lib/review/evidenceLocation";
@@ -64,6 +65,7 @@ export default async function RevisionPage({
         <span>{revision.revisionLabel}</span>
       </nav>
       <p className="identity-line">{revision.document.documentType || "Document"} · {revision.document.title}</p>
+      <ProjectNavigation projectId={revision.document.project.id} active="documents" />
       <RevisionInspection
         revision={{ ...revision, pageCount: revision.pages.length }}
         siblings={document.revisions}
@@ -79,24 +81,27 @@ export default async function RevisionPage({
       {target ? (
         <p className="evidence-banner" role="status">This view is open at the cited passage.</p>
       ) : null}
-      {revision.pages.length ? (
-        <nav className="page-index" aria-label="Source pages">
+      <div className="revision-layout">
+        <nav className="revision-index" aria-label="Source pages">
+          <h2>Pages</h2>
           {revision.pages.map((page) => {
             const active = target?.pageId === page.id;
             return (
-              <a aria-current={active ? "page" : undefined} href={active ? "#evidence" : `#page-${page.id}`} key={page.id}>
-                {page.pageNumber}
+              <a aria-current={active ? "page" : undefined} className={active ? "is-active" : undefined} href={active ? "#evidence" : `#page-${page.id}`} key={page.id}>
+                Page {page.pageNumber}{active ? <span>Evidence</span> : null}
               </a>
             );
           })}
+          {revision.pages.length === 0 ? <p className="row-meta">No pages available.</p> : null}
         </nav>
-      ) : (
-        <p className="empty">No pages were saved for this revision.</p>
-      )}
-      <SourceDocument
-        pages={revision.pages.map((page) => ({ id: page.id, pageNumber: page.pageNumber, text: page.text }))}
-        target={target}
-      />
+        <div>
+          <SourceDocument
+            pages={revision.pages.map((page) => ({ id: page.id, pageNumber: page.pageNumber, text: page.text }))}
+            target={target}
+          />
+          {revision.pages.length === 0 ? <div className="empty">Source text is unavailable. Check the reading status above.</div> : null}
+        </div>
+      </div>
     </main>
   );
 }
