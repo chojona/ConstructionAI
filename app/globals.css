@@ -102,8 +102,10 @@ details.create-panel[open] > summary { margin-bottom: 20px; }
 .source-line { margin: 6px 0 0; color: var(--color-ink-secondary); font-size: 13px; }
 .source-line a { color: var(--color-brand); font-weight: 650; }
 .source-joiner { color: var(--color-ink-secondary); font-weight: 400; }
+.severity-critical { background: var(--color-danger); color: #fff; }
 .severity-high { background: var(--color-danger-subtle); color: var(--color-danger); }
 .severity-medium { background: var(--color-surface-subtle); color: var(--color-ink); }
+.severity-low { background: var(--color-surface-subtle); color: var(--color-ink-secondary); }
 .compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; margin-top: 14px; }
 .compare-single { grid-template-columns: minmax(0, 1fr); max-width: 640px; }
 .compare h4 { margin: 0; color: var(--color-ink-secondary); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }

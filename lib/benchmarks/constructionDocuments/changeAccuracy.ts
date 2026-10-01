@@ -1,4 +1,5 @@
-import { compareFacts, factSlotKey, type RevisionChangeType, type RevisionFactChange } from "@/lib/revisions/compareFacts";
+import { scoreRevisionChange } from "@/lib/review/severity";
+import { compareFacts, factSlotKey, type ComparableFact, type RevisionChangeType, type RevisionFactChange } from "@/lib/revisions/compareFacts";
 import {
   revisionChangeCases,
   type ChangeCase,
@@ -62,7 +63,7 @@ const definitions = {
   materialPrecision: "Material predictions that match a labeled material change, divided by all material predictions.",
   materialRecall: "Labeled material changes that were predicted, divided by all labeled material changes.",
   wordingSuppression: "Share of wording-only and normalization-equivalent cases that produced no material change.",
-  falseHighRate: "Share of high-severity predictions that are not a labeled material removal or modification. Added changes are medium. There is no critical severity.",
+  falseHighRate: "Share of high or critical predictions that do not match a labeled change scored high or critical by the same deterministic rules. Wording-only changes score low. Revision text alone never scores critical.",
   evidenceCorrectness: "Share of matched changes whose old and new evidence excerpts are the labeled excerpts.",
 } as const;
 
@@ -79,12 +80,17 @@ export function measureRevisionChangeAccuracy(cases: readonly ChangeCase[] = rev
   let evidenceCorrect = 0;
   let evidenceCompared = 0;
   let highFindings = 0;
+  let criticalFindings = 0;
   let falseHighFindings = 0;
+  let falseCriticalFindings = 0;
   let normalizationCases = 0;
   let normalizationLeaks = 0;
 
   for (const changeCase of cases) {
-    const actual = compareFacts(changeCase.before, changeCase.after).map(toLabeled);
+    const compared = compareFacts(changeCase.before, changeCase.after);
+    const actual = compared.map(toLabeled);
+    const actualScores = compared.map((change) => scoreRevisionChange(change));
+    const expectedScores = changeCase.expected.map((change) => scoreLabeled(changeCase, change));
     const matched = matchChanges(changeCase.expected, actual);
     addCounts(overall, matched.counts);
     for (const changeType of ["ADDED", "REMOVED", "MODIFIED"] as const) {
@@ -101,13 +107,20 @@ export function measureRevisionChangeAccuracy(cases: readonly ChangeCase[] = rev
     evidenceCorrect += evidence.correct;
     evidenceCompared += evidence.compared;
 
-    const high = actual.filter((change) => severityOf(change) === "high");
+    const high = actual.filter((_, index) => actualScores[index]!.severity === "high");
+    const critical = actual.filter((_, index) => actualScores[index]!.severity === "critical");
     const highMatch = matchChanges(
-      changeCase.expected.filter((change) => severityOf(change) === "high"),
+      changeCase.expected.filter((_, index) => expectedScores[index]!.severity === "high"),
       high,
     );
+    const criticalMatch = matchChanges(
+      changeCase.expected.filter((_, index) => expectedScores[index]!.severity === "critical"),
+      critical,
+    );
     highFindings += high.length;
+    criticalFindings += critical.length;
     falseHighFindings += highMatch.counts.falsePositives;
+    falseCriticalFindings += criticalMatch.counts.falsePositives;
 
     const normalization = changeCase.expected.every((change) => !change.material)
       && changeCase.phenomena.some((tag) => tag === "wording-only" || tag === "date-normalization" || tag === "unit-normalization");
@@ -134,7 +147,9 @@ export function measureRevisionChangeAccuracy(cases: readonly ChangeCase[] = rev
   }
 
   const materialRates = rates(material);
-  const falseHighRate = highFindings === 0 ? 0 : falseHighFindings / highFindings;
+  const elevatedFindings = highFindings + criticalFindings;
+  const falseElevatedFindings = falseHighFindings + falseCriticalFindings;
+  const falseHighRate = elevatedFindings === 0 ? 0 : falseElevatedFindings / elevatedFindings;
   const targets = {
     materialPrecision: target(CHANGE_ACCURACY_GOALS.materialPrecision, materialRates.precision, materialRates.truePositives + materialRates.falsePositives > 0),
     materialRecall: target(CHANGE_ACCURACY_GOALS.materialRecall, materialRates.recall, materialRates.truePositives + materialRates.falseNegatives > 0),
@@ -165,7 +180,9 @@ export function measureRevisionChangeAccuracy(cases: readonly ChangeCase[] = rev
     normalizationCases,
     normalizationLeaks,
     falseHighFindings,
+    falseCriticalFindings,
     highFindings,
+    criticalFindings,
     evidenceCorrectness: evidenceCompared === 0 ? 1 : evidenceCorrect / evidenceCompared,
     evidenceCompared,
     byPhenomenon: Object.fromEntries([...phenomena.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([tag, slice]) => [
@@ -215,7 +232,7 @@ export function formatChangeAccuracyReport(report: ChangeAccuracyReport) {
     `material precision ${formatMetric(report.material.precision)} goal ${formatMetric(report.targets.materialPrecision.goal)} achieved ${report.targets.materialPrecision.achieved}`,
     `material recall ${formatMetric(report.material.recall)} goal ${formatMetric(report.targets.materialRecall.goal)} achieved ${report.targets.materialRecall.achieved}`,
     `wording suppression ${formatMetric(report.wordingSuppression)} leaks ${report.normalizationLeaks}/${report.normalizationCases}`,
-    `false high findings ${report.falseHighFindings}/${report.highFindings} rate ${formatMetric(report.targets.falseHighRate.actual)} achieved ${report.targets.falseHighRate.achieved}`,
+    `false high or critical findings ${report.falseHighFindings + report.falseCriticalFindings}/${report.highFindings + report.criticalFindings} rate ${formatMetric(report.targets.falseHighRate.actual)} achieved ${report.targets.falseHighRate.achieved}`,
     `evidence correctness ${formatMetric(report.evidenceCorrectness)} compared ${report.evidenceCompared}`,
     `all measured targets met ${report.targets.allMeasuredTargetsMet}`,
     "",
@@ -317,9 +334,19 @@ function miss(changeCase: ChangeCase, outcome: ChangeMiss["outcome"], change: Ac
   };
 }
 
-function severityOf(change: Pick<ActualChange, "changeType" | "material">) {
-  if (!change.material) return "none";
-  return change.changeType === "ADDED" ? "medium" : "high";
+function scoreLabeled(changeCase: ChangeCase, change: ActualChange) {
+  return scoreRevisionChange({
+    changeType: change.changeType,
+    category: change.category,
+    material: change.material,
+    basis: change.basis,
+    before: change.beforeExcerpt === null ? null : factByExcerpt(changeCase.before, change.category, change.beforeExcerpt),
+    after: change.afterExcerpt === null ? null : factByExcerpt(changeCase.after, change.category, change.afterExcerpt),
+  });
+}
+
+function factByExcerpt(facts: readonly ComparableFact[], category: ActualChange["category"], excerpt: string) {
+  return facts.find((fact) => fact.factType === category && fact.evidence.some((item) => item.excerpt === excerpt)) ?? null;
 }
 
 function sameChange(left: ActualChange, right: ActualChange) {

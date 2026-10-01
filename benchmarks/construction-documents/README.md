@@ -32,6 +32,22 @@ The report records strict precision, recall, and F1, plus evidence correctness, 
 
 Equivalent units (`C.Y.` and cubic yards, inches and inch) and equivalent calendar dates (`June 6, 2025` and `6 June 2025`) stay non-material, so they do not enter the project attention queue. Ambiguous numeric dates such as `08-05-2025` are not treated as a calendar date. The comparison does not infer equipment or schedule conflicts beyond the labeled facts.
 
+## Severity
+
+Severity is a deterministic rule, not a model score. Each scored change has one disposition:
+
+- **Change detected.** Wording-only and normalization-equivalent edits. Severity is low, and they stay out of the attention queue.
+- **Material change.** The equipment, schedule, or quantity value differs. The reason names the old and new values.
+- **Proven conflict.** Only when an external equipment assignment or schedule commitment is supplied and contradicts the document. Revision text alone never scores critical and never says "conflict".
+
+Thresholds, applied only when both sides are comparable:
+
+- A quantity change is high at a relative change of 10% or more, using the larger absolute amount as the baseline. Smaller numeric changes stay medium. A unit change is high because the amounts are not on one scale.
+- A schedule change is high when both dates are calendar dates and the shift is 7 days or more. Shorter measured shifts stay medium. If either date is not a calendar date, the change is high because the shift cannot be measured.
+- Replacing one required equipment name with another is high. Removing required equipment is high. Adding a requirement is medium. A required-to-prohibited reversal is high.
+
+The change-accuracy report's false high rate counts high and critical predictions that do not match a labeled change scored the same way. This benchmark supplies no assignment or commitment records, so critical stays at zero.
+
 ## Known limitations
 
 - These are short excerpts, not full drawing sets. No design-partner documents were available.

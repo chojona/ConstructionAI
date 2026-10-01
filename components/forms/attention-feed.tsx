@@ -61,8 +61,8 @@ export function AttentionFeed({ projectId, items }: { projectId: string; items: 
         {items.map((item) => (
           <article className="attention-item" key={item.finding.subjectKey}>
             <div className="attention-kicker">
-              <Badge className={item.severity === "high" ? "severity-high" : "severity-medium"}>{item.severity}</Badge>
-              <span>{kindLabel(item.finding)}</span>
+              <Badge className={severityClass(item.severity)}>{item.severity}</Badge>
+              <span>{kindLabel(item)}</span>
             </div>
             <p className="row-meta">{item.finding.documentTitle}</p>
             <h3>{item.finding.label}</h3>
@@ -129,10 +129,17 @@ function sourceLine(finding: FindingDto) {
   ));
 }
 
-function kindLabel(finding: FindingDto) {
-  if (finding.currentDecision?.decision === "FLAGGED") return "Flagged";
-  if (finding.subject.type === "proposed_fact") return "Unreviewed fact";
-  if (finding.subject.changeType === "MODIFIED") return "Modified";
-  if (finding.subject.changeType === "REMOVED") return "Removed";
-  return "Added";
+function kindLabel(item: AttentionItemDto) {
+  if (item.disposition === "proven_conflict") return "Proven conflict";
+  if (item.disposition === "material_change") return "Material change";
+  if (item.disposition === "change_detected") return "Change detected";
+  if (item.disposition === "reviewer_flag") return "Flagged";
+  return "Unreviewed fact";
+}
+
+function severityClass(severity: AttentionItemDto["severity"]) {
+  if (severity === "critical") return "severity-critical";
+  if (severity === "high") return "severity-high";
+  if (severity === "low") return "severity-low";
+  return "severity-medium";
 }
