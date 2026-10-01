@@ -81,7 +81,7 @@ const languageChecks: Array<{ label: "tentative" | "conditional" | "historical";
   { label: "historical", pattern: /\b(previous(?:ly)?|formerly|had been|was previously|were previously)\b/i },
   { label: "conditional", pattern: /\b(if|unless|provided that|contingent(?: upon)?)\b/i },
   { label: "tentative", pattern: /\b(might|could|requested|proposed|tentative|approximately|around|subject to)\b/i },
-  { label: "tentative", pattern: /\bmay\b(?!\s+\d{1,2}\b)/i },
+  { label: "tentative", pattern: /\bmay\b(?!(?:\s+|,\s*|\s+of\s+)(?:\d{1,2}(?:st|nd|rd|th)?|\d{4})\b)/i },
 ];
 
 /** Modality the parser will reject if the fact is stored as asserted. */

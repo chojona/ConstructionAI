@@ -5,6 +5,7 @@ import { getProjectReview, recordReviewDecision } from "@/lib/review/service";
 import { MemoryRepository } from "@/tests/support/memoryRepository";
 import {
   CONSTRUCTION_FACTS_EXTRACTOR,
+  conflictingAssertedLanguage,
   parseConstructionFactsV1,
   runConstructionFactsExtraction,
   type ConstructionFactsModelClient,
@@ -131,6 +132,29 @@ describe("construction-facts-v1", () => {
     expect(() => parseConstructionFactsV1(tentative, pages)).toThrow(/tentative|conditional|historical/i);
     expect(() => parseConstructionFactsV1(requested, pages)).toThrow(/tentative|conditional|historical/i);
     expect(() => parseConstructionFactsV1(historical, pages)).toThrow(/tentative|conditional|historical/i);
+  });
+
+  it("accepts an asserted schedule date written as the month name May plus a year", () => {
+    const text = "Bidding and Contract Documents dated May 2025.";
+    const excerpt = "May 2025";
+    const startOffset = text.indexOf(excerpt);
+    const localPages = [{ pageNumber: 1, text }];
+    const parsed = parseConstructionFactsV1(output([{
+      type: "schedule_date",
+      event: "bidding documents",
+      date: null,
+      dateText: excerpt,
+      modality: "asserted",
+      evidence: [{ pageNumber: 1, excerpt, startOffset, endOffset: startOffset + excerpt.length }],
+    }]), localPages);
+
+    expect(parsed[0]).toMatchObject({ type: "schedule_date", dateText: "May 2025", modality: "asserted" });
+    expect(conflictingAssertedLanguage("dated May 2025")).toBeNull();
+    expect(conflictingAssertedLanguage("15 May 2025")).toBeNull();
+    expect(conflictingAssertedLanguage("May 15, 2025")).toBeNull();
+    expect(conflictingAssertedLanguage("A CAT 336 may be required.")).toBe("tentative");
+    expect(conflictingAssertedLanguage("Section 15 may be required.")).toBe("tentative");
+    expect(conflictingAssertedLanguage("temperatures may fall below 40")).toBe("tentative");
   });
 
   it("keeps quantity scale and unit instead of accepting a float", () => {
