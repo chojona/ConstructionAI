@@ -1,4 +1,5 @@
 import { DomainError } from "@/lib/domain/errors";
+import { type ProcessingRun, withProcessingRun } from "@/lib/observability/pipelineTiming";
 import type { ConstructionRepository } from "@/lib/domain/repository";
 import { constructionRepository } from "@/lib/domain/prismaRepository";
 import type { ExtractionRunRecord, ProposedFactRecord, ProposedFactType } from "@/lib/domain/types";
@@ -68,37 +69,46 @@ export async function compareRevisionFacts(input: {
   baseRevisionId: string;
   revisedRevisionId: string;
   repository?: ConstructionRepository;
+  timings?: ProcessingRun;
 }) {
-  const repository = input.repository ?? constructionRepository;
-  if (input.baseRevisionId === input.revisedRevisionId) {
-    throw new DomainError("INVALID_INPUT", "Choose two different revisions of the same document.", 400);
-  }
+  return withProcessingRun(input.timings, "revision_comparison", async (timings) => {
+    const repository = input.repository ?? constructionRepository;
+    if (input.baseRevisionId === input.revisedRevisionId) {
+      throw new DomainError("INVALID_INPUT", "Choose two different revisions of the same document.", 400);
+    }
 
-  const [base, revised] = await Promise.all([
-    repository.getRevision(input.organizationId, input.baseRevisionId),
-    repository.getRevision(input.organizationId, input.revisedRevisionId),
-  ]);
-  if (!base || !revised) throw new DomainError("NOT_FOUND", "Revision not found.", 404);
-  if (base.documentId !== revised.documentId) {
-    throw new DomainError("INVALID_INPUT", "Revisions must belong to the same document.", 400);
-  }
+    const [base, revised] = await Promise.all([
+      repository.getRevision(input.organizationId, input.baseRevisionId),
+      repository.getRevision(input.organizationId, input.revisedRevisionId),
+    ]);
+    if (!base || !revised) throw new DomainError("NOT_FOUND", "Revision not found.", 404);
+    if (base.documentId !== revised.documentId) {
+      throw new DomainError("INVALID_INPUT", "Revisions must belong to the same document.", 400);
+    }
 
-  const [baseRun, revisedRun] = await Promise.all([
-    latestSucceededRun(repository, input.organizationId, base.id),
-    latestSucceededRun(repository, input.organizationId, revised.id),
-  ]);
-  const [before, after] = await Promise.all([
-    listProposedFacts(input.organizationId, baseRun.id, repository),
-    listProposedFacts(input.organizationId, revisedRun.id, repository),
-  ]);
+    const [baseRun, revisedRun] = await Promise.all([
+      latestSucceededRun(repository, input.organizationId, base.id),
+      latestSucceededRun(repository, input.organizationId, revised.id),
+    ]);
+    const [before, after] = await Promise.all([
+      listProposedFacts(input.organizationId, baseRun.id, repository),
+      listProposedFacts(input.organizationId, revisedRun.id, repository),
+    ]);
 
-  return {
-    baseRevisionId: base.id,
-    revisedRevisionId: revised.id,
-    baseRunId: baseRun.id,
-    revisedRunId: revisedRun.id,
-    changes: compareFacts(before.map(toComparableFact), after.map(toComparableFact)),
-  };
+    const beforeFacts = before.map(toComparableFact);
+    const afterFacts = after.map(toComparableFact);
+    const changes = await timings.stage("revision_comparison", () => compareFacts(beforeFacts, afterFacts), (result) => ({
+      factCount: beforeFacts.length + afterFacts.length,
+      changeCount: result.length,
+    }));
+    return {
+      baseRevisionId: base.id,
+      revisedRevisionId: revised.id,
+      baseRunId: baseRun.id,
+      revisedRunId: revisedRun.id,
+      changes,
+    };
+  });
 }
 
 function compareCategory(before: IndexedFact[], after: IndexedFact[]): RevisionFactChange[] {

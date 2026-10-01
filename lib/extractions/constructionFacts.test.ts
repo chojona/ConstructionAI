@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { PipelineTimeoutError, startProcessingRun } from "@/lib/observability/pipelineTiming";
 import { MemoryRepository } from "@/tests/support/memoryRepository";
 import {
   CONSTRUCTION_FACTS_EXTRACTOR,
@@ -355,5 +356,52 @@ describe("construction facts extraction run", () => {
       clock,
     })).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(repository.extractionRuns).toHaveLength(0);
+  });
+
+  it("records a timeout separately from a slow successful extraction", async () => {
+    const repository = new MemoryRepository();
+    repository.addOrganization("org_a");
+    const revision = await processedRevision(repository);
+    let now = 0;
+    const slow = startProcessingRun({ kind: "extraction", now: () => now });
+    const result = await runConstructionFactsExtraction({
+      organizationId: "org_a",
+      documentRevisionId: revision.id,
+      model: model(async () => {
+        now += 750;
+        return output([]);
+      }),
+      repository,
+      clock,
+      timings: slow,
+    });
+    expect(result.run.status).toBe("SUCCEEDED");
+    expect(slow.finish()).toMatchObject({
+      outcome: "success",
+      stages: [
+        { stage: "ai_extraction", outcome: "success", durationMs: 750 },
+        { stage: "structured_output_validation", outcome: "success" },
+        { stage: "proposed_fact_persistence", outcome: "success" },
+      ],
+    });
+    expect(JSON.stringify(slow.finish())).not.toContain("CAT 336");
+
+    const timings = startProcessingRun({ kind: "extraction" });
+    await expect(runConstructionFactsExtraction({
+      organizationId: "org_a",
+      documentRevisionId: revision.id,
+      model: model(async () => {
+        throw new PipelineTimeoutError();
+      }),
+      repository,
+      clock,
+      timings,
+    })).rejects.toMatchObject({ code: "TIMEOUT" });
+    expect(timings.finish()).toMatchObject({
+      outcome: "timeout",
+      stages: [{ stage: "ai_extraction", outcome: "timeout", context: { failureCode: "TIMEOUT" } }],
+    });
+    expect(repository.extractionRuns.at(-1)).toMatchObject({ status: "FAILED", failureCode: "TIMEOUT" });
+    expect(JSON.stringify(timings.finish())).not.toContain("CAT 336");
   });
 });

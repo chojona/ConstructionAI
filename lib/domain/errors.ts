@@ -12,7 +12,8 @@ export type DomainErrorCode =
   | "REVISION_NOT_READY"
   | "INVALID_TRANSITION"
   | "MALFORMED_OUTPUT"
-  | "PROVIDER_ERROR";
+  | "PROVIDER_ERROR"
+  | "TIMEOUT";
 
 export class DomainError extends Error {
   constructor(

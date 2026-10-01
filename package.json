@@ -15,6 +15,7 @@
     "test:e2e": "playwright test",
     "eval:construction-facts": "node --import tsx lib/extractions/eval/cli.ts",
     "eval:construction-documents": "node --import tsx lib/benchmarks/constructionDocuments/cli.ts",
+    "bench:latency": "node --import tsx lib/observability/benchmarkCli.ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "node --env-file-if-exists=.env --import tsx prisma/seed.ts"

@@ -4,6 +4,7 @@ import type { ConstructionRepository } from "@/lib/domain/repository";
 import { constructionRepository } from "@/lib/domain/prismaRepository";
 import type { ProjectReviewSource, ReviewDecisionRecord, RevisionChangeType } from "@/lib/domain/types";
 import { CONSTRUCTION_FACTS_EXTRACTOR } from "@/lib/extractions/constructionFacts";
+import { type ProcessingRun, withProcessingRun } from "@/lib/observability/pipelineTiming";
 import { compareFacts, toComparableFact, type RevisionFactChange } from "@/lib/revisions/compareFacts";
 import { listProjectFindings, type ProjectFinding } from "./findings";
 import { projectEffectiveState, type EffectiveProjectState } from "./projectState";
@@ -42,18 +43,21 @@ export async function getProjectReview(
   organizationId: string,
   projectId: string,
   repository: ConstructionRepository = constructionRepository,
+  timings?: ProcessingRun,
 ): Promise<ProjectReview> {
-  const loaded = await load(organizationId, projectId, repository);
-  return {
-    decisions: loaded.decisions,
-    findings: listProjectFindings(loaded.source, loaded.decisions),
-    state: projectEffectiveState({
-      projectId,
-      revisions: loaded.source.revisions,
-      facts: loaded.source.facts,
+  return withProcessingRun(timings, "review_read", async (run) => {
+    const loaded = await load(organizationId, projectId, repository);
+    return {
       decisions: loaded.decisions,
-    }),
-  };
+      findings: listProjectFindings(loaded.source, loaded.decisions, run),
+      state: projectEffectiveState({
+        projectId,
+        revisions: loaded.source.revisions,
+        facts: loaded.source.facts,
+        decisions: loaded.decisions,
+      }),
+    };
+  });
 }
 
 export async function recordReviewDecision(

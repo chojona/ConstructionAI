@@ -1,4 +1,5 @@
 import type { ProjectFactContext, ProjectReviewSource, ReviewDecisionRecord, RevisionChangeType } from "@/lib/domain/types";
+import type { ProcessingRun } from "@/lib/observability/pipelineTiming";
 import { CONSTRUCTION_FACTS_EXTRACTOR } from "@/lib/extractions/constructionFacts";
 import { compareFacts, toComparableFact, type ComparisonBasis, type RevisionFactChange } from "@/lib/revisions/compareFacts";
 import { describeFact } from "./describe";
@@ -55,6 +56,7 @@ export interface ProjectFinding {
 export function listProjectFindings(
   source: ProjectReviewSource,
   decisions: readonly ReviewDecisionRecord[],
+  timings?: ProcessingRun,
 ): ProjectFinding[] {
   const latest = latestBySubject(decisions);
   const findings: ProjectFinding[] = [];
@@ -74,7 +76,15 @@ export function listProjectFindings(
     for (let index = 1; index < comparable.length; index += 1) {
       const base = comparable[index - 1]!;
       const revised = comparable[index]!;
-      for (const change of compareFacts(factsFor(source, base.id), factsFor(source, revised.id))) {
+      const beforeFacts = factsFor(source, base.id);
+      const afterFacts = factsFor(source, revised.id);
+      const changes = timings
+        ? timings.measure("revision_comparison", () => compareFacts(beforeFacts, afterFacts), (result) => ({
+          factCount: beforeFacts.length + afterFacts.length,
+          changeCount: result.length,
+        }))
+        : compareFacts(beforeFacts, afterFacts);
+      for (const change of changes) {
         findings.push(changeFinding(source.projectId, base, revised, change, latest));
       }
     }

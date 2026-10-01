@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createProject } from "@/lib/projects/service";
 import { MemoryRepository } from "@/tests/support/memoryRepository";
+import { startProcessingRun } from "@/lib/observability/pipelineTiming";
 import { createDocument } from "./service";
 import { ingestRevision } from "./ingestRevision";
 import { buildTextPdf } from "./minimalPdf";
@@ -85,5 +86,22 @@ describe("revision ingestion", () => {
     const revision = await ingestRevision("org_a", document.id, { revisionLabel: "A", originalFilename: "../../secrets.pdf", mimeType: "application/pdf", bytes: buildTextPdf(["Safe"]) }, { repository, storage });
     expect(revision.originalFilename).toBe("secrets.pdf");
     expect(revision.storageKey).not.toContain("..");
+  });
+
+  it("records upload, parse, and storage timings without the page text", async () => {
+    const { repository, document, storage } = await setup();
+    const secret = "CONFIDENTIAL-DRAWING-ALPHA";
+    const timings = startProcessingRun({ kind: "ingest" });
+    const bytes = buildTextPdf([secret]);
+    await ingestRevision("org_a", document.id, {
+      revisionLabel: "A", originalFilename: "secret.pdf", mimeType: "application/pdf", bytes,
+    }, { repository, storage, timings });
+    const timing = timings.finish();
+    expect(timing.outcome).toBe("success");
+    expect(timing.stages.map((stage) => stage.stage)).toEqual(["upload_validation", "pdf_parsing", "storage"]);
+    expect(timing.context.byteSize).toBe(bytes.length);
+    expect(timing.context.pageCount).toBe(1);
+    expect(JSON.stringify(timing)).not.toContain(secret);
+    expect(JSON.stringify(timing)).not.toContain("secret.pdf");
   });
 });
