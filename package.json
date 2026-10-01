@@ -14,6 +14,7 @@
     "test:integration": "node --env-file-if-exists=.env ./node_modules/vitest/vitest.mjs run --project integration",
     "test:e2e": "playwright test",
     "eval:construction-facts": "node --import tsx lib/extractions/eval/cli.ts",
+    "eval:construction-documents": "node --import tsx lib/benchmarks/constructionDocuments/cli.ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "node --env-file-if-exists=.env --import tsx prisma/seed.ts"
