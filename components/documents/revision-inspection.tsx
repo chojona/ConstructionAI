@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import type { ExtractionRunRecord, RevisionRecord } from "@/lib/domain/types";
 import {
@@ -37,6 +38,7 @@ export function RevisionInspection({
   findings,
   uploadedLabel,
   returnTo,
+  navigation,
 }: {
   revision: Pick<RevisionRecord, "id" | "documentId" | "revisionLabel" | "revisionOrder" | "originalFilename" | "byteSize" | "status" | "failureCode" | "failureMessage"> & {
     pageCount: number;
@@ -46,6 +48,7 @@ export function RevisionInspection({
   findings: readonly RevisionFindingView[];
   uploadedLabel: string;
   returnTo: string | null;
+  navigation?: ReactNode;
 }) {
   const reading = describeReading(revision.status, revision.failureCode, revision.failureMessage);
   const analysis = describeAnalysis(runs);
@@ -68,6 +71,7 @@ export function RevisionInspection({
           {newer ? <Link href={`/revisions/${newer.id}`}>Newer · {newer.revisionLabel}</Link> : <span>Newest revision</span>}
         </nav>
       </div>
+      {navigation}
 
       <dl className="meta-grid">
         <div>
@@ -123,7 +127,7 @@ export function RevisionInspection({
             ))}
           </ul>
         ) : (
-          <p className="empty">Nothing extracted or compared for this revision yet.</p>
+          <p className="empty"><strong>Nothing to review yet</strong><span>Extracted items and comparisons will show up after this revision is read.</span></p>
         )}
       </section>
     </>

@@ -7,7 +7,7 @@ export default function NotFound() {
       <p className="eyebrow">Not found</p>
       <h1>This record is not available.</h1>
       <p className="lede">It may not exist or may belong to another organization.</p>
-      <div style={{ marginTop: 24 }}><Button asChild><Link href="/projects">Return to projects</Link></Button></div>
+      <div className="status-actions"><Button asChild><Link href="/projects">Return to projects</Link></Button></div>
     </main>
   );
 }

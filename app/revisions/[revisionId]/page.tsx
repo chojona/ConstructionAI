@@ -64,8 +64,7 @@ export default async function RevisionPage({
         <span>/</span>
         <span>{revision.revisionLabel}</span>
       </nav>
-      <p className="identity-line">{revision.document.documentType || "Document"} · {revision.document.title}</p>
-      <ProjectNavigation projectId={revision.document.project.id} active="documents" />
+      <p className="eyebrow">{revision.document.documentType || "Document"} · {revision.document.title}</p>
       <RevisionInspection
         revision={{ ...revision, pageCount: revision.pages.length }}
         siblings={document.revisions}
@@ -73,6 +72,7 @@ export default async function RevisionPage({
         findings={findings}
         uploadedLabel={date(revision.createdAt)}
         returnTo={returnTo}
+        navigation={<ProjectNavigation projectId={revision.document.project.id} active="documents" />}
       />
       <div className="source-heading-row">
         <h2 className="source-heading" id="source-heading">Source pages</h2>
@@ -99,7 +99,7 @@ export default async function RevisionPage({
             pages={revision.pages.map((page) => ({ id: page.id, pageNumber: page.pageNumber, text: page.text }))}
             target={target}
           />
-          {revision.pages.length === 0 ? <div className="empty">Source text is unavailable. Check the reading status above.</div> : null}
+          {revision.pages.length === 0 ? <div className="empty"><strong>Source text is unavailable</strong><span>Check the reading status above.</span></div> : null}
         </div>
       </div>
     </main>
