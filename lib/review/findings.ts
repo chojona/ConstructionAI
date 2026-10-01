@@ -1,6 +1,6 @@
 import type { ProjectFactContext, ProjectReviewSource, ReviewDecisionRecord, RevisionChangeType } from "@/lib/domain/types";
 import { CONSTRUCTION_FACTS_EXTRACTOR } from "@/lib/extractions/constructionFacts";
-import { compareFacts, toComparableFact, type RevisionFactChange } from "@/lib/revisions/compareFacts";
+import { compareFacts, toComparableFact, type ComparisonBasis, type RevisionFactChange } from "@/lib/revisions/compareFacts";
 import { describeFact } from "./describe";
 import { proposedFactSubjectKey, removalSubjectKey } from "./subjects";
 
@@ -20,13 +20,34 @@ export interface FindingSubjectRevisionChange {
 
 export type FindingSubject = FindingSubjectProposedFact | FindingSubjectRevisionChange;
 
+export interface FindingEvidence {
+  pageNumber: number;
+  excerpt: string;
+}
+
+export interface FindingValue {
+  summary: string;
+  evidence: FindingEvidence[];
+}
+
+export interface FindingSource {
+  revisionId: string;
+  revisionLabel: string;
+  role: "extracted" | "previous" | "current";
+}
+
 export interface ProjectFinding {
   subjectKey: string;
   documentTitle: string;
   revisionLabel: string;
   label: string;
   detail: string;
-  evidence: Array<{ pageNumber: number; excerpt: string }>;
+  evidence: FindingEvidence[];
+  material: boolean | null;
+  basis: ComparisonBasis | null;
+  before: FindingValue | null;
+  after: FindingValue | null;
+  sources: FindingSource[];
   currentDecision: ReviewDecisionRecord | null;
   subject: FindingSubject;
 }
@@ -86,13 +107,23 @@ function changeFinding(
   const subjectKey = change.changeType === "REMOVED" && change.before?.id
     ? removalSubjectKey({ baseRevisionId: base.id, revisedRevisionId: revised.id, before: { ...change.before, id: change.before.id } })
     : proposedFactSubjectKey(change.after?.id ?? change.before?.id ?? "");
+  const before = change.before ? findingValue(change.before) : null;
+  const after = change.after ? findingValue(change.after) : null;
   return {
     subjectKey,
     documentTitle: revised.documentTitle,
     revisionLabel: `${base.revisionLabel} → ${revised.revisionLabel}`,
     label: focus ? describeFact(focus) : change.changeType,
     detail: `${change.changeType} · ${change.material ? "material" : "wording only"} · ${change.basis}`,
-    evidence: (focus?.evidence ?? []).map((item) => ({ pageNumber: item.pageNumber, excerpt: item.excerpt })),
+    evidence: (after ?? before)?.evidence ?? [],
+    material: change.material,
+    basis: change.basis,
+    before,
+    after,
+    sources: [
+      { revisionId: base.id, revisionLabel: base.revisionLabel, role: "previous" },
+      { revisionId: revised.id, revisionLabel: revised.revisionLabel, role: "current" },
+    ],
     currentDecision: latest.get(subjectMapKey(projectId, subjectKey)) ?? null,
     subject,
   };
@@ -105,15 +136,28 @@ function factFinding(
   latest: Map<string, ReviewDecisionRecord>,
 ): ProjectFinding {
   const subjectKey = proposedFactSubjectKey(fact.id);
+  const after = findingValue(fact);
   return {
     subjectKey,
     documentTitle: revision.documentTitle,
     revisionLabel: revision.revisionLabel,
     label: describeFact(fact),
     detail: "Proposed by extraction",
-    evidence: fact.evidence.map((item) => ({ pageNumber: item.pageNumber, excerpt: item.excerpt })),
+    evidence: after.evidence,
+    material: null,
+    basis: null,
+    before: null,
+    after,
+    sources: [{ revisionId: revision.id, revisionLabel: revision.revisionLabel, role: "extracted" }],
     currentDecision: latest.get(subjectMapKey(projectId, subjectKey)) ?? null,
     subject: { type: "proposed_fact", proposedFactId: fact.id },
+  };
+}
+
+function findingValue(fact: { factType: ProjectFactContext["factType"]; payload: Record<string, string | null>; evidence: Array<{ pageNumber: number; excerpt: string }> }): FindingValue {
+  return {
+    summary: describeFact(fact),
+    evidence: fact.evidence.map((item) => ({ pageNumber: item.pageNumber, excerpt: item.excerpt })),
   };
 }
 

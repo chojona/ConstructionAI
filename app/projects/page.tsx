@@ -2,28 +2,39 @@ import Link from "next/link";
 import { CreateProjectForm } from "@/components/forms/create-project-form";
 import { Button } from "@/components/ui/button";
 import { listProjects } from "@/lib/projects/service";
+import { listAttention } from "@/lib/review/attention";
+import { getProjectReview } from "@/lib/review/service";
 import { currentOrganizationId } from "@/lib/tenancy";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProjectsPage() {
-  const projects = await listProjects(currentOrganizationId());
+  const organizationId = currentOrganizationId();
+  const projects = await listProjects(organizationId);
+  const rows = await Promise.all(projects.map(async (project) => {
+    const review = await getProjectReview(organizationId, project.id);
+    return { ...project, openCount: listAttention(review.findings).length };
+  }));
   return (
     <main className="page">
       <div className="page-heading">
-        <div><p className="eyebrow">Portfolio</p><h1>Projects</h1><p className="lede">Construction documents organized by project and revision.</p></div>
+        <div><p className="eyebrow">Portfolio</p><h1>Projects</h1><p className="lede">Open a project to review the exceptions that still need a decision.</p></div>
         <details className="create-panel panel">
           <summary><Button asChild><span>New project</span></Button></summary>
           <CreateProjectForm />
         </details>
       </div>
-      <div className="section-heading"><h2>Active projects</h2><span className="count">{projects.length} total</span></div>
-      {projects.length ? (
+      <div className="section-heading"><h2>Active projects</h2><span className="count">{rows.length} total</span></div>
+      {rows.length ? (
         <div className="list">
-          {projects.map((project) => (
+          {rows.map((project) => (
             <Link className="list-row" href={`/projects/${project.id}`} key={project.id}>
               <div><p className="row-title">{project.name}</p><p className="row-meta">{project.projectNumber || "No project number"}</p></div>
-              <div className="row-side"><span>{project.documentCount} {project.documentCount === 1 ? "document" : "documents"}</span><span aria-hidden>→</span></div>
+              <div className="row-side">
+                <span>{project.openCount} open</span>
+                <span>{project.documentCount} {project.documentCount === 1 ? "document" : "documents"}</span>
+                <span aria-hidden>→</span>
+              </div>
             </Link>
           ))}
         </div>
