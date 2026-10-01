@@ -1,6 +1,7 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { DomainError } from "./errors";
+import { isSerializationConflict, serializationAttempts, uniqueConstraintTargets } from "./transactionConflict";
 import type {
   AppendReviewDecisionInput,
   CommitProposedFactsInput,
@@ -118,7 +119,7 @@ export class PrismaConstructionRepository implements ConstructionRepository {
   }
 
   async createRevision(input: CreateRevisionRecordInput): Promise<RevisionDetail> {
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (let attempt = 0; attempt < serializationAttempts(); attempt += 1) {
       try {
         return await this.db.$transaction(
           async (tx) => {
@@ -151,17 +152,15 @@ export class PrismaConstructionRepository implements ConstructionRepository {
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
         );
       } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError) {
-          if (error.code === "P2034" && attempt < 2) continue;
-          if (error.code === "P2002") {
-            const targets = Array.isArray(error.meta?.target) ? error.meta.target : [];
-            if (targets.includes("revisionOrder") && attempt < 2) continue;
-            if (targets.includes("sha256")) {
-              throw new DomainError("DUPLICATE_REVISION", "This exact PDF is already a revision of this document.", 409);
-            }
-            if (targets.includes("revisionLabel")) {
-              throw new DomainError("REVISION_LABEL_CONFLICT", "This revision label is already in use for this document.", 409);
-            }
+        if (isSerializationConflict(error) && attempt < serializationAttempts() - 1) continue;
+        const targets = uniqueConstraintTargets(error);
+        if (targets) {
+          if (targets.includes("revisionOrder") && attempt < serializationAttempts() - 1) continue;
+          if (targets.includes("sha256")) {
+            throw new DomainError("DUPLICATE_REVISION", "This exact PDF is already a revision of this document.", 409);
+          }
+          if (targets.includes("revisionLabel")) {
+            throw new DomainError("REVISION_LABEL_CONFLICT", "This revision label is already in use for this document.", 409);
           }
         }
         throw error;
@@ -183,7 +182,7 @@ export class PrismaConstructionRepository implements ConstructionRepository {
       throw new DomainError("REVISION_NOT_READY", "Only a processed revision can be analyzed.", 409);
     }
 
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (let attempt = 0; attempt < serializationAttempts(); attempt += 1) {
       try {
         return await this.db.$transaction(
           async (tx) => {
@@ -208,13 +207,9 @@ export class PrismaConstructionRepository implements ConstructionRepository {
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
         );
       } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError) {
-          if (error.code === "P2034" && attempt < 2) continue;
-          if (error.code === "P2002") {
-            const targets = Array.isArray(error.meta?.target) ? error.meta.target : [];
-            if (targets.includes("attemptNumber") && attempt < 2) continue;
-          }
-        }
+        if (isSerializationConflict(error) && attempt < serializationAttempts() - 1) continue;
+        const targets = uniqueConstraintTargets(error);
+        if (targets?.includes("attemptNumber") && attempt < serializationAttempts() - 1) continue;
         throw error;
       }
     }
@@ -448,7 +443,7 @@ export class PrismaConstructionRepository implements ConstructionRepository {
     });
     if (!project) return null;
 
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (let attempt = 0; attempt < serializationAttempts(); attempt += 1) {
       try {
         return await this.db.$transaction(
           async (tx) => {
@@ -480,10 +475,7 @@ export class PrismaConstructionRepository implements ConstructionRepository {
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
         );
       } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError) {
-          if (error.code === "P2034" && attempt < 2) continue;
-          if (error.code === "P2002" && attempt < 2) continue;
-        }
+        if ((isSerializationConflict(error) || uniqueConstraintTargets(error)) && attempt < serializationAttempts() - 1) continue;
         throw error;
       }
     }

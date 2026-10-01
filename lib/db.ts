@@ -3,14 +3,23 @@ import { PrismaClient } from "@prisma/client";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
+export function postgresConnectionConfig(databaseUrl: string) {
+  const url = new URL(databaseUrl);
+  const schema = url.searchParams.get("schema") ?? undefined;
+  url.searchParams.delete("schema");
+  const sslmode = url.searchParams.get("sslmode");
+  if (sslmode === "prefer" || sslmode === "require" || sslmode === "verify-ca") {
+    url.searchParams.set("sslmode", "verify-full");
+  }
+  return { connectionString: url.toString(), schema };
+}
+
 export function createPrismaClient() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required");
 
-  const url = new URL(databaseUrl);
-  const schema = url.searchParams.get("schema") ?? undefined;
-  url.searchParams.delete("schema");
-  const adapter = new PrismaPg({ connectionString: url.toString() }, schema ? { schema } : undefined);
+  const { connectionString, schema } = postgresConnectionConfig(databaseUrl);
+  const adapter = new PrismaPg({ connectionString }, schema ? { schema } : undefined);
   return new PrismaClient({ adapter });
 }
 
