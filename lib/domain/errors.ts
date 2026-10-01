@@ -10,7 +10,9 @@ export type DomainErrorCode =
   | "SCANNED_OR_EMPTY"
   | "STORAGE_ERROR"
   | "REVISION_NOT_READY"
-  | "INVALID_TRANSITION";
+  | "INVALID_TRANSITION"
+  | "MALFORMED_OUTPUT"
+  | "PROVIDER_ERROR";
 
 export class DomainError extends Error {
   constructor(
