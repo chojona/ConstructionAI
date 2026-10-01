@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ProjectNavigation } from "@/components/workspace/project-navigation";
 import { notFound } from "next/navigation";
 import { SourceDocument } from "@/components/review/source-document";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,8 @@ export default async function RevisionPage({
       <nav className="breadcrumb"><Link href="/projects">Projects</Link><span>/</span><Link href={`/projects/${revision.document.project.id}`}>{revision.document.project.name}</Link><span>/</span><Link href={`/documents/${revision.document.id}`}>{revision.document.title}</Link><span>/</span><span>{revision.revisionLabel}</span></nav>
       <p className="eyebrow">{revision.document.title}</p>
       <h1>{revision.revisionLabel}</h1>
+      <p className="lede">Source inspection · {revision.document.title}</p>
+      <div className="review-block"><ProjectNavigation projectId={revision.document.project.id} active="documents" /></div>
       <div className="facts">
         <dl className="fact"><dt>Status</dt><dd><Badge className={revision.status === "PROCESSED" ? "status-processed" : revision.status === "FAILED" ? "status-failed" : "status-pending"}>{revision.status}</Badge></dd></dl>
         <dl className="fact"><dt>Pages</dt><dd>{revision.pages.length}</dd></dl>
@@ -40,7 +43,10 @@ export default async function RevisionPage({
         <h2 className="source-heading">Source</h2>
         {returnTo && <Link className="return-link" href={returnTo}>Back to decision</Link>}
       </div>
+      <div className="revision-layout"><nav className="revision-index" aria-label="Source pages"><h2>Pages</h2>{revision.pages.map((page) => <a key={page.id} href={target?.pageId === page.id ? "#evidence" : `#page-${page.id}`} className={target?.pageId === page.id ? "is-active" : ""}>Page {page.pageNumber}{target?.pageId === page.id && <span>Evidence</span>}</a>)}{!revision.pages.length && <p className="row-meta">No pages available.</p>}</nav><div>
       <SourceDocument pages={revision.pages.map((page) => ({ id: page.id, pageNumber: page.pageNumber, text: page.text }))} target={target} />
+      {!revision.pages.length && <div className="empty">Source text is unavailable. Check the processing status above.</div>}
+      </div></div>
     </main>
   );
 }
