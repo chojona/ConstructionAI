@@ -28,7 +28,7 @@ export function UploadRevisionForm({ documentId }: { documentId: string }) {
     <form onSubmit={submit} className="form-stack">
       <label><span>Revision label</span><Input name="revisionLabel" required maxLength={80} placeholder="Revision C" /></label>
       <label><span>PDF file</span><Input name="file" type="file" accept="application/pdf,.pdf" required /></label>
-      <p className="field-help">PDF only, up to 20 MB. Scanned files require future OCR support.</p>
+      <p className="field-help">PDF only, up to 20 MB. The file needs selectable text.</p>
       {error && <p className="form-error" role="alert">{error}</p>}
       <Button disabled={pending}>{pending ? "Processing…" : "Upload revision"}</Button>
     </form>

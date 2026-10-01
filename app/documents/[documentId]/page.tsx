@@ -1,37 +1,94 @@
 import Link from "next/link";
-import { ProjectNavigation } from "@/components/workspace/project-navigation";
 import { notFound } from "next/navigation";
+import { RevisionHistory } from "@/components/documents/revision-history";
+import { ProjectNavigation } from "@/components/workspace/project-navigation";
 import { UploadRevisionForm } from "@/components/forms/upload-revision-form";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getDocument } from "@/lib/documents/service";
+import { describeReading } from "@/lib/documents/revisionExperience";
 import { DomainError } from "@/lib/domain/errors";
+import { getProjectReview } from "@/lib/review/service";
 import { currentOrganizationId } from "@/lib/tenancy";
 
 export const dynamic = "force-dynamic";
-const date = (value: Date) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(value);
+
+const date = (value: Date) => new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+}).format(value);
 
 export default async function DocumentPage({ params }: { params: Promise<{ documentId: string }> }) {
   const { documentId } = await params;
+  const organizationId = currentOrganizationId();
   let document;
-  try { document = await getDocument(currentOrganizationId(), documentId); }
-  catch (error) { if (error instanceof DomainError && error.code === "NOT_FOUND") notFound(); throw error; }
+  try {
+    document = await getDocument(organizationId, documentId);
+  } catch (error) {
+    if (error instanceof DomainError && error.code === "NOT_FOUND") notFound();
+    throw error;
+  }
+
+  let findings: Awaited<ReturnType<typeof getProjectReview>>["findings"] = [];
+  try {
+    const review = await getProjectReview(organizationId, document.project.id);
+    const revisionIds = new Set(document.revisions.map((revision) => revision.id));
+    findings = review.findings.filter((finding) => (
+      finding.sources.some((source) => revisionIds.has(source.revisionId))
+      || (finding.subject.type === "revision_change" && revisionIds.has(finding.subject.revisedRevisionId))
+    ));
+  } catch (error) {
+    if (!(error instanceof DomainError && error.code === "NOT_FOUND")) throw error;
+  }
+
+  const latest = document.revisions[0];
+  const reading = latest ? describeReading(latest.status, latest.failureCode, latest.failureMessage) : null;
+  const identity = [document.documentType || "Document", document.project.name].join(" · ");
+
   return (
     <main className="page">
-      <nav className="breadcrumb"><Link href="/projects">Projects</Link><span>/</span><Link href={`/projects/${document.project.id}`}>{document.project.name}</Link><span>/</span><span>{document.title}</span></nav>
+      <nav className="breadcrumb">
+        <Link href="/projects">Projects</Link>
+        <span>/</span>
+        <Link href={`/projects/${document.project.id}`}>{document.project.name}</Link>
+        <span>/</span>
+        <span>{document.title}</span>
+      </nav>
       <div className="page-heading">
-        <div><p className="eyebrow">{document.documentType || "Document"}</p><h1>{document.title}</h1><p className="lede">Inspect the revision history and verify the source behind project decisions.</p></div>
-        <details className="create-panel panel"><summary><Button asChild><span>Upload revision</span></Button></summary><UploadRevisionForm documentId={document.id} /></details>
+        <div>
+          <p className="identity-line">{identity}</p>
+          <h1>{document.title}</h1>
+          <p className="lede">
+            {document.revisions.length === 0
+              ? "Upload a PDF to start the revision history."
+              : `${document.revisions.length} ${document.revisions.length === 1 ? "revision" : "revisions"} kept, newest first.`}
+            {latest && reading ? ` Latest is ${latest.revisionLabel}, uploaded ${date(latest.createdAt)}: ${reading.summary}` : ""}
+          </p>
+        </div>
+        <details className="create-panel panel" id="upload">
+          <summary><Button asChild><span>Upload revision</span></Button></summary>
+          <UploadRevisionForm documentId={document.id} />
+        </details>
       </div>
       <ProjectNavigation projectId={document.project.id} active="documents" />
-      {document.revisions[0] && <section className="document-context"><div><p className="eyebrow">Latest uploaded revision</p><h2>{document.revisions[0].revisionLabel}</h2><p>{document.revisions[0].originalFilename} · Uploaded {date(document.revisions[0].createdAt)}</p></div><Link href={`/projects/${document.project.id}?view=changes`}>Review project changes →</Link></section>}
-      <div className="section-heading"><h2>Revision history</h2><span className="count">{document.revisions.length} total</span></div>
-      {document.revisions.length ? <div className="list">{document.revisions.map((revision, index) => (
-        <Link className="list-row" href={`/revisions/${revision.id}`} key={revision.id}>
-          <div><p className="row-title">{revision.revisionLabel} {index === 0 && <span className="current-label">Latest upload</span>}</p><p className="row-meta">Uploaded {date(revision.createdAt)} · {revision.originalFilename}</p></div>
-          <div className="row-side"><Badge className={revision.status === "PROCESSED" ? "status-processed" : revision.status === "FAILED" ? "status-failed" : "status-pending"}>{revision.status}</Badge><span aria-hidden>→</span></div>
-        </Link>
-      ))}</div> : <div className="empty">No revisions yet. Upload the first source PDF.</div>}
+      {latest ? (
+        <section className="document-context">
+          <div>
+            <p className="eyebrow">Latest uploaded revision</p>
+            <h2>{latest.revisionLabel}</h2>
+            <p>{latest.originalFilename} · Uploaded {date(latest.createdAt)}{reading ? ` · ${reading.label}` : ""}</p>
+          </div>
+          <Link href={`/projects/${document.project.id}?view=changes`}>Review project changes</Link>
+        </section>
+      ) : null}
+      <section aria-labelledby="history-heading">
+        <div className="section-heading">
+          <h2 id="history-heading">Revision history</h2>
+          <span className="count">{document.revisions.length} total</span>
+        </div>
+        <RevisionHistory revisions={document.revisions} findings={findings} />
+      </section>
     </main>
   );
 }
