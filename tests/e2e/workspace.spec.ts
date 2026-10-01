@@ -1,9 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { PrismaClient } from "@prisma/client";
 import { existsSync } from "node:fs";
+import { createPrismaClient } from "../../lib/db";
 
 if (!process.env.DATABASE_URL && existsSync(".env")) process.loadEnvFile(".env");
-const db = new PrismaClient();
+const db = createPrismaClient();
 let projectId: string;
 let documentId: string;
 const projectName = `North River Bridge · Workspace QA ${Date.now()}`;

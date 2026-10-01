@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "@/lib/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ingestRevision } from "@/lib/documents/ingestRevision";
 import { buildTextPdf } from "@/lib/documents/minimalPdf";
@@ -25,7 +25,7 @@ const provenance = {
 };
 
 describe("Prisma proposed facts", () => {
-  const db = new PrismaClient();
+  const db = createPrismaClient();
   const repository = new PrismaConstructionRepository(db);
   const suffix = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
   const orgA = `it_facts_a_${suffix}`;

@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "@/lib/db";
 import { createDocument, getDocument } from "@/lib/documents/service";
 import { ingestRevision } from "@/lib/documents/ingestRevision";
 import { buildTextPdf } from "@/lib/documents/minimalPdf";
@@ -14,7 +14,7 @@ const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is required for integration tests.");
 
 describe("Prisma PostgreSQL source repository", () => {
-  const db = new PrismaClient();
+  const db = createPrismaClient();
   const repository = new PrismaConstructionRepository(db);
   const suffix = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
   const orgA = `it_org_a_${suffix}`;

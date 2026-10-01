@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "@/lib/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDocument } from "@/lib/documents/service";
 import { PrismaConstructionRepository } from "@/lib/domain/prismaRepository";
@@ -19,7 +19,7 @@ const provenance = {
 };
 
 describe("Prisma review workflow", () => {
-  const db = new PrismaClient();
+  const db = createPrismaClient();
   const repository = new PrismaConstructionRepository(db);
   const suffix = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
   const orgA = `it_review_a_${suffix}`;
