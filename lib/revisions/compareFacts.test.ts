@@ -131,6 +131,62 @@ describe("compareFacts", () => {
     ]);
   });
 
+  it("keeps unit aliases, equivalent calendar dates, and nearest repeated amounts from crossing", () => {
+    const changes = compareFacts(
+      [
+        quantity("trench excavation", "3165", "C.Y.", "3,165 C.Y."),
+        quantity("scarification depth", "6", "inches", "6 inches"),
+        schedule("civil drawings", "2025-06-06", "June 6, 2025", [
+          { pageNumber: 1, excerpt: "June 6, 2025", startOffset: 0, endOffset: 12 },
+        ]),
+        quantity("excavation", "10", "CY", "10 CY"),
+        quantity("excavation", "20", "CY", "20 CY"),
+        quantity("compost", "4", "yards", "4 cubic yards"),
+        quantity("compost", "6", "yards", "6 cubic yards"),
+      ],
+      [
+        quantity("trench excavation", "3165", "cubic yards", "3,165 cubic yards"),
+        quantity("scarification depth", "6", "inch", "6 inch"),
+        schedule("civil drawings", null, "6 June 2025", [
+          { pageNumber: 2, excerpt: "6 June 2025", startOffset: 0, endOffset: 11 },
+        ]),
+        quantity("excavation", "21", "CY", "21 CY"),
+        quantity("excavation", "11", "CY", "11 CY"),
+        quantity("compost", "6", "cubic yards", "6 cubic yards"),
+        quantity("compost", "4", "cubic yards", "4 cubic yards"),
+      ],
+    );
+
+    expect(changes.filter((change) => change.material)).toEqual([
+      expect.objectContaining({
+        category: "quantity",
+        basis: "numeric",
+        before: expect.objectContaining({
+          payload: expect.objectContaining({ amount: "10" }),
+          evidence: [expect.objectContaining({ excerpt: "10 CY" })],
+        }),
+        after: expect.objectContaining({
+          payload: expect.objectContaining({ amount: "11" }),
+          evidence: [expect.objectContaining({ excerpt: "11 CY" })],
+        }),
+      }),
+      expect.objectContaining({
+        category: "quantity",
+        basis: "numeric",
+        before: expect.objectContaining({
+          payload: expect.objectContaining({ amount: "20" }),
+          evidence: [expect.objectContaining({ excerpt: "20 CY" })],
+        }),
+        after: expect.objectContaining({
+          payload: expect.objectContaining({ amount: "21" }),
+          evidence: [expect.objectContaining({ excerpt: "21 CY" })],
+        }),
+      }),
+    ]);
+    expect(changes.filter((change) => !change.material).every((change) => change.basis === "wording")).toBe(true);
+    expect(changes.some((change) => change.basis === "unit" || change.basis === "date")).toBe(false);
+  });
+
   it("treats an unparsed date-text change as a material date change", () => {
     const changes = compareFacts(
       [schedule("notice to proceed", null, "mid October", [])],

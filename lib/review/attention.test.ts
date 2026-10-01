@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { CONSTRUCTION_FACTS_EXTRACTOR } from "@/lib/extractions/constructionFacts";
 import { MemoryRepository } from "@/tests/support/memoryRepository";
-import { listAttention, listSettled } from "./attention";
+import { compareFacts, type RevisionFactChange } from "@/lib/revisions/compareFacts";
+import { listAttention, listSettled, type AttentionItem } from "./attention";
+import type { ProjectFinding } from "./findings";
 import { getProjectReview, recordReviewDecision } from "./service";
 
 const october = "Notice to proceed is mid October.";
@@ -97,7 +99,79 @@ describe("listAttention", () => {
     ]));
     expect(listSettled(review.findings).some((finding) => finding.currentDecision?.decision === "ACCEPTED")).toBe(true);
   });
+
+  it("keeps wording-only and normalization-equivalent edits out of the queue", () => {
+    const changes = compareFacts(
+      [
+        {
+          factType: "quantity",
+          payload: { subject: "trench excavation", amount: "3165", unit: "C.Y.", originalText: "3,165 C.Y.", modality: "asserted" },
+          evidence: [{ pageNumber: 1, excerpt: "3,165 C.Y.", startOffset: 0, endOffset: 10 }],
+        },
+        {
+          factType: "schedule_date",
+          payload: { event: "civil drawings", date: "2025-06-06", dateText: "June 6, 2025", modality: "asserted" },
+          evidence: [{ pageNumber: 1, excerpt: "June 6, 2025", startOffset: 0, endOffset: 12 }],
+        },
+        {
+          factType: "equipment_requirement",
+          payload: { equipment: "dozer", statement: "A dozer shall be used.", modality: "asserted" },
+          evidence: [{ pageNumber: 1, excerpt: "A dozer shall be used.", startOffset: 0, endOffset: 22 }],
+        },
+      ],
+      [
+        {
+          factType: "quantity",
+          payload: { subject: "trench excavation", amount: "3165", unit: "cubic yards", originalText: "3,165 cubic yards", modality: "asserted" },
+          evidence: [{ pageNumber: 2, excerpt: "3,165 cubic yards", startOffset: 0, endOffset: 17 }],
+        },
+        {
+          factType: "schedule_date",
+          payload: { event: "civil drawings", date: null, dateText: "6 June 2025", modality: "asserted" },
+          evidence: [{ pageNumber: 2, excerpt: "6 June 2025", startOffset: 0, endOffset: 11 }],
+        },
+        {
+          factType: "equipment_requirement",
+          payload: { equipment: "dewatering pump", statement: "A dewatering pump shall be provided.", modality: "asserted" },
+          evidence: [{ pageNumber: 2, excerpt: "A dewatering pump shall be provided.", startOffset: 0, endOffset: 37 }],
+        },
+      ],
+    );
+
+    const attention: AttentionItem[] = listAttention(changes.map(findingForChange));
+    expect(changes.filter((change) => change.material).map((change) => change.changeType).sort()).toEqual(["ADDED", "REMOVED"]);
+    expect(attention.map((item) => [item.severity, item.finding.subject.type === "revision_change" ? item.finding.subject.changeType : ""])).toEqual([
+      ["high", "REMOVED"],
+      ["medium", "ADDED"],
+    ]);
+  });
 });
+
+function findingForChange(change: RevisionFactChange, index: number): ProjectFinding {
+  const focus = change.after ?? change.before;
+  return {
+    subjectKey: `change-${index}`,
+    documentTitle: "Drainage Plan",
+    revisionLabel: "A → B",
+    label: focus?.payload.equipment ?? focus?.payload.subject ?? focus?.payload.event ?? change.changeType,
+    detail: change.basis,
+    evidence: focus?.evidence.map((item) => ({ pageNumber: item.pageNumber, excerpt: item.excerpt })) ?? [],
+    material: change.material,
+    basis: change.basis,
+    before: null,
+    after: null,
+    sources: [],
+    currentDecision: null,
+    subject: {
+      type: "revision_change",
+      baseRevisionId: "base",
+      revisedRevisionId: "revised",
+      changeType: change.changeType,
+      beforeProposedFactId: null,
+      afterProposedFactId: null,
+    },
+  };
+}
 
 async function propose(
   repository: MemoryRepository,

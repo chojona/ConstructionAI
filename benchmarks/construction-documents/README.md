@@ -26,6 +26,12 @@ Some pairs are a sentence an addendum says to delete and the sentence that repla
 
 The report records strict precision, recall, and F1, plus evidence correctness, the unsupported high-confidence count, modality correctness, and unit/value normalization. It breaks those rates down by fact type and by difficult-language tags. Every strict miss has a failure class. A goal is marked achieved only when that run meets the goal.
 
+## Revision change accuracy
+
+`npm run eval:change-accuracy` compares the human-labeled facts on each pair and writes `reports/change-accuracy.json`. It does not call a model. The score covers added, removed, and modified changes, material precision and recall, wording-only suppression, date and unit equivalence, reordered facts, repeated facts, and old/new evidence. A miss records a failure class. A goal is marked achieved only when that run meets it.
+
+Equivalent units (`C.Y.` and cubic yards, inches and inch) and equivalent calendar dates (`June 6, 2025` and `6 June 2025`) stay non-material, so they do not enter the project attention queue. Ambiguous numeric dates such as `08-05-2025` are not treated as a calendar date. The comparison does not infer equipment or schedule conflicts beyond the labeled facts.
+
 ## Known limitations
 
 - These are short excerpts, not full drawing sets. No design-partner documents were available.
