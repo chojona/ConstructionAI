@@ -19,24 +19,27 @@ describe("construction document extraction accuracy", () => {
     const report = measureConstructionDocumentAccuracy();
     const stored = JSON.parse(readFileSync(reportPath, "utf8")) as typeof report;
 
-    expect(predictions["catawba-drawing-dates:base"]).not.toEqual(gold["catawba-drawing-dates:base"]);
+    expect(schedulePayloads(predictions["catawba-drawing-dates:base"])).toEqual(
+      schedulePayloads(gold["catawba-drawing-dates:base"]),
+    );
+    expect(schedulePayloads(predictions["catawba-drawing-dates:revised"])).toEqual(
+      schedulePayloads(gold["catawba-drawing-dates:revised"]),
+    );
     expect(report.predictionSource).toBe("model");
     expect(report.model).toEqual({ provider: "deterministic", model: "construction-facts-rules-v1" });
     expect(report.byType.equipment_requirement).toMatchObject({ precision: 1, recall: 1 });
     expect(report.byType.quantity).toMatchObject({ precision: 1, recall: 1 });
-    expect(report.byType.schedule_date?.recall).toBeLessThan(1);
-    expect(report.byDifficulty["date-format"]?.recall).toBeLessThan(1);
+    expect(report.byType.schedule_date).toMatchObject({ precision: 1, recall: 1 });
+    expect(report.byDifficulty["date-format"]).toMatchObject({ precision: 1, recall: 1 });
     expect(report.byDifficulty["difficult-language"]?.recall).toBe(1);
-    expect(report.misses.length).toBeGreaterThan(0);
-    expect(report.misses.every((miss) => miss.failure === "benchmark ambiguity")).toBe(true);
-    expect(report.misses.every((miss) => miss.fixtureId.startsWith("catawba-drawing-dates"))).toBe(true);
+    expect(report.misses).toEqual([]);
     expect(report.targets.precision.achieved).toBe(report.overall.precision >= 0.98);
     expect(report.targets.recall.achieved).toBe(report.overall.recall >= 0.95);
     expect(report.targets.evidenceCorrectness.achieved).toBe(
       report.overall.evidenceCompared > 0 && report.overall.evidenceCorrectness >= 0.99,
     );
     expect(report.targets.unsupportedHighConfidenceFacts.achieved).toBe(report.overall.unsupportedHighConfidenceFacts === 0);
-    expect(report.targets.allMeasuredTargetsMet).toBe(false);
+    expect(report.targets.allMeasuredTargetsMet).toBe(true);
     expect(stored.overall).toEqual(report.overall);
     expect(stored.targets).toEqual(report.targets);
     expect(stored.byType).toEqual(report.byType);
@@ -44,3 +47,21 @@ describe("construction document extraction accuracy", () => {
     expect(stored.misses).toEqual(report.misses);
   });
 });
+
+function schedulePayloads(prediction: unknown) {
+  const facts = prediction && typeof prediction === "object" && "facts" in prediction
+    ? prediction.facts
+    : [];
+  if (!Array.isArray(facts)) return [];
+  return facts
+    .filter((fact) => fact && typeof fact === "object" && "type" in fact && fact.type === "schedule_date")
+    .map((fact) => {
+      const schedule = fact as { event?: string; date?: string | null; dateText?: string; modality?: string };
+      return {
+        event: schedule.event,
+        date: schedule.date,
+        dateText: schedule.dateText,
+        modality: schedule.modality,
+      };
+    });
+}

@@ -53,5 +53,6 @@ The change-accuracy report's false high rate counts high and critical prediction
 - These are short excerpts, not full drawing sets. No design-partner documents were available.
 - Percentage amounts, fraction inches, and sieve ranges are listed as not-facts. Recording them would change the source text into a decimal or a unit the sentence does not use.
 - `08-05-2025` stays an unparsed date token.
+- Schedule events are words written on the page. The June line is `revision`. The August blank and `08-05-2025` name no event, so those facts use the event `schedule`.
 - `May 2025` is unlabeled. It is a month and year with no day, and the in-repo extractor does not emit that shape as a schedule fact. The sentence is not hedged.
 - The deleted 8 inch topsoil thickness is still visible in the replacement instruction and is not labeled as the remaining requirement.

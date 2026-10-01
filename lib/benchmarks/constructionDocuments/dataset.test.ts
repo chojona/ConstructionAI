@@ -56,8 +56,14 @@ describe("construction document benchmark", () => {
     expect(flyAsh.revised.pages[0]?.text.match(/40° F/g)).toHaveLength(2);
 
     const drawings = pair("catawba-drawing-dates");
-    const ambiguous = drawings.revised.expected.find((fact) => fact.type === "schedule_date" && fact.dateText === "08-05-2025");
-    expect(ambiguous).toMatchObject({ date: null });
+    expect(drawings.base.expected).toEqual([
+      expect.objectContaining({ type: "schedule_date", event: "revision", date: "2025-06-06", dateText: "June 6, 2025" }),
+    ]);
+    expect(drawings.revised.expected).toEqual([
+      expect.objectContaining({ type: "schedule_date", event: "schedule", date: "2024-08-07", dateText: "7th __ day of __ August 2024" }),
+      expect.objectContaining({ type: "schedule_date", event: "schedule", date: null, dateText: "08-05-2025" }),
+    ]);
+    expect(drawings.base.pages[0]?.text.toLowerCase()).toContain("revision");
     expect(drawings.revised.notFacts.map((item) => item.excerpt)).toContain("May 2025");
 
     const table = pair("sudas-offsite-topsoil");

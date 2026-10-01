@@ -18,13 +18,13 @@
   "targets": {
     "precision": {
       "goal": 0.98,
-      "actual": 0.9117647058823529,
-      "achieved": false
+      "actual": 1,
+      "achieved": true
     },
     "recall": {
       "goal": 0.95,
-      "actual": 0.9117647058823529,
-      "achieved": false
+      "actual": 1,
+      "achieved": true
     },
     "evidenceCorrectness": {
       "goal": 0.99,
@@ -36,15 +36,15 @@
       "actual": 0,
       "achieved": true
     },
-    "allMeasuredTargetsMet": false
+    "allMeasuredTargetsMet": true
   },
   "overall": {
-    "truePositives": 31,
-    "falsePositives": 3,
-    "falseNegatives": 3,
-    "precision": 0.9117647058823529,
-    "recall": 0.9117647058823529,
-    "f1": 0.9117647058823528,
+    "truePositives": 34,
+    "falsePositives": 0,
+    "falseNegatives": 0,
+    "precision": 1,
+    "recall": 1,
+    "f1": 1,
     "evidenceCorrectness": 1,
     "evidenceCompared": 34,
     "hallucinatedFactRate": 0,
@@ -88,12 +88,12 @@
       "unsupportedHighConfidenceFacts": 0
     },
     "schedule_date": {
-      "truePositives": 0,
-      "falsePositives": 3,
-      "falseNegatives": 3,
-      "precision": 0,
-      "recall": 0,
-      "f1": 0,
+      "truePositives": 3,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
       "evidenceCorrectness": 1,
       "evidenceCompared": 3,
       "hallucinatedFactRate": 0,
@@ -154,12 +154,12 @@
       "unsupportedHighConfidenceFacts": 0
     },
     "date-format": {
-      "truePositives": 0,
-      "falsePositives": 3,
-      "falseNegatives": 3,
-      "precision": 0,
-      "recall": 0,
-      "f1": 0,
+      "truePositives": 3,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
       "evidenceCorrectness": 1,
       "evidenceCompared": 3,
       "hallucinatedFactRate": 0,
@@ -282,48 +282,5 @@
       "unsupportedHighConfidenceFacts": 0
     }
   },
-  "misses": [
-    {
-      "fixtureId": "catawba-drawing-dates:base",
-      "outcome": "missed",
-      "fact": "schedule_date:asserted:civil drawings:2025-06-06",
-      "failure": "benchmark ambiguity",
-      "detail": "Labeled event \"civil drawings\" does not appear on the page. The date and date text match."
-    },
-    {
-      "fixtureId": "catawba-drawing-dates:base",
-      "outcome": "unexpected",
-      "fact": "schedule_date:asserted:revision:2025-06-06",
-      "failure": "benchmark ambiguity",
-      "detail": "Labeled event \"civil drawings\" does not appear on the page. The date and date text match."
-    },
-    {
-      "fixtureId": "catawba-drawing-dates:revised",
-      "outcome": "missed",
-      "fact": "schedule_date:asserted:addendum:2024-08-07",
-      "failure": "benchmark ambiguity",
-      "detail": "Labeled event \"addendum\" does not appear on the page. The date and date text match."
-    },
-    {
-      "fixtureId": "catawba-drawing-dates:revised",
-      "outcome": "missed",
-      "fact": "schedule_date:asserted:civil drawings:unparsed",
-      "failure": "benchmark ambiguity",
-      "detail": "Labeled event \"civil drawings\" does not appear on the page. The date and date text match."
-    },
-    {
-      "fixtureId": "catawba-drawing-dates:revised",
-      "outcome": "unexpected",
-      "fact": "schedule_date:asserted:schedule:2024-08-07",
-      "failure": "benchmark ambiguity",
-      "detail": "Labeled event \"addendum\" does not appear on the page. The date and date text match."
-    },
-    {
-      "fixtureId": "catawba-drawing-dates:revised",
-      "outcome": "unexpected",
-      "fact": "schedule_date:asserted:schedule:unparsed",
-      "failure": "benchmark ambiguity",
-      "detail": "Labeled event \"civil drawings\" does not appear on the page. The date and date text match."
-    }
-  ]
+  "misses": []
 }
