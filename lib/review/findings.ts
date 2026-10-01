@@ -3,6 +3,7 @@ import type { ProcessingRun } from "@/lib/observability/pipelineTiming";
 import { CONSTRUCTION_FACTS_EXTRACTOR } from "@/lib/extractions/constructionFacts";
 import { compareFacts, toComparableFact, type ComparisonBasis, type RevisionFactChange } from "@/lib/revisions/compareFacts";
 import { describeFact } from "./describe";
+import type { EvidenceLocation } from "./evidenceLocation";
 import { scoreRevisionChange, type SeverityAssessment } from "./severity";
 import { proposedFactSubjectKey, removalSubjectKey } from "./subjects";
 
@@ -22,10 +23,7 @@ export interface FindingSubjectRevisionChange {
 
 export type FindingSubject = FindingSubjectProposedFact | FindingSubjectRevisionChange;
 
-export interface FindingEvidence {
-  pageNumber: number;
-  excerpt: string;
-}
+export type FindingEvidence = EvidenceLocation;
 
 export interface FindingValue {
   summary: string;
@@ -119,8 +117,8 @@ function changeFinding(
   const subjectKey = change.changeType === "REMOVED" && change.before?.id
     ? removalSubjectKey({ baseRevisionId: base.id, revisedRevisionId: revised.id, before: { ...change.before, id: change.before.id } })
     : proposedFactSubjectKey(change.after?.id ?? change.before?.id ?? "");
-  const before = change.before ? findingValue(change.before) : null;
-  const after = change.after ? findingValue(change.after) : null;
+  const before = change.before ? findingValue(change.before, base) : null;
+  const after = change.after ? findingValue(change.after, revised) : null;
   return {
     subjectKey,
     documentTitle: revised.documentTitle,
@@ -149,7 +147,7 @@ function factFinding(
   latest: Map<string, ReviewDecisionRecord>,
 ): ProjectFinding {
   const subjectKey = proposedFactSubjectKey(fact.id);
-  const after = findingValue(fact);
+  const after = findingValue(fact, revision);
   return {
     subjectKey,
     documentTitle: revision.documentTitle,
@@ -168,10 +166,22 @@ function factFinding(
   };
 }
 
-function findingValue(fact: { factType: ProjectFactContext["factType"]; payload: Record<string, string | null>; evidence: Array<{ pageNumber: number; excerpt: string }> }): FindingValue {
+function findingValue(
+  fact: { factType: ProjectFactContext["factType"]; payload: Record<string, string | null>; evidence: Array<{ documentPageId?: string; pageNumber: number; excerpt: string; startOffset: number; endOffset: number }> },
+  revision: { id: string; revisionLabel: string; documentTitle: string },
+): FindingValue {
   return {
     summary: describeFact(fact),
-    evidence: fact.evidence.map((item) => ({ pageNumber: item.pageNumber, excerpt: item.excerpt })),
+    evidence: fact.evidence.map((item) => ({
+      documentPageId: item.documentPageId ?? null,
+      pageNumber: item.pageNumber,
+      excerpt: item.excerpt,
+      startOffset: item.startOffset,
+      endOffset: item.endOffset,
+      revisionId: revision.id,
+      revisionLabel: revision.revisionLabel,
+      documentTitle: revision.documentTitle,
+    })),
   };
 }
 

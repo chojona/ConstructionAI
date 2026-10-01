@@ -87,11 +87,28 @@ describe("listAttention", () => {
     const dateChange = attention[1]!.finding;
     expect(dateChange.before).toMatchObject({
       summary: "notice to proceed: mid October",
-      evidence: [{ pageNumber: 1, excerpt: october }],
+      evidence: [{
+        pageNumber: 1,
+        excerpt: october,
+        documentPageId: base.pages[0]!.id,
+        revisionId: base.id,
+        revisionLabel: "A",
+        documentTitle: "Drainage Plan",
+        startOffset: 0,
+        endOffset: october.length,
+      }],
     });
     expect(dateChange.after).toMatchObject({
       summary: "notice to proceed: mid November",
-      evidence: [{ pageNumber: 2, excerpt: november }],
+      evidence: [{
+        pageNumber: 2,
+        excerpt: november,
+        documentPageId: revised.pages[0]!.id,
+        revisionId: revised.id,
+        revisionLabel: "B",
+        startOffset: 0,
+        endOffset: november.length,
+      }],
     });
     expect(dateChange.sources.map((source) => source.revisionLabel)).toEqual(["A", "B"]);
     expect(listSettled(review.findings).map((finding) => finding.detail)).toEqual(expect.arrayContaining([
@@ -157,7 +174,16 @@ function findingForChange(change: RevisionFactChange, index: number): ProjectFin
     revisionLabel: "A → B",
     label: focus?.payload.equipment ?? focus?.payload.subject ?? focus?.payload.event ?? change.changeType,
     detail: change.basis,
-    evidence: focus?.evidence.map((item) => ({ pageNumber: item.pageNumber, excerpt: item.excerpt })) ?? [],
+    evidence: focus?.evidence.map((item) => ({
+      documentPageId: item.documentPageId ?? null,
+      pageNumber: item.pageNumber,
+      excerpt: item.excerpt,
+      startOffset: item.startOffset,
+      endOffset: item.endOffset,
+      revisionId: "revised",
+      revisionLabel: "B",
+      documentTitle: "Drainage Plan",
+    })) ?? [],
     material: change.material,
     basis: change.basis,
     assessment: scoreRevisionChange(change),

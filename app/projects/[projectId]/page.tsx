@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AttentionFeed } from "@/components/forms/attention-feed";
+import { EvidenceQuotes } from "@/components/review/evidence-quotes";
+import { ScrollToFinding } from "@/components/review/scroll-to-finding";
 import { CreateDocumentForm } from "@/components/forms/create-document-form";
 import { Button } from "@/components/ui/button";
 import { DomainError } from "@/lib/domain/errors";
 import { getProject } from "@/lib/projects/service";
 import { listAttention, listSettled } from "@/lib/review/attention";
 import { toAttentionDto } from "@/lib/review/dto";
+import { decisionReturnPath, findingDomId } from "@/lib/review/evidenceLocation";
 import { getProjectReview } from "@/lib/review/service";
 import { currentOrganizationId } from "@/lib/tenancy";
 
@@ -27,6 +30,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
   const settled = listSettled(review.findings);
   return (
     <main className="page">
+      <ScrollToFinding />
       <nav className="breadcrumb"><Link href="/projects">Projects</Link><span>/</span><span>{project.name}</span></nav>
       <div className="page-heading">
         <div><p className="eyebrow">{project.projectNumber || "Project"}</p><h1>{project.name}</h1><p className="lede">Open exceptions from document changes and unreviewed facts.</p></div>
@@ -49,10 +53,15 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
         <div className="section-heading"><h2>Accepted project state</h2><span className="count">{review.state.facts.length} accepted</span></div>
         <p className="field-help">Accepted findings are projected here. Source revisions and extraction runs stay unchanged.</p>
         {review.state.facts.length ? <div className="list">{review.state.facts.map((fact) => (
-          <div className="list-row" key={fact.proposedFactId}>
+          <div className="list-row" id={findingDomId(fact.proposedFactId)} key={fact.proposedFactId}>
             <div>
               <p className="row-title">{fact.summary}</p>
+              <p className="evidence-kicker">Reading</p>
               <p className="row-meta">{fact.documentTitle} · {fact.revisionLabel} · accepted by {fact.reviewerId} on {dateTime(fact.acceptedAt)}</p>
+              <EvidenceQuotes
+                items={fact.evidence.map((item) => ({ ...item, revisionId: fact.documentRevisionId, revisionLabel: fact.revisionLabel, documentTitle: fact.documentTitle }))}
+                returnTo={decisionReturnPath(project.id, fact.proposedFactId)}
+              />
               {fact.supersedesProposedFactId && <p className="row-meta">Supersedes {review.state.retirements.find((retirement) => retirement.proposedFactId === fact.supersedesProposedFactId)?.summary ?? "an earlier accepted fact"}</p>}
             </div>
           </div>
@@ -64,10 +73,14 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
       {settled.length > 0 && <section className="review-block">
         <div className="section-heading"><h2>Already recorded</h2><span className="count">{settled.length}</span></div>
         <div className="list">{settled.map((finding) => (
-          <div className="list-row" key={finding.subjectKey}>
+          <div className="list-row" id={findingDomId(finding.subjectKey)} key={finding.subjectKey}>
             <div>
               <p className="row-title">{finding.label}</p>
               <p className="row-meta">{finding.documentTitle} · {finding.revisionLabel} · {settledStatus(finding)}</p>
+              <EvidenceQuotes
+                items={[...(finding.before?.evidence ?? []), ...(finding.after?.evidence ?? [])]}
+                returnTo={decisionReturnPath(project.id, finding.subjectKey)}
+              />
             </div>
           </div>
         ))}</div>

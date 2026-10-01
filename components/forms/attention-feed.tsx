@@ -3,10 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { EvidenceQuotes } from "@/components/review/evidence-quotes";
+import { ScrollToFinding } from "@/components/review/scroll-to-finding";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { AttentionItemDto, FindingDto } from "@/lib/review/dto";
+import { decisionReturnPath, findingDomId } from "@/lib/review/evidenceLocation";
 
 const decisions = ["ACCEPTED", "DISMISSED", "FLAGGED"] as const;
 
@@ -57,18 +60,19 @@ export function AttentionFeed({ projectId, items }: { projectId: string; items: 
         <label><span>Reason</span><Input value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} placeholder="Required to dismiss or flag" /></label>
       </div>
       {error && <p className="form-error" role="alert">{error}</p>}
+      <ScrollToFinding />
       <div className="attention">
         {items.map((item) => (
-          <article className="attention-item" key={item.finding.subjectKey}>
+          <article className="attention-item" id={findingDomId(item.finding.subjectKey)} key={item.finding.subjectKey}>
             <div className="attention-kicker">
               <Badge className={severityClass(item.severity)}>{item.severity}</Badge>
               <span>{kindLabel(item)}</span>
             </div>
             <p className="row-meta">{item.finding.documentTitle}</p>
             <h3>{item.finding.label}</h3>
-            <p className="attention-reason">{item.reason}</p>
+            <p className="attention-reason"><span className="evidence-kicker">Explanation</span>{item.reason}</p>
             <p className="source-line">{sourceLine(item.finding)}</p>
-            <Comparison finding={item.finding} />
+            <Comparison finding={item.finding} projectId={projectId} />
             <div className="finding-actions">
               {decisions.map((decision) => (
                 <Button
@@ -90,7 +94,7 @@ export function AttentionFeed({ projectId, items }: { projectId: string; items: 
   );
 }
 
-function Comparison({ finding }: { finding: FindingDto }) {
+function Comparison({ finding, projectId }: { finding: FindingDto; projectId: string }) {
   const sides = [
     finding.before ? { title: sideTitle(finding, "before"), value: finding.before } : null,
     finding.after ? { title: sideTitle(finding, "after"), value: finding.after } : null,
@@ -101,12 +105,9 @@ function Comparison({ finding }: { finding: FindingDto }) {
       {sides.map((side) => (
         <div key={side.title}>
           <h4>{side.title}</h4>
+          <p className="evidence-kicker">Reading</p>
           <p className="compare-value">{side.value.summary}</p>
-          {side.value.evidence.map((item) => (
-            <blockquote className="evidence-note" key={`${side.title}-${item.pageNumber}-${item.excerpt}`}>
-              Page {item.pageNumber}: “{item.excerpt}”
-            </blockquote>
-          ))}
+          <EvidenceQuotes items={side.value.evidence} returnTo={decisionReturnPath(projectId, finding.subjectKey)} />
         </div>
       ))}
     </div>
