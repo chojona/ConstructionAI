@@ -1,0 +1,156 @@
+{
+  "predictionSource": "deterministic-comparison",
+  "note": "Human-labeled facts are compared directly. This run does not call a model and does not infer equipment or schedule conflicts beyond those facts.",
+  "definitions": {
+    "added": "Precision and recall for predicted ADDED changes, including non-material wording.",
+    "removed": "Precision and recall for predicted REMOVED changes.",
+    "modified": "Precision and recall for predicted MODIFIED changes. A match requires the labeled slot, material flag, and basis.",
+    "materialPrecision": "Material predictions that match a labeled material change, divided by all material predictions.",
+    "materialRecall": "Labeled material changes that were predicted, divided by all labeled material changes.",
+    "wordingSuppression": "Share of wording-only and normalization-equivalent cases that produced no material change.",
+    "falseHighRate": "Share of high-severity predictions that are not a labeled material removal or modification. Added changes are medium. There is no critical severity.",
+    "evidenceCorrectness": "Share of matched changes whose old and new evidence excerpts are the labeled excerpts."
+  },
+  "targets": {
+    "materialPrecision": {
+      "goal": 0.98,
+      "actual": 1,
+      "achieved": true
+    },
+    "materialRecall": {
+      "goal": 0.95,
+      "actual": 1,
+      "achieved": true
+    },
+    "falseHighRate": {
+      "goal": 0.01,
+      "actual": 0,
+      "achieved": true
+    },
+    "allMeasuredTargetsMet": true
+  },
+  "overall": {
+    "truePositives": 31,
+    "falsePositives": 0,
+    "falseNegatives": 0,
+    "precision": 1,
+    "recall": 1,
+    "f1": 1
+  },
+  "byType": {
+    "ADDED": {
+      "truePositives": 18,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "REMOVED": {
+      "truePositives": 2,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "MODIFIED": {
+      "truePositives": 11,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    }
+  },
+  "material": {
+    "truePositives": 28,
+    "falsePositives": 0,
+    "falseNegatives": 0,
+    "precision": 1,
+    "recall": 1,
+    "f1": 1
+  },
+  "wordingSuppression": 1,
+  "normalizationCases": 6,
+  "normalizationLeaks": 0,
+  "falseHighFindings": 0,
+  "highFindings": 10,
+  "evidenceCorrectness": 1,
+  "evidenceCompared": 62,
+  "byPhenomenon": {
+    "added": {
+      "cases": 5,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "materialLeaks": 0,
+      "evidenceCorrectness": 1,
+      "evidenceCompared": 38
+    },
+    "date-normalization": {
+      "cases": 1,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "materialLeaks": 0,
+      "evidenceCorrectness": 1,
+      "evidenceCompared": 2
+    },
+    "evidence": {
+      "cases": 16,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "materialLeaks": 0,
+      "evidenceCorrectness": 1,
+      "evidenceCompared": 62
+    },
+    "modified": {
+      "cases": 7,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "materialLeaks": 0,
+      "evidenceCorrectness": 1,
+      "evidenceCompared": 18
+    },
+    "removed": {
+      "cases": 1,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "materialLeaks": 0,
+      "evidenceCorrectness": 1,
+      "evidenceCompared": 4
+    },
+    "reordered": {
+      "cases": 2,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "materialLeaks": 0,
+      "evidenceCorrectness": 1,
+      "evidenceCompared": 0
+    },
+    "repeated": {
+      "cases": 5,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "materialLeaks": 0,
+      "evidenceCorrectness": 1,
+      "evidenceCompared": 28
+    },
+    "unit-normalization": {
+      "cases": 3,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "materialLeaks": 0,
+      "evidenceCorrectness": 1,
+      "evidenceCompared": 4
+    },
+    "wording-only": {
+      "cases": 6,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "materialLeaks": 0,
+      "evidenceCorrectness": 1,
+      "evidenceCompared": 6
+    }
+  },
+  "misses": []
+}

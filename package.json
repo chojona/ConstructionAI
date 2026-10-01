@@ -16,6 +16,7 @@
     "eval:construction-facts": "node --import tsx lib/extractions/eval/cli.ts",
     "eval:construction-documents": "node --import tsx lib/benchmarks/constructionDocuments/cli.ts",
     "eval:extraction-accuracy": "node --import tsx lib/benchmarks/constructionDocuments/accuracyCli.ts",
+    "eval:change-accuracy": "node --import tsx lib/benchmarks/constructionDocuments/changeAccuracyCli.ts",
     "bench:latency": "node --import tsx lib/observability/benchmarkCli.ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",

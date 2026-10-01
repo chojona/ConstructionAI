@@ -114,7 +114,7 @@ export async function compareRevisionFacts(input: {
 function compareCategory(before: IndexedFact[], after: IndexedFact[]): RevisionFactChange[] {
   const exact = pair(before, after, (left, right) => semanticallyEqual(left, right) && wordingEqual(left, right));
   const semantic = pair(exact.remainingBefore, exact.remainingAfter, semanticallyEqual);
-  const identity = pair(semantic.remainingBefore, semantic.remainingAfter, sameIdentity);
+  const identity = assignIdentity(semantic.remainingBefore, semantic.remainingAfter);
   const changes: RevisionFactChange[] = [];
 
   for (const matched of [...exact.pairs, ...semantic.pairs, ...identity.pairs]) {
@@ -157,12 +157,12 @@ function classifyPair(before: ComparableFact, after: ComparableFact): RevisionFa
 
 function semanticBasis(before: ComparableFact, after: ComparableFact): ComparisonBasis | null {
   if (before.factType === "quantity") {
-    if (normalizeUnit(text(before, "unit")) !== normalizeUnit(text(after, "unit"))) return "unit";
+    if (canonicalUnit(text(before, "unit")) !== canonicalUnit(text(after, "unit"))) return "unit";
     if (canonicalDecimal(text(before, "amount")) !== canonicalDecimal(text(after, "amount"))) return "numeric";
   }
   if (before.factType === "schedule_date") {
-    const beforeDate = before.payload.date ?? null;
-    const afterDate = after.payload.date ?? null;
+    const beforeDate = resolvedIso(before);
+    const afterDate = resolvedIso(after);
     if (beforeDate !== afterDate) return "date";
     if (beforeDate === null && normalizeLabel(text(before, "dateText")) !== normalizeLabel(text(after, "dateText"))) {
       return "date";
@@ -308,8 +308,189 @@ function normalizeLabel(value: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function normalizeUnit(value: string) {
-  return value.trim().toLowerCase();
+function assignIdentity(before: IndexedFact[], after: IndexedFact[]) {
+  const groups = new Map<string, { before: IndexedFact[]; after: IndexedFact[] }>();
+  const bucketFor = (fact: ComparableFact) => {
+    const key = `${fact.factType}:${identity(fact)}`;
+    const bucket = groups.get(key) ?? { before: [], after: [] };
+    groups.set(key, bucket);
+    return bucket;
+  };
+  for (const item of before) bucketFor(item.fact).before.push(item);
+  for (const item of after) bucketFor(item.fact).after.push(item);
+
+  const pairs: FactPair[] = [];
+  const remainingBefore: IndexedFact[] = [];
+  const remainingAfter: IndexedFact[] = [];
+  for (const group of groups.values()) {
+    const assigned = assignGroup(group.before, group.after);
+    pairs.push(...assigned.pairs);
+    remainingBefore.push(...assigned.remainingBefore);
+    remainingAfter.push(...assigned.remainingAfter);
+  }
+  return { pairs, remainingBefore, remainingAfter };
+}
+
+function assignGroup(before: IndexedFact[], after: IndexedFact[]) {
+  const pairs = chooseAssignment(before, after);
+  const usedBefore = new Set(pairs.map((item) => item.before.index));
+  const usedAfter = new Set(pairs.map((item) => item.after.index));
+  return {
+    pairs,
+    remainingBefore: before.filter((item) => !usedBefore.has(item.index)),
+    remainingAfter: after.filter((item) => !usedAfter.has(item.index)),
+  };
+}
+
+function chooseAssignment(before: IndexedFact[], after: IndexedFact[]): FactPair[] {
+  if (before.length === 0 || after.length === 0) return [];
+  const rows = before.length <= after.length ? before : after;
+  const cols = before.length <= after.length ? after : before;
+  const rowIsBefore = before.length <= after.length;
+  const used = new Array<boolean>(cols.length).fill(false);
+  const current: number[] = [];
+  let bestCost = Number.POSITIVE_INFINITY;
+  let bestSignature = "";
+  let bestPairs: FactPair[] = [];
+
+  const consider = () => {
+    let cost = 0;
+    const pairs: FactPair[] = [];
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index]!;
+      const col = cols[current[index]!]!;
+      const left = rowIsBefore ? row : col;
+      const right = rowIsBefore ? col : row;
+      cost += pairCost(left.fact, right.fact);
+      pairs.push({ before: left, after: right });
+    }
+    const signature = pairs
+      .map((item) => `${item.before.index}:${item.after.index}`)
+      .sort()
+      .join(",");
+    if (cost < bestCost || (cost === bestCost && signature < bestSignature)) {
+      bestCost = cost;
+      bestSignature = signature;
+      bestPairs = pairs;
+    }
+  };
+
+  const walk = () => {
+    if (current.length === rows.length) {
+      consider();
+      return;
+    }
+    for (let index = 0; index < cols.length; index += 1) {
+      if (used[index]) continue;
+      used[index] = true;
+      current.push(index);
+      walk();
+      current.pop();
+      used[index] = false;
+    }
+  };
+  walk();
+  return bestPairs;
+}
+
+function pairCost(before: ComparableFact, after: ComparableFact) {
+  if (semanticallyEqual(before, after)) return wordingEqual(before, after) ? 0 : 1;
+  if (before.factType === "quantity") {
+    const amountGap = Math.abs(
+      Number(canonicalDecimal(text(before, "amount"))) - Number(canonicalDecimal(text(after, "amount"))),
+    );
+    const unitGap = canonicalUnit(text(before, "unit")) === canonicalUnit(text(after, "unit")) ? 0 : 100;
+    const modalityGap = text(before, "modality") === text(after, "modality") ? 0 : 5;
+    return 10 + amountGap + unitGap + modalityGap;
+  }
+  if (before.factType === "schedule_date") {
+    const left = resolvedIso(before);
+    const right = resolvedIso(after);
+    if (left && right) return 10 + Math.abs(Date.parse(`${left}T00:00:00Z`) - Date.parse(`${right}T00:00:00Z`)) / 86_400_000;
+    return 80;
+  }
+  return text(before, "modality") === text(after, "modality") ? 10 : 15;
+}
+
+function resolvedIso(fact: ComparableFact) {
+  const stored = fact.payload.date ?? null;
+  if (stored) return stored;
+  return parseCalendarDate(text(fact, "dateText"));
+}
+
+function parseCalendarDate(value: string) {
+  const text = value.trim().toLowerCase().replace(/[.,]/g, " ").replace(/\s+/g, " ").trim();
+  const month = "january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept|sep|oct|nov|dec";
+  const monthFirst = new RegExp(`^(${month})\\s+(\\d{1,2})(?:st|nd|rd|th)?\\s+(\\d{4})$`);
+  const dayFirst = new RegExp(`^(\\d{1,2})(?:st|nd|rd|th)?\\s+(${month})\\s+(\\d{4})$`);
+  const leadingMonth = monthFirst.exec(text);
+  if (leadingMonth?.[1] && leadingMonth[2] && leadingMonth[3]) {
+    return isoFromParts(Number(leadingMonth[3]), monthNumber(leadingMonth[1]), Number(leadingMonth[2]));
+  }
+  const leadingDay = dayFirst.exec(text);
+  if (leadingDay?.[1] && leadingDay[2] && leadingDay[3]) {
+    return isoFromParts(Number(leadingDay[3]), monthNumber(leadingDay[2]), Number(leadingDay[1]));
+  }
+  return null;
+}
+
+function monthNumber(name: string) {
+  const months: Record<string, number> = {
+    jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3, apr: 4, april: 4, may: 5,
+    jun: 6, june: 6, jul: 7, july: 7, aug: 8, august: 8, sep: 9, sept: 9, september: 9,
+    oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12,
+  };
+  return months[name] ?? 0;
+}
+
+function isoFromParts(year: number, month: number, day: number) {
+  if (month < 1 || day < 1) return null;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  const monthText = String(month).padStart(2, "0");
+  const dayText = String(day).padStart(2, "0");
+  return `${year}-${monthText}-${dayText}`;
+}
+
+const unitAliases = new Map<string, string>([
+  ["c y", "cy"],
+  ["cy", "cy"],
+  ["cu yd", "cy"],
+  ["cu yds", "cy"],
+  ["cubic yard", "cy"],
+  ["cubic yards", "cy"],
+  ["yard", "cy"],
+  ["yards", "cy"],
+  ["yd", "cy"],
+  ["yds", "cy"],
+  ["inch", "in"],
+  ["inches", "in"],
+  ["in", "in"],
+  ["foot", "ft"],
+  ["feet", "ft"],
+  ["ft", "ft"],
+  ["linear foot", "lf"],
+  ["linear feet", "lf"],
+  ["lf", "lf"],
+  ["square foot", "sf"],
+  ["square feet", "sf"],
+  ["sq ft", "sf"],
+  ["sf", "sf"],
+  ["each", "ea"],
+  ["ea", "ea"],
+  ["hour", "hr"],
+  ["hours", "hr"],
+  ["hr", "hr"],
+  ["cubic meter", "m3"],
+  ["cubic meters", "m3"],
+  ["cubic metre", "m3"],
+  ["cubic metres", "m3"],
+  ["m3", "m3"],
+]);
+
+function canonicalUnit(value: string) {
+  const cleaned = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+  return unitAliases.get(cleaned) ?? cleaned;
 }
 
 function canonicalDecimal(value: string) {

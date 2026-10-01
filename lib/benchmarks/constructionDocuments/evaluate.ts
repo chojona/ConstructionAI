@@ -80,6 +80,10 @@ function sideFixture(pair: BenchmarkPair, side: "base" | "revised"): Constructio
   };
 }
 
+export function comparableFactsForSide(side: BenchmarkSide): ComparableFact[] {
+  return comparableFacts(side);
+}
+
 function comparableFacts(side: BenchmarkSide): ComparableFact[] {
   const fixture: ConstructionFactsFixture = {
     id: side.revisionLabel,
