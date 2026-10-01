@@ -169,6 +169,9 @@ function semanticBasis(before: ComparableFact, after: ComparableFact): Compariso
     }
   }
   if (text(before, "modality") !== text(after, "modality")) return "modality";
+  const beforePolarity = obligationPolarity(obligationText(before));
+  const afterPolarity = obligationPolarity(obligationText(after));
+  if (beforePolarity && afterPolarity && beforePolarity !== afterPolarity) return "modality";
   return null;
 }
 
@@ -240,6 +243,20 @@ export function factSlotKey(fact: ComparableFact) {
   return `${fact.factType}:${identity(fact)}`;
 }
 
+/** Distinguishes semantically different requirements that share a slot key. */
+export function requirementFingerprint(fact: ComparableFact) {
+  normalizeFact(fact);
+  const modality = text(fact, "modality");
+  const key = factSlotKey(fact);
+  if (fact.factType === "equipment_requirement") {
+    return `${key}\u0000${modality}\u0000${normalizeLabel(text(fact, "statement"))}`;
+  }
+  if (fact.factType === "schedule_date") {
+    return `${key}\u0000${modality}\u0000${resolvedIso(fact) ?? normalizeLabel(text(fact, "dateText"))}`;
+  }
+  return `${key}\u0000${modality}\u0000${canonicalDecimal(text(fact, "amount"))}\u0000${canonicalUnit(text(fact, "unit"))}`;
+}
+
 function snapshot(fact: ComparableFact): ComparableFact {
   return {
     ...(fact.id ? { id: fact.id } : {}),
@@ -294,6 +311,18 @@ async function latestSucceededRun(
     throw new DomainError("INVALID_INPUT", "Revision has no succeeded construction-facts-v1 extraction.", 400);
   }
   return latest;
+}
+
+function obligationText(fact: ComparableFact) {
+  if (fact.factType === "equipment_requirement") return text(fact, "statement");
+  if (fact.factType === "schedule_date") return text(fact, "dateText");
+  return text(fact, "originalText");
+}
+
+function obligationPolarity(value: string): "required" | "prohibited" | null {
+  if (/\b(shall not|must not|may not|do not|does not|is not permitted|shall never)\b/i.test(value)) return "prohibited";
+  if (/\b(shall|must|required)\b/i.test(value)) return "required";
+  return null;
 }
 
 function text(fact: ComparableFact, key: string) {

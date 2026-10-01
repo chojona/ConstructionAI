@@ -3,6 +3,7 @@ import { extractText, getDocumentProxy } from "unpdf";
 import { normalizePageText } from "./pageText";
 
 const PDF_TEXT_EXTRACTOR_VERSION = "unpdf-text-v1";
+export const MAX_PDF_PAGES = 500;
 const DEFAULT_CACHE_ENTRIES = 32;
 const DEFAULT_CACHE_TEXT_BYTES = 16 * 1024 * 1024;
 

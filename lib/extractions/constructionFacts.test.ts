@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { CommitProposedFactsInput } from "@/lib/domain/repository";
 import { PipelineTimeoutError, startProcessingRun } from "@/lib/observability/pipelineTiming";
+import { getProjectReview, recordReviewDecision } from "@/lib/review/service";
 import { MemoryRepository } from "@/tests/support/memoryRepository";
 import {
   CONSTRUCTION_FACTS_EXTRACTOR,
@@ -404,4 +406,97 @@ describe("construction facts extraction run", () => {
     expect(repository.extractionRuns.at(-1)).toMatchObject({ status: "FAILED", failureCode: "TIMEOUT" });
     expect(JSON.stringify(timings.finish())).not.toContain("CAT 336");
   });
+
+  it("drops partial facts from a failed attempt and leaves earlier evidence immutable after retry", async () => {
+    const repository = new PartialWriteRepository();
+    repository.addOrganization("org_a");
+    const revision = await processedRevision(repository);
+    const projectId = revision.document.project.id;
+    const excerpt = "Excavation quantity is 1,250 CY.";
+    const succeeded = await runConstructionFactsExtraction({
+      organizationId: "org_a",
+      documentRevisionId: revision.id,
+      model: model(async () => output([{
+        type: "quantity",
+        subject: "excavation",
+        amount: "1250",
+        unit: "CY",
+        originalText: "1,250 CY",
+        modality: "asserted",
+        evidence: [evidence(excerpt)],
+      }])),
+      repository,
+      clock,
+    });
+    const historicalFacts = structuredClone(await listProposedFacts("org_a", succeeded.run.id, repository));
+    const historicalRun = structuredClone(succeeded.run);
+    const historicalRevision = structuredClone(await repository.getRevision("org_a", revision.id));
+    await recordReviewDecision("org_a", projectId, "pm-1", {
+      decision: "ACCEPTED",
+      reason: "Matches the quantity takeoff.",
+      subject: { type: "proposed_fact", proposedFactId: historicalFacts[0]!.id },
+    }, repository, clock);
+    const acceptedState = await getProjectReview("org_a", projectId, repository);
+    repository.failNextCommit = true;
+
+    await expect(runConstructionFactsExtraction({
+      organizationId: "org_a",
+      documentRevisionId: revision.id,
+      model: model(async () => output([])),
+      repository,
+      clock,
+    })).rejects.toMatchObject({ code: "PROVIDER_ERROR" });
+
+    expect(repository.extractionRuns.map((run) => [run.attemptNumber, run.status, run.failureCode])).toEqual([
+      [1, "SUCCEEDED", null],
+      [2, "FAILED", "PROVIDER_ERROR"],
+    ]);
+    expect(repository.proposedFacts.map((fact) => fact.extractionRunId)).toEqual([succeeded.run.id]);
+    expect(await listProposedFacts("org_a", succeeded.run.id, repository)).toEqual(historicalFacts);
+    expect(repository.extractionRuns[0]).toEqual(historicalRun);
+    expect(await repository.getRevision("org_a", revision.id)).toEqual(historicalRevision);
+    expect((await getProjectReview("org_a", projectId, repository)).state).toEqual(acceptedState.state);
+
+    const retried = await runConstructionFactsExtraction({
+      organizationId: "org_a",
+      documentRevisionId: revision.id,
+      model: model(async () => output([{
+        type: "quantity",
+        subject: "backfill",
+        amount: "1250",
+        unit: "CY",
+        originalText: "1,250 CY",
+        modality: "asserted",
+        evidence: [evidence(excerpt)],
+      }])),
+      repository,
+      clock,
+    });
+    expect(retried.run).toMatchObject({ attemptNumber: 3, status: "SUCCEEDED", failureCode: null });
+    expect(await listProposedFacts("org_a", succeeded.run.id, repository)).toEqual(historicalFacts);
+    expect(repository.extractionRuns[0]).toEqual(historicalRun);
+    expect(repository.extractionRuns[1]).toMatchObject({ status: "FAILED", failureCode: "PROVIDER_ERROR" });
+    expect((await getProjectReview("org_a", projectId, repository)).state.facts.map((fact) => fact.proposedFactId)).toEqual(
+      acceptedState.state.facts.map((fact) => fact.proposedFactId),
+    );
+  });
 });
+
+class PartialWriteRepository extends MemoryRepository {
+  failNextCommit = false;
+
+  override async commitProposedFacts(input: CommitProposedFactsInput) {
+    if (!this.failNextCommit) return super.commitProposedFacts(input);
+    this.failNextCommit = false;
+    this.proposedFacts.push({
+      id: "partial_fact",
+      extractionRunId: input.extractionRunId,
+      ordinal: 0,
+      factType: "quantity",
+      payload: { subject: "excavation", amount: "9", unit: "CY", originalText: "9 CY", modality: "asserted" },
+      evidence: [],
+      createdAt: new Date("2026-09-30T18:00:00.000Z"),
+    });
+    throw new Error("write failed after the first fact");
+  }
+}

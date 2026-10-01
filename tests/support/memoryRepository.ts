@@ -6,6 +6,7 @@ import type {
   CreateExtractionRunInput,
   CreateRevisionRecordInput,
   ExtractionRunTransitionInput,
+  FailOpenExtractionInput,
 } from "@/lib/domain/repository";
 import type {
   DocumentDetail,
@@ -189,6 +190,29 @@ export class MemoryRepository implements ConstructionRepository {
     if (input.completedAt) run.completedAt = input.completedAt;
     if (input.failureCode !== undefined) run.failureCode = input.failureCode;
     if (input.failureMessage !== undefined) run.failureMessage = input.failureMessage;
+    return this.copyRun(run);
+  }
+
+  async failOpenExtraction(input: FailOpenExtractionInput): Promise<ExtractionRunRecord | null> {
+    const run = this.extractionRunInOrganization(input.organizationId, input.extractionRunId);
+    if (!run || (run.status !== "QUEUED" && run.status !== "RUNNING")) return null;
+    const factIds = new Set(
+      this.proposedFacts.filter((fact) => fact.extractionRunId === run.id).map((fact) => fact.id),
+    );
+    const referenced = this.reviewDecisions.some((decision) => (
+      factIds.has(decision.proposedFactId)
+      || (decision.beforeProposedFactId !== null && factIds.has(decision.beforeProposedFactId))
+      || (decision.afterProposedFactId !== null && factIds.has(decision.afterProposedFactId))
+    ));
+    if (!referenced) {
+      for (let index = this.proposedFacts.length - 1; index >= 0; index -= 1) {
+        if (this.proposedFacts[index]?.extractionRunId === run.id) this.proposedFacts.splice(index, 1);
+      }
+    }
+    run.status = "FAILED";
+    run.completedAt = input.completedAt;
+    run.failureCode = input.failureCode;
+    run.failureMessage = input.failureMessage;
     return this.copyRun(run);
   }
 

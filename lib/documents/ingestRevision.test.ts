@@ -6,6 +6,7 @@ import { createProject } from "@/lib/projects/service";
 import { MemoryRepository } from "@/tests/support/memoryRepository";
 import { startProcessingRun } from "@/lib/observability/pipelineTiming";
 import { createDocument } from "./service";
+import { MAX_PDF_PAGES } from "./extractPdf";
 import { ingestRevision } from "./ingestRevision";
 import { buildTextPdf } from "./minimalPdf";
 import { LocalDocumentStorage } from "./storage";
@@ -84,6 +85,97 @@ describe("revision ingestion", () => {
     const second = await ingestRevision("org_a", document.id, { revisionLabel: "B", originalFilename: "b.pdf", mimeType: "application/pdf", bytes: buildTextPdf(["Revised"] ) }, { repository, storage });
     expect([first.revisionOrder, second.revisionOrder]).toEqual([1, 2]);
     expect(await repository.getRevision("org_a", first.id)).toEqual(snapshot);
+  });
+
+  it("orders revisions by upload, including when Rev B arrives before Rev A", async () => {
+    const { repository, document, storage } = await setup();
+    const earlier = await ingestRevision("org_a", document.id, {
+      revisionLabel: "Rev B",
+      originalFilename: "b.pdf",
+      mimeType: "application/pdf",
+      bytes: buildTextPdf(["Issued second"]),
+    }, { repository, storage });
+    const later = await ingestRevision("org_a", document.id, {
+      revisionLabel: "Rev A",
+      originalFilename: "a.pdf",
+      mimeType: "application/pdf",
+      bytes: buildTextPdf(["Issued first on paper"]),
+    }, { repository, storage });
+    expect([earlier.revisionLabel, earlier.revisionOrder, later.revisionLabel, later.revisionOrder]).toEqual(["Rev B", 1, "Rev A", 2]);
+  });
+
+  it("accepts an odd revision label and rejects a missing one", async () => {
+    const { repository, document, storage } = await setup();
+    const revision = await ingestRevision("org_a", document.id, {
+      revisionLabel: "  Rev. B (IFC) — add. 2  ",
+      originalFilename: "odd.pdf",
+      mimeType: "application/pdf",
+      bytes: buildTextPdf(["Addendum note"]),
+    }, { repository, storage });
+    expect(revision.revisionLabel).toBe("Rev. B (IFC) — add. 2");
+    await expect(ingestRevision("org_a", document.id, {
+      revisionLabel: "   ",
+      originalFilename: "blank.pdf",
+      mimeType: "application/pdf",
+      bytes: buildTextPdf(["Blank label"]),
+    }, { repository, storage })).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    await expect(ingestRevision("org_a", document.id, {
+      revisionLabel: "R".repeat(81),
+      originalFilename: "long.pdf",
+      mimeType: "application/pdf",
+      bytes: buildTextPdf(["Long label"]),
+    }, { repository, storage })).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    expect(repository.revisions).toHaveLength(1);
+  });
+
+  it("keeps a one-page PDF and a multi-page PDF, and refuses an over-limit parse without storing it", async () => {
+    const { repository, document, storage } = await setup();
+    const onePage = await ingestRevision("org_a", document.id, {
+      revisionLabel: "One",
+      originalFilename: "one.pdf",
+      mimeType: "application/pdf",
+      bytes: buildTextPdf(["Sheet C-101 only"]),
+    }, { repository, storage });
+    expect(onePage.pages.map((page) => page.pageNumber)).toEqual([1]);
+
+    const pages = Array.from({ length: 12 }, (_, index) => (
+      index === 3 ? "Trench excavation | 1,250 CY\nBackfill | 1,250 CY" : `Sheet ${index + 1}`
+    ));
+    const many = await ingestRevision("org_a", document.id, {
+      revisionLabel: "Many",
+      originalFilename: "many.pdf",
+      mimeType: "application/pdf",
+      bytes: buildTextPdf(pages),
+    }, { repository, storage });
+    expect(many.status).toBe("PROCESSED");
+    expect(many.pages.map((page) => page.pageNumber)).toEqual(pages.map((_, index) => index + 1));
+    expect(many.pages[3]?.text).toContain("Trench excavation");
+    expect(many.pages[3]?.text).toContain("Backfill");
+
+    await expect(ingestRevision("org_a", document.id, {
+      revisionLabel: "Too many",
+      originalFilename: "huge.pdf",
+      mimeType: "application/pdf",
+      bytes: buildTextPdf(["unused"]),
+    }, {
+      repository,
+      storage,
+      extract: async () => ({
+        pageCount: MAX_PDF_PAGES + 1,
+        pages: Array.from({ length: MAX_PDF_PAGES + 1 }, (_, index) => ({ pageNumber: index + 1, text: "page" })),
+      }),
+    })).rejects.toMatchObject({ code: "FILE_TOO_LARGE" });
+    await expect(ingestRevision("org_a", document.id, {
+      revisionLabel: "Partial",
+      originalFilename: "partial.pdf",
+      mimeType: "application/pdf",
+      bytes: buildTextPdf(["unused"]),
+    }, {
+      repository,
+      storage,
+      extract: async () => ({ pageCount: 2, pages: [{ pageNumber: 1, text: "only the first page" }] }),
+    })).rejects.toMatchObject({ code: "MALFORMED_PDF" });
+    expect(repository.revisions).toHaveLength(2);
   });
 
   it("rejects reuse of a revision label for a different binary", async () => {

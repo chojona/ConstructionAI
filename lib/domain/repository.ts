@@ -50,6 +50,14 @@ export interface ExtractionRunTransitionInput {
   failureMessage?: string | null;
 }
 
+export interface FailOpenExtractionInput {
+  organizationId: string;
+  extractionRunId: string;
+  completedAt: Date;
+  failureCode: string;
+  failureMessage: string | null;
+}
+
 export interface CommitProposedFactInput {
   factType: ProposedFactType;
   payload: Record<string, string | null>;
@@ -114,6 +122,7 @@ export interface ConstructionRepository {
   listExtractionRuns(organizationId: string, documentRevisionId: string): Promise<ExtractionRunRecord[] | null>;
   getExtractionRun(organizationId: string, extractionRunId: string): Promise<ExtractionRunRecord | null>;
   applyExtractionRunTransition(input: ExtractionRunTransitionInput): Promise<ExtractionRunRecord | null>;
+  failOpenExtraction(input: FailOpenExtractionInput): Promise<ExtractionRunRecord | null>;
   commitProposedFacts(input: CommitProposedFactsInput): Promise<ExtractionRunRecord | null>;
   listProposedFacts(organizationId: string, extractionRunId: string): Promise<ProposedFactRecord[] | null>;
   getProjectReviewSource(organizationId: string, projectId: string): Promise<ProjectReviewSource | null>;

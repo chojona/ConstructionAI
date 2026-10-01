@@ -8,6 +8,7 @@ import type {
   CreateExtractionRunInput,
   CreateRevisionRecordInput,
   ExtractionRunTransitionInput,
+  FailOpenExtractionInput,
 } from "./repository";
 import type {
   DocumentDetail,
@@ -259,6 +260,50 @@ export class PrismaConstructionRepository implements ConstructionRepository {
       data,
     });
     if (updated.count !== 1) return null;
+    return this.getExtractionRun(input.organizationId, input.extractionRunId);
+  }
+
+  async failOpenExtraction(input: FailOpenExtractionInput): Promise<ExtractionRunRecord | null> {
+    const run = await this.db.extractionRun.findFirst({
+      where: {
+        id: input.extractionRunId,
+        status: { in: ["QUEUED", "RUNNING"] },
+        documentRevision: { document: { project: { organizationId: input.organizationId } } },
+      },
+      select: { id: true },
+    });
+    if (!run) return null;
+
+    await this.db.$transaction(async (tx) => {
+      const locked = await tx.extractionRun.updateMany({
+        where: { id: run.id, status: { in: ["QUEUED", "RUNNING"] } },
+        data: {
+          status: "FAILED",
+          completedAt: input.completedAt,
+          failureCode: input.failureCode,
+          failureMessage: input.failureMessage,
+        },
+      });
+      if (locked.count !== 1) return;
+      const facts = await tx.proposedFact.findMany({
+        where: { extractionRunId: run.id },
+        select: { id: true },
+      });
+      const ids = facts.map((fact) => fact.id);
+      if (ids.length === 0) return;
+      const referenced = await tx.reviewDecision.count({
+        where: {
+          OR: [
+            { proposedFactId: { in: ids } },
+            { beforeProposedFactId: { in: ids } },
+            { afterProposedFactId: { in: ids } },
+          ],
+        },
+      });
+      if (referenced > 0) return;
+      await tx.proposedFactEvidence.deleteMany({ where: { proposedFactId: { in: ids } } });
+      await tx.proposedFact.deleteMany({ where: { id: { in: ids } } });
+    });
     return this.getExtractionRun(input.organizationId, input.extractionRunId);
   }
 

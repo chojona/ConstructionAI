@@ -166,11 +166,16 @@ export async function runConstructionFactsExtraction(input: {
         : malformed
           ? error.message
           : "The extraction model failed before it produced valid proposed facts.";
-      await advanceExtractionRun(input.organizationId, run.id, {
-        status: "FAILED",
-        failureCode,
-        failureMessage: failureMessage.slice(0, 500),
-      }, repository, clock);
+      const current = await repository.getExtractionRun(input.organizationId, run.id);
+      if (current && (current.status === "QUEUED" || current.status === "RUNNING")) {
+        await repository.failOpenExtraction({
+          organizationId: input.organizationId,
+          extractionRunId: run.id,
+          completedAt: clock(),
+          failureCode,
+          failureMessage: failureMessage.slice(0, 500),
+        });
+      }
       if (timedOut) throw new DomainError("TIMEOUT", failureMessage, 504);
       if (malformed) throw error;
       throw new DomainError("PROVIDER_ERROR", failureMessage, 502);
