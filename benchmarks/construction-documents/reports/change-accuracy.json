@@ -30,7 +30,7 @@
     "allMeasuredTargetsMet": true
   },
   "overall": {
-    "truePositives": 31,
+    "truePositives": 32,
     "falsePositives": 0,
     "falseNegatives": 0,
     "precision": 1,
@@ -39,7 +39,7 @@
   },
   "byType": {
     "ADDED": {
-      "truePositives": 18,
+      "truePositives": 19,
       "falsePositives": 0,
       "falseNegatives": 0,
       "precision": 1,
@@ -47,7 +47,7 @@
       "f1": 1
     },
     "REMOVED": {
-      "truePositives": 2,
+      "truePositives": 3,
       "falsePositives": 0,
       "falseNegatives": 0,
       "precision": 1,
@@ -55,7 +55,7 @@
       "f1": 1
     },
     "MODIFIED": {
-      "truePositives": 11,
+      "truePositives": 10,
       "falsePositives": 0,
       "falseNegatives": 0,
       "precision": 1,
@@ -64,7 +64,7 @@
     }
   },
   "material": {
-    "truePositives": 28,
+    "truePositives": 29,
     "falsePositives": 0,
     "falseNegatives": 0,
     "precision": 1,
@@ -79,7 +79,7 @@
   "highFindings": 7,
   "criticalFindings": 0,
   "evidenceCorrectness": 1,
-  "evidenceCompared": 62,
+  "evidenceCompared": 64,
   "byPhenomenon": {
     "added": {
       "cases": 5,
@@ -87,7 +87,7 @@
       "falseNegatives": 0,
       "materialLeaks": 0,
       "evidenceCorrectness": 1,
-      "evidenceCompared": 38
+      "evidenceCompared": 40
     },
     "date-normalization": {
       "cases": 1,
@@ -103,23 +103,23 @@
       "falseNegatives": 0,
       "materialLeaks": 0,
       "evidenceCorrectness": 1,
-      "evidenceCompared": 62
+      "evidenceCompared": 64
     },
     "modified": {
-      "cases": 7,
+      "cases": 6,
       "falsePositives": 0,
       "falseNegatives": 0,
       "materialLeaks": 0,
       "evidenceCorrectness": 1,
-      "evidenceCompared": 18
+      "evidenceCompared": 14
     },
     "removed": {
-      "cases": 1,
+      "cases": 2,
       "falsePositives": 0,
       "falseNegatives": 0,
       "materialLeaks": 0,
       "evidenceCorrectness": 1,
-      "evidenceCompared": 4
+      "evidenceCompared": 10
     },
     "reordered": {
       "cases": 2,

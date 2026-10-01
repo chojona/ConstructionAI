@@ -198,6 +198,7 @@ export const CONSTRUCTION_DOCUMENT_BENCHMARK = {
     "Pages are short verbatim excerpts. They are not full plan sets.",
     "Percentage amounts, fraction inches, and gradation ranges are left unlabeled because recording them would rewrite the source into a decimal or a unit the sentence does not use.",
     "08-05-2025 is stored with a null calendar date. Month-day and day-month readings were not chosen.",
+    "Catawba schedule events are words written on the page. The June line says revision. The August blank and 08-05-2025 name no event, so those facts use the event schedule.",
     "May 2025 is unlabeled. It is a month and year with no day, and the in-repo extractor does not emit that shape as a schedule fact. The sentence is not hedged.",
     "The deleted 8 inch thickness remains visible in the Council Bluffs instruction and is not a remaining requirement.",
   ],
@@ -420,22 +421,23 @@ export const CONSTRUCTION_DOCUMENT_BENCHMARK = {
     },
     {
       id: "catawba-drawing-dates",
-      description: "Drawing and addendum dates use a month name, a filled blank, and an unparsed numeric token.",
+      description: "A revision date, a filled blank, and an unparsed numeric token. The blank and the numeric token name no event.",
       phenomena: ["date-format"],
       labeling: "human",
       source: catawba,
       base: side("Drawings quoted for deletion", drawingBase, [
-        schedule("civil drawings", "2025-06-06", "June 6, 2025", "asserted"),
+        schedule("revision", "2025-06-06", "June 6, 2025", "asserted"),
       ]),
       revised: side("Addendum No. 4 dates", drawingRevised, [
-        schedule("addendum", "2024-08-07", augustBlank, "asserted"),
-        schedule("civil drawings", null, "08-05-2025", "asserted"),
+        schedule("schedule", "2024-08-07", augustBlank, "asserted"),
+        schedule("schedule", null, "08-05-2025", "asserted"),
       ], [
         { pageNumber: 1, excerpt: "May 2025", reason: "A month and year with no day is not labeled. The sentence is not hedged." },
       ]),
       expectedChanges: [
-        { changeType: "MODIFIED", category: "schedule_date", material: true, basis: "date", slot: "schedule_date:civil drawings" },
-        { changeType: "ADDED", category: "schedule_date", material: true, basis: "identity", slot: "schedule_date:addendum" },
+        { changeType: "REMOVED", category: "schedule_date", material: true, basis: "identity", slot: "schedule_date:revision" },
+        { changeType: "ADDED", category: "schedule_date", material: true, basis: "identity", slot: "schedule_date:schedule" },
+        { changeType: "ADDED", category: "schedule_date", material: true, basis: "identity", slot: "schedule_date:schedule" },
       ],
     },
     {
