@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { connection } from "next/server";
 import { AppShell } from "@/components/workspace/app-shell";
 import { listProjects } from "@/lib/projects/service";
 import { currentOrganizationId } from "@/lib/tenancy";
@@ -12,7 +13,10 @@ export const metadata: Metadata = {
   description: "Trustworthy construction project intelligence from source documents.",
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  await connection();
   const projects = await listProjects(currentOrganizationId());
   return (
     <html lang="en" className={inter.variable}>
