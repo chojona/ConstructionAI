@@ -11,14 +11,6 @@ import { seedHeavyJobDemoProject } from "../../lib/heavyjob/loadFixtures";
 
 if (!process.env.DATABASE_URL && existsSync(".env")) process.loadEnvFile(".env");
 
-const objectTypeLabels: Record<string, string> = {
-  timecard: "Timecard",
-  cost_code: "Cost code",
-  quantity: "Quantity",
-  diary: "Diary",
-  attachment: "Attachment",
-};
-
 test.beforeAll(async () => {
   const db = createPrismaClient();
   const organizationId = process.env.APP_ORGANIZATION_ID?.trim() || "org_demo";
@@ -40,30 +32,32 @@ test("demo project lists HeavyJob source objects without a review queue", async 
   await expect(tabs.getByRole("link", { name: "Documents", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Source objects", exact: true })).toBeVisible();
   await expect(page.getByText("Add document")).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Needs attention" })).toHaveCount(0);
-
-  for (const [objectType, label] of Object.entries(objectTypeLabels)) {
-    const section = page.locator(`[data-object-type="${objectType}"]`);
-    await expect(section.getByRole("heading", { name: label, exact: true })).toBeVisible();
-    const fixtures = heavyJobFixtures.filter((fixture) => fixture.objectType === objectType);
-    await expect(section.locator("article")).toHaveCount(fixtures.length);
-    for (const fixture of fixtures) {
-      await expect(section.getByText(fixture.sourceId)).toBeVisible();
-    }
+  await expect(page.getByRole("heading", { name: /Needs attention/ })).toHaveCount(0);
+  for (const column of ["type", "sourceId", "fetchedAt", "raw"]) {
+    await expect(page.getByRole("columnheader", { name: column, exact: true })).toBeVisible();
   }
 
-  await expect(page.getByText(HEAVYJOB_FIXTURE_FETCHED_AT).first()).toBeVisible();
+  for (const fixture of heavyJobFixtures) {
+    const row = page.getByRole("row").filter({ has: page.locator("code").getByText(fixture.sourceId, { exact: true }) });
+    await expect(row).toHaveCount(1);
+    await expect(row.getByRole("cell", { name: fixture.objectType, exact: true })).toBeVisible();
+    await expect(row.locator("time")).toHaveText(HEAVYJOB_FIXTURE_FETCHED_AT);
+  }
+
   const peeks = page.locator("details.raw-peek");
   await expect(peeks).toHaveCount(heavyJobFixtures.length);
   await expect(peeks.first()).not.toHaveAttribute("open", "");
   await peeks.first().locator("summary").click();
   await expect(peeks.first().locator("pre")).toContainText('"isTm"');
-  await expect(page.getByText(/\b(entitlement|force account|force-account|unpaid|candidate|detection)\b/i)).toHaveCount(0);
+  await expect(page.getByText(/\b(entitlement|dsc|force account|force-account|unpaid|candidate|detection)\b/i)).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 900 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.setViewportSize({ width: 1440, height: 1000 });
 
   await tabs.getByRole("link", { name: "Documents", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Documents", exact: true })).toBeVisible();
   await expect(page.getByText("No documents yet")).toBeVisible();
   await tabs.getByRole("link", { name: /^Changes/ }).click();
-  await expect(page.getByRole("heading", { name: "Needs attention", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Changes Needs attention" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Source objects" })).toHaveCount(0);
 });
