@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { toRevisionUploadDto } from "@/lib/documents/dto";
-import { ingestRevision } from "@/lib/documents/ingestRevision";
+import { publishRevision } from "@/lib/documents/publishRevision";
 import { errorResponse } from "@/lib/http";
 import { requestOrganizationId } from "@/lib/tenancy";
 
@@ -21,7 +21,7 @@ export async function POST(
         { status: 400 },
       );
     }
-    const revision = await ingestRevision(requestOrganizationId(request), documentId, {
+    const revision = await publishRevision(requestOrganizationId(request), documentId, {
       revisionLabel,
       originalFilename: file.name,
       mimeType: file.type,

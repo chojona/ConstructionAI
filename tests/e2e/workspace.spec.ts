@@ -9,6 +9,12 @@ let documentId: string;
 const projectName = `North River Bridge · Workspace QA ${Date.now()}`;
 
 test.beforeAll(async () => {
+  const organizationId = process.env.APP_ORGANIZATION_ID || "org_demo";
+  await db.organization.upsert({
+    where: { id: organizationId },
+    update: {},
+    create: { id: organizationId, name: "Northstar Construction" },
+  });
   const project = await db.project.create({ data: {
     organizationId: process.env.APP_ORGANIZATION_ID || "org_demo", name: projectName, projectNumber: "NR-026",
     documents: { create: { title: "Earthworks specification", documentType: "Specification", revisions: { create: ["1250", "1500"].map((amount, index) => {
