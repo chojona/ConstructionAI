@@ -6,6 +6,8 @@ import type {
   ProjectDetail,
   ProjectRecord,
   ProjectSummary,
+  ProposedFactRecord,
+  ProposedFactType,
   RevisionDetail,
 } from "./types";
 
@@ -43,6 +45,26 @@ export interface ExtractionRunTransitionInput {
   failureMessage?: string | null;
 }
 
+export interface CommitProposedFactInput {
+  factType: ProposedFactType;
+  payload: Record<string, string | null>;
+  evidence: Array<{
+    documentPageId: string;
+    pageNumber: number;
+    excerpt: string;
+    startOffset: number;
+    endOffset: number;
+  }>;
+}
+
+export interface CommitProposedFactsInput {
+  organizationId: string;
+  extractionRunId: string;
+  expectedStatus: ExtractionRunStatus;
+  completedAt: Date;
+  facts: CommitProposedFactInput[];
+}
+
 export interface ConstructionRepository {
   organizationExists(organizationId: string): Promise<boolean>;
   createProject(input: {
@@ -70,4 +92,6 @@ export interface ConstructionRepository {
   listExtractionRuns(organizationId: string, documentRevisionId: string): Promise<ExtractionRunRecord[] | null>;
   getExtractionRun(organizationId: string, extractionRunId: string): Promise<ExtractionRunRecord | null>;
   applyExtractionRunTransition(input: ExtractionRunTransitionInput): Promise<ExtractionRunRecord | null>;
+  commitProposedFacts(input: CommitProposedFactsInput): Promise<ExtractionRunRecord | null>;
+  listProposedFacts(organizationId: string, extractionRunId: string): Promise<ProposedFactRecord[] | null>;
 }

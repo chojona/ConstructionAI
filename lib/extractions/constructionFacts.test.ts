@@ -6,6 +6,7 @@ import {
   runConstructionFactsExtraction,
   type ConstructionFactsModelClient,
 } from "./constructionFacts";
+import { listProposedFacts } from "./proposedFacts";
 
 const pageText = [
   "A CAT 336 excavator shall be used for the trench.",
@@ -286,6 +287,12 @@ describe("construction facts extraction run", () => {
       completedAt: clock(),
     });
     expect(result.proposedFacts).toMatchObject([{ type: "quantity", amount: "1250", unit: "CY" }]);
+    expect(await listProposedFacts("org_a", result.run.id, repository)).toMatchObject([{
+      extractionRunId: result.run.id,
+      factType: "quantity",
+      payload: { amount: "1250", unit: "CY", modality: "asserted" },
+      evidence: [{ pageNumber: 1, excerpt, documentPageId: revision.pages[0]?.id }],
+    }]);
     expect(await repository.getRevision("org_a", revision.id)).toEqual(beforeRevision);
     expect(await repository.getProject("org_a", revision.document.project.id)).toEqual(beforeProject);
     expect(repository.projects.some((project) => "equipment" in project)).toBe(false);
@@ -309,6 +316,7 @@ describe("construction facts extraction run", () => {
       failureCode: "MALFORMED_OUTPUT",
       extractorVersion: "construction-facts-v1",
     }]);
+    expect(repository.proposedFacts).toHaveLength(0);
     expect(await repository.getRevision("org_a", revision.id)).toMatchObject({ status: "PROCESSED" });
   });
 

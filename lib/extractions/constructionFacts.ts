@@ -2,6 +2,7 @@ import { z } from "zod";
 import { DomainError, isDomainError } from "@/lib/domain/errors";
 import type { ConstructionRepository } from "@/lib/domain/repository";
 import { constructionRepository } from "@/lib/domain/prismaRepository";
+import { recordProposedFacts } from "./proposedFacts";
 import { advanceExtractionRun, createExtractionRun, type Clock } from "./service";
 
 export const CONSTRUCTION_FACTS_EXTRACTOR = {
@@ -133,16 +134,16 @@ export async function runConstructionFactsExtraction(input: {
       pages,
     });
     const proposedFacts = parseConstructionFactsV1(raw, pages);
-    const succeeded = await advanceExtractionRun(
+    const succeeded = await recordProposedFacts(
       input.organizationId,
       run.id,
-      { status: "SUCCEEDED" },
+      proposedFacts,
       repository,
       clock,
     );
     return { run: succeeded, proposedFacts };
   } catch (error) {
-    const malformed = isDomainError(error) && error.code === "MALFORMED_OUTPUT";
+    const malformed = isDomainError(error) && (error.code === "MALFORMED_OUTPUT" || error.code === "INVALID_INPUT");
     const failureCode = malformed ? "MALFORMED_OUTPUT" : "PROVIDER_ERROR";
     const failureMessage = malformed
       ? error.message
