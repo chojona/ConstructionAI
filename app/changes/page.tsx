@@ -1,9 +1,11 @@
 import Link from "next/link";
-import { CheckCheck } from "lucide-react";
-import { Badge, SeverityBadge } from "@/components/ui/badge";
+import { EmptyChanges } from "@/components/review/changes-empty";
+import { Badge } from "@/components/ui/badge";
 import { listProjects } from "@/lib/projects/service";
 import { listAttention } from "@/lib/review/attention";
-import { decisionReturnPath } from "@/lib/review/evidenceLocation";
+import { changePageChip, changeRowTitle } from "@/lib/review/changeRow";
+import { portfolioUploadHref } from "@/lib/review/emptyState";
+import { findingDomId } from "@/lib/review/evidenceLocation";
 import { getProjectReview } from "@/lib/review/service";
 import { currentOrganizationId } from "@/lib/tenancy";
 
@@ -15,8 +17,8 @@ export default async function ChangesPage() {
   const groups = await Promise.all(projects.map(async (project) => ({ project, items: listAttention((await getProjectReview(organizationId, project.id)).findings) })));
   const count = groups.reduce((total, group) => total + group.items.length, 0);
   return <main className="page">
-    <div className="page-heading"><div><p className="eyebrow">Across your projects</p><h1>Needs attention</h1><p className="lede">Open changes waiting for a decision, with the source evidence beside them.</p></div><Badge className={count ? "severity-high" : "severity-low"}>{count} open</Badge></div>
-    {groups.filter((group) => group.items.length).map(({ project, items }) => <section className="review-block" key={project.id}><div className="section-heading"><h2><Link href={`/projects/${project.id}`}>{project.name}</Link></h2><span className="count">{items.length} open</span></div><div className="list">{items.map((item) => <Link className="list-row" href={decisionReturnPath(project.id, item.finding.subjectKey)} key={item.finding.subjectKey}><div><p className="row-title">{item.finding.label}</p><p className="row-meta">{item.finding.documentTitle} · {item.finding.revisionLabel}</p></div><div className="row-side"><SeverityBadge severity={item.severity} /></div></Link>)}</div></section>)}
-    {!count && <div className="empty"><CheckCheck size={20} aria-hidden /><strong>Nothing needs attention</strong><span>Upload a revision in a project to start a review.</span><Link href="/projects" className="return-link">Go to projects</Link></div>}
+    <div className="page-heading"><div><p className="eyebrow">Across your projects</p><h1>Changes</h1><p className="lede">Open changes that need attention, with the source evidence beside them.</p></div><Badge className={count ? "severity-high" : "severity-low"}>{count} open</Badge></div>
+    {groups.filter((group) => group.items.length).map(({ project, items }) => <section className="review-block" key={project.id}><div className="section-heading"><h2><Link href={`/projects/${project.id}?view=changes`}>{project.name}</Link> <span className="heading-sub">Needs attention</span></h2><span className="count">{items.length} open</span></div><ul className="change-list">{items.map((item) => <li key={item.finding.subjectKey}><Link className="change-card" href={`/projects/${project.id}?view=changes#${findingDomId(item.finding.subjectKey)}`}><span className="change-card-copy"><span className="row-title">{changeRowTitle(item.finding)}</span><span className="row-meta">{item.finding.documentTitle}</span></span><span className="page-chip">{changePageChip(item.finding)}</span><span className="row-open">Review</span></Link></li>)}</ul></section>)}
+    {!count && <EmptyChanges href={portfolioUploadHref(groups.map(({ project }) => project))} />}
   </main>;
 }

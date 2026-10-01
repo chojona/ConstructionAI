@@ -4,8 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowRight, FolderKanban, HardHat, Layers3, Search, X } from "lucide-react";
+import { ProjectCard } from "@/components/workspace/project-card";
+import { projectNumberLabel } from "@/lib/projects/card";
 
-type Project = { id: string; name: string; projectNumber: string | null };
+type Project = {
+  id: string;
+  name: string;
+  projectNumber: string | null;
+  documentCount: number;
+  openCount: number;
+};
 
 export function AppShell({ projects, children }: { projects: Project[]; children: React.ReactNode }) {
   const pathname = usePathname();
@@ -14,8 +22,8 @@ export function AppShell({ projects, children }: { projects: Project[]; children
   const [query, setQuery] = useState("");
   const commands = [
     { href: "/projects", name: "Projects", detail: "Workspace" },
-    { href: "/changes", name: "Needs attention", detail: "All projects" },
-    ...projects.map((project) => ({ href: `/projects/${project.id}`, name: project.name, detail: project.projectNumber || "Project" })),
+    { href: "/changes", name: "Changes", detail: "Needs attention" },
+    ...projects.map((project) => ({ href: `/projects/${project.id}`, name: project.name, detail: projectNumberLabel(project.projectNumber) })),
   ].filter((command) => `${command.name} ${command.detail}`.toLowerCase().includes(query.toLowerCase()));
 
   function openSearch() {
@@ -44,11 +52,11 @@ export function AppShell({ projects, children }: { projects: Project[]; children
         <p className="nav-heading">Workspace</p>
         <nav className="nav-stack" aria-label="Main">
           <Link className={`nav-row ${pathname === "/projects" ? "is-active" : ""}`} aria-current={pathname === "/projects" ? "page" : undefined} href="/projects"><FolderKanban size={16} aria-hidden />Projects</Link>
-          <Link className={`nav-row ${pathname === "/changes" ? "is-active" : ""}`} aria-current={pathname === "/changes" ? "page" : undefined} href="/changes"><Layers3 size={16} aria-hidden />Needs attention</Link>
+          <Link className={`nav-row ${pathname === "/changes" ? "is-active" : ""}`} aria-current={pathname === "/changes" ? "page" : undefined} href="/changes"><Layers3 size={16} aria-hidden /><span className="nav-copy">Changes<small>Needs attention</small></span></Link>
         </nav>
         <p className="nav-heading">Recent projects</p>
         <nav className="nav-stack recent-projects" aria-label="Recent projects">
-          {projects.slice(0, 8).map((project) => <Link className={`nav-row ${pathname === `/projects/${project.id}` ? "is-active" : ""}`} aria-current={pathname === `/projects/${project.id}` ? "page" : undefined} key={project.id} href={`/projects/${project.id}`}><span className="project-symbol" aria-hidden>{project.name.slice(0, 1).toUpperCase()}</span><span className="nav-label">{project.name}</span></Link>)}
+          {projects.slice(0, 8).map((project) => <ProjectCard key={project.id} href={`/projects/${project.id}`} name={project.name} projectNumber={project.projectNumber} documentCount={project.documentCount} openCount={project.openCount} active={pathname === `/projects/${project.id}`} />)}
           {!projects.length && <p className="nav-empty">Your projects will appear here.</p>}
         </nav>
         <div className="sidebar-footer"><span className="status-dot" />Source intelligence<small>Decisions grounded in documents</small></div>

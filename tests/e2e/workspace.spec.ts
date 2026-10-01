@@ -62,7 +62,9 @@ test("workspace navigation, evidence, decisions, and responsive layout", async (
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { name: projectName })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Project" })).toBeVisible();
   await expect(page.getByRole("dialog")).not.toBeVisible();
+  await page.locator(".change-card", { hasText: "Quantity changed" }).getByRole("button", { name: "Review" }).click();
   await expect(page.locator(".comparison-before .compare-value")).toHaveText("1250 CY");
   await expect(page.locator(".comparison-after .compare-value")).toHaveText("1500 CY");
   await expect(page.getByRole("complementary", { name: "Source evidence" })).toBeVisible();
@@ -81,33 +83,29 @@ test("workspace navigation, evidence, decisions, and responsive layout", async (
   await page.screenshot({ path: "test-results/con35-revision.png", fullPage: true });
   await page.getByRole("link", { name: "Back to decision" }).click();
   await expect(page.locator("#finding-title")).toHaveText(findingTitle);
-  await page.getByRole("button", { name: "Accept", exact: true }).click();
-  await expect(page.locator(".decision-form").getByRole("alert")).toHaveText("Enter your name before recording a decision.");
+  await page.getByRole("button", { name: "Approve", exact: true }).click();
+  await expect(page.locator(".decision-sticky").getByRole("alert")).toHaveText("Enter your name before recording a decision.");
   await page.getByLabel("Reviewer", { exact: true }).fill("pm-workspace-qa");
+  await page.getByRole("button", { name: "Approve", exact: true }).click();
+  await expect(page.locator(".change-card", { hasText: "Quantity changed" })).toHaveCount(0);
   await page.reload();
-  await expect(page.getByText("Reviewing as")).toContainText("pm-workspace-qa");
-  await page.getByRole("button", { name: "Flag", exact: true }).click();
-  await expect(page.locator(".decision-form").getByRole("alert")).toHaveText("Add a reason to dismiss or flag.");
-  await page.getByLabel(/Reason/).fill("Confirm revised earthworks volume with the field team.");
-  await page.getByRole("button", { name: "Flag", exact: true }).click();
-  await expect(page.locator(".attention-kicker")).toContainText("Flagged");
-  await page.locator("#finding-title").focus();
-  await page.keyboard.press("a");
-  await page.getByRole("button", { name: /Settled/ }).click();
-  await expect(page.locator(".settled-row")).toHaveCount(1);
-  await expect(page.locator(".change-row:not(.settled-row)")).toHaveCount(1);
-  await page.locator("#finding-title").focus();
-  await page.keyboard.press("d");
-  await page.getByLabel(/Reason/).fill("Superseded by Rev 05.");
-  await page.keyboard.press("Enter");
-  await expect(page.locator(".settled-row")).toHaveCount(2);
-  await expect(page.getByRole("button", { name: "Accept", exact: true })).toHaveCount(0);
+  await expect(page.locator(".change-card", { hasText: "Quantity changed" })).toHaveCount(0);
+  await page.locator(".change-card").getByRole("button", { name: "Review" }).click();
+  await page.getByRole("button", { name: "Reject", exact: true }).click();
+  await expect(page.locator(".decision-sticky").getByRole("alert")).toHaveText("Add a reason to reject.");
+  await page.getByLabel("Reason").fill("Superseded by Rev 05.");
+  await page.getByRole("button", { name: "Reject", exact: true }).click();
+  await expect(page.getByText("No open changes")).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("No open changes")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Approve", exact: true })).toHaveCount(0);
   await page.getByRole("navigation", { name: "Project", exact: true }).getByRole("link", { name: "Documents", exact: true }).click();
   await page.getByRole("link", { name: /Earthworks specification/ }).click();
   await expect(page.getByRole("heading", { name: "Revision history" })).toBeVisible();
   await page.screenshot({ path: "test-results/con35-document.png", fullPage: true });
   await page.goto("/changes");
-  await expect(page.getByRole("heading", { name: "Needs attention", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Changes", exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: /^Changes/ })).toBeVisible();
   await page.screenshot({ path: "test-results/con35-attention.png", fullPage: true });
   for (const width of [1024, 390]) {
     await page.setViewportSize({ width, height: 900 });
@@ -119,5 +117,25 @@ test("workspace navigation, evidence, decisions, and responsive layout", async (
   }
   expect(errors).toEqual([]);
   const decisions = await db.reviewDecision.findMany({ where: { projectId }, orderBy: { createdAt: "asc" } });
-  expect(decisions.map((decision) => decision.decision)).toEqual(["FLAGGED", "ACCEPTED", "DISMISSED"]);
+  expect(decisions.map((decision) => decision.decision)).toEqual(["ACCEPTED", "DISMISSED"]);
+});
+
+test("empty changes view explains the gap and opens the first upload", async ({ page }) => {
+  const organizationId = process.env.APP_ORGANIZATION_ID || "org_demo";
+  const name = `South Yard Staging ${Date.now()}`;
+  const project = await db.project.create({ data: { organizationId, name } });
+  try {
+    await page.goto("/projects");
+    const row = page.locator(".project-cards").getByRole("link", { name: new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) });
+    await expect(row).toContainText("No project number");
+    await expect(row).toContainText("0 docs · All clear");
+    await row.click();
+    await expect(page.getByRole("combobox", { name: "Project" })).toHaveValue(project.id);
+    await expect(page.getByText("No open changes")).toBeVisible();
+    await page.getByRole("link", { name: "Upload first revision" }).click();
+    await expect(page).toHaveURL(new RegExp(`/projects/${project.id}\\?view=documents`));
+    await expect(page.getByLabel("Document title")).toBeVisible();
+  } finally {
+    await db.project.delete({ where: { id: project.id } });
+  }
 });

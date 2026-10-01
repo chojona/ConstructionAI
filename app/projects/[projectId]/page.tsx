@@ -1,14 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AttentionFeed } from "@/components/forms/attention-feed";
+import { ChangeReview } from "@/components/review/change-review";
 import { EvidenceQuotes } from "@/components/review/evidence-quotes";
 import { ScrollToFinding } from "@/components/review/scroll-to-finding";
+import { ProjectContext } from "@/components/workspace/project-context";
 import { ProjectNavigation } from "@/components/workspace/project-navigation";
 import { CreateDocumentForm } from "@/components/forms/create-document-form";
 import { DomainError } from "@/lib/domain/errors";
 import { getProject } from "@/lib/projects/service";
-import { listAttention, listSettled } from "@/lib/review/attention";
-import { toAttentionDto, toFindingDto } from "@/lib/review/dto";
+import { listAttention } from "@/lib/review/attention";
+import { uploadRevisionHref } from "@/lib/review/emptyState";
+import { toAttentionDto } from "@/lib/review/dto";
 import { decisionReturnPath, findingDomId } from "@/lib/review/evidenceLocation";
 import { getProjectReview } from "@/lib/review/service";
 import { currentOrganizationId } from "@/lib/tenancy";
@@ -29,19 +31,18 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   }
   catch (error) { if (error instanceof DomainError && error.code === "NOT_FOUND") notFound(); throw error; }
   const attention = listAttention(review.findings);
-  const settled = listSettled(review.findings);
   return (
     <main className="page">
       <ScrollToFinding />
-      <nav className="breadcrumb"><Link href="/projects">Projects</Link><span>/</span><span>{project.name}</span></nav>
+      <ProjectContext projectId={project.id}><Link href="/projects">Projects</Link><span>/</span><span>{project.name}</span></ProjectContext>
       <div className="page-heading">
-        <div><p className="eyebrow">{project.projectNumber || "Project"}</p><h1>{project.name}</h1><p className="lede">Review source changes, resolve exceptions, and keep the project moving.</p></div>
-        <details className="create-panel panel"><summary className="primary-summary">Add document</summary><CreateDocumentForm projectId={project.id} /></details>
+        <div><p className="eyebrow">{project.projectNumber?.trim() || "No project number"}</p><h1>{project.name}</h1><p className="lede">Review source changes, resolve exceptions, and keep the project moving.</p></div>
+        <details className="create-panel panel" id="add-document" open={view === "documents" && project.documents.length === 0}><summary className="primary-summary">Add document</summary><CreateDocumentForm projectId={project.id} /></details>
       </div>
       <ProjectNavigation projectId={project.id} active={view} openCount={attention.length} />
       {view !== "documents" && <section>
-        <div className="section-heading"><h2>Needs attention</h2><span className="count">{attention.length} open</span></div>
-        <AttentionFeed projectId={project.id} items={attention.map(toAttentionDto)} settled={settled.map(toFindingDto)} />
+        <div className="section-heading"><h2>Changes <span className="heading-sub">Needs attention</span></h2><span className="count">{attention.length} open</span></div>
+        <ChangeReview projectId={project.id} items={attention.map(toAttentionDto)} uploadHref={uploadRevisionHref(project.id, project.documents)} />
       </section>}
       {view !== "changes" && <section className="review-block">
         <div className="section-heading"><h2>Documents</h2><span className="count">{project.documents.length} total</span></div>
