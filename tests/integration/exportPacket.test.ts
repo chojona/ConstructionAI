@@ -1,4 +1,8 @@
 import { createHash } from "node:crypto";
+import { mkdtempSync } from "node:fs";
+import { rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { createPrismaClient } from "@/lib/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDocument } from "@/lib/documents/service";
@@ -7,7 +11,9 @@ import { recordProposedFacts } from "@/lib/extractions/proposedFacts";
 import { advanceExtractionRun, createExtractionRun } from "@/lib/extractions/service";
 import { createProject } from "@/lib/projects/service";
 import { EXPORT_BLOCKED_MESSAGE } from "@/lib/review/exportPacket";
-import { exportApprovedChangePacket, recordReviewDecision } from "@/lib/review/service";
+import { exportApprovedChangePacket, readStoredExportPacket, recordReviewDecision } from "@/lib/review/service";
+import { migrateExportPacketPayloads } from "@/lib/storage/migrateObjectBytes";
+import { LocalObjectStore } from "@/lib/storage/objectStore";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is required for integration tests.");
@@ -23,7 +29,9 @@ const provenance = {
 
 describe("Prisma export packet", () => {
   const db = createPrismaClient();
-  const repository = new PrismaConstructionRepository(db);
+  const storageRoot = mkdtempSync(path.join(tmpdir(), "export-packet-"));
+  const objects = new LocalObjectStore(storageRoot);
+  const repository = new PrismaConstructionRepository(db, objects);
   const suffix = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
   const organizationId = `it_export_${suffix}`;
 
@@ -32,6 +40,7 @@ describe("Prisma export packet", () => {
   });
 
   afterAll(async () => {
+    await rm(storageRoot, { recursive: true, force: true });
     const projects = await db.project.findMany({ where: { organizationId }, select: { id: true } });
     const projectIds = projects.map(({ id }) => id);
     await db.exportPacketDecision.deleteMany({ where: { exportPacket: { projectId: { in: projectIds } } } });
@@ -101,13 +110,34 @@ describe("Prisma export packet", () => {
     expect(stored[0]?.storageKey).toBe(`export-packets/${project.id}/${packet.contentHash}.json`);
     expect(stored[0]?.decisions.map((link) => link.reviewDecisionId)).toEqual([accepted.id]);
     expect(stored[0]?.decisions.map((link) => link.reviewDecisionId)).not.toContain(dismissed.id);
-    const payload = Buffer.from(stored[0]!.payload);
+    expect(stored[0]?.payload).toBeNull();
+    const payload = await objects.get(stored[0]!.storageKey);
     expect(createHash("sha256").update(payload).digest("hex")).toBe(packet.contentHash);
     expect(JSON.parse(payload.toString("utf8")).changes[0].evidence[0]).toMatchObject({
       pageNumber: 1,
       excerpt: approvedExcerpt,
       revisionId: revision.id,
     });
+    const downloaded = await readStoredExportPacket(organizationId, project.id, stored[0]!.id, repository);
+    expect(downloaded.payload.equals(payload)).toBe(true);
+    expect(downloaded.reviewDecisionIds).toEqual([accepted.id]);
+
+    await objects.delete(stored[0]!.storageKey);
+    await db.exportPacket.update({
+      where: { id: stored[0]!.id },
+      data: { payload: new Uint8Array(payload) },
+    });
+    const legacy = await repository.getExportPacketById(organizationId, project.id, stored[0]!.id);
+    expect(legacy?.payload.equals(payload)).toBe(true);
+    await expect(objects.get(stored[0]!.storageKey)).rejects.toMatchObject({ name: "StorageObjectMissingError" });
+
+    expect(await migrateExportPacketPayloads(db, objects, { projectId: project.id })).toEqual({ copied: 1 });
+    const migrated = await db.exportPacket.findUniqueOrThrow({ where: { id: stored[0]!.id } });
+    expect(migrated.payload).toBeNull();
+    expect((await objects.get(migrated.storageKey)).equals(payload)).toBe(true);
+    const afterMove = await readStoredExportPacket(organizationId, project.id, migrated.id, repository);
+    expect(afterMove.payload.equals(payload)).toBe(true);
+    expect(afterMove.contentHash).toBe(packet.contentHash);
 
     await expect(repository.saveExportPacket({
       organizationId,

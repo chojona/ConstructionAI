@@ -4,6 +4,8 @@ import { DomainError } from "./errors";
 import { isSerializationConflict, serializationAttempts, uniqueConstraintTargets } from "./transactionConflict";
 import { PACK_MISSING_MESSAGE } from "@/lib/email/emailSendView";
 import { EXPORT_BLOCKED_MESSAGE } from "@/lib/review/exportPacket";
+import { packetBytesToStore, readPacketBytes, writePacketBytes } from "@/lib/storage/packetBytes";
+import { requireObjectStore, type ObjectStore } from "@/lib/storage/objectStore";
 import type {
   AppendReviewDecisionInput,
   CommitProposedFactsInput,
@@ -30,7 +32,19 @@ import type {
 } from "./types";
 
 export class PrismaConstructionRepository implements ConstructionRepository {
-  constructor(private readonly db: PrismaClient = prisma) {}
+  private objectStore?: ObjectStore;
+
+  constructor(
+    private readonly db: PrismaClient = prisma,
+    objectStore?: ObjectStore,
+  ) {
+    this.objectStore = objectStore;
+  }
+
+  private objects() {
+    this.objectStore ??= requireObjectStore();
+    return this.objectStore;
+  }
 
   async organizationExists(organizationId: string) {
     return (await this.db.organization.count({ where: { id: organizationId } })) > 0;
@@ -498,11 +512,11 @@ export class PrismaConstructionRepository implements ConstructionRepository {
     if (input.reviewDecisionIds.length === 0) {
       throw new DomainError("INVALID_INPUT", EXPORT_BLOCKED_MESSAGE, 400);
     }
-    const existing = await this.findExportPacket(input.projectId, input.contentHash);
-    if (existing) return existing;
+    const existing = await this.findExportPacketRow(input.projectId, input.contentHash);
+    if (existing) return this.finishStoredPacket(existing, input.payload);
 
     try {
-      return await this.db.$transaction(async (tx) => {
+      const created = await this.db.$transaction(async (tx) => {
         const decisions = await tx.reviewDecision.findMany({
           where: { projectId: input.projectId, id: { in: input.reviewDecisionIds } },
           select: { id: true, decision: true },
@@ -511,26 +525,27 @@ export class PrismaConstructionRepository implements ConstructionRepository {
         if (input.reviewDecisionIds.some((id) => byId.get(id) !== "ACCEPTED")) {
           throw new DomainError("INVALID_INPUT", "Only an approved change can be exported.", 400);
         }
-        const created = await tx.exportPacket.create({
+        return tx.exportPacket.create({
           data: {
             projectId: input.projectId,
             contentHash: input.contentHash,
             storageKey: input.storageKey,
-            payload: new Uint8Array(input.payload),
+            payload: null,
             byteSize: input.payload.byteLength,
             createdAt: input.createdAt,
             decisions: {
               create: input.reviewDecisionIds.map((reviewDecisionId, ordinal) => ({ reviewDecisionId, ordinal })),
             },
           },
+          include: exportPacketInclude,
         });
-        return toStoredExportPacket(created, input.reviewDecisionIds);
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      return this.finishStoredPacket(created, input.payload);
     } catch (error) {
       if (error instanceof DomainError) throw error;
       if (uniqueConstraintTargets(error)) {
-        const raced = await this.findExportPacket(input.projectId, input.contentHash);
-        if (raced) return raced;
+        const raced = await this.findExportPacketRow(input.projectId, input.contentHash);
+        if (raced) return this.finishStoredPacket(raced, input.payload);
       }
       throw error;
     }
@@ -542,16 +557,16 @@ export class PrismaConstructionRepository implements ConstructionRepository {
       select: { id: true },
     });
     if (!project) return null;
-    return this.findExportPacket(projectId, contentHash);
+    const packet = await this.findExportPacketRow(projectId, contentHash);
+    return packet ? this.hydrateExportPacket(packet) : null;
   }
 
   async getExportPacketById(organizationId: string, projectId: string, exportPacketId: string) {
     const packet = await this.db.exportPacket.findFirst({
       where: { id: exportPacketId, projectId, project: { organizationId } },
-      include: { decisions: { orderBy: { ordinal: "asc" }, select: { reviewDecisionId: true } } },
+      include: exportPacketInclude,
     });
-    if (!packet) return null;
-    return toStoredExportPacket(packet, packet.decisions.map((decision) => decision.reviewDecisionId));
+    return packet ? this.hydrateExportPacket(packet) : null;
   }
 
   async createEmailSend(input: CreateEmailSendInput): Promise<EmailSendRecord | null> {
@@ -654,13 +669,39 @@ export class PrismaConstructionRepository implements ConstructionRepository {
     }
   }
 
-  private async findExportPacket(projectId: string, contentHash: string): Promise<StoredExportPacket | null> {
-    const packet = await this.db.exportPacket.findUnique({
+  private findExportPacketRow(projectId: string, contentHash: string) {
+    return this.db.exportPacket.findUnique({
       where: { projectId_contentHash: { projectId, contentHash } },
-      include: { decisions: { orderBy: { ordinal: "asc" }, select: { reviewDecisionId: true } } },
+      include: exportPacketInclude,
     });
-    if (!packet) return null;
-    return toStoredExportPacket(packet, packet.decisions.map((decision) => decision.reviewDecisionId));
+  }
+
+  private async finishStoredPacket(packet: ExportPacketRow, payload: Buffer) {
+    const bytes = packetBytesToStore(packet.payload, payload, packet.byteSize);
+    await writePacketBytes(this.objects(), packet.storageKey, bytes);
+    if (packet.payload) {
+      await this.db.exportPacket.update({ where: { id: packet.id }, data: { payload: null } });
+    }
+    return this.hydrateExportPacket({ ...packet, payload: null });
+  }
+
+  private async hydrateExportPacket(packet: ExportPacketRow): Promise<StoredExportPacket> {
+    const payload = await readPacketBytes({
+      objects: this.objects(),
+      storageKey: packet.storageKey,
+      legacyPayload: packet.payload,
+      byteSize: packet.byteSize,
+    });
+    return {
+      id: packet.id,
+      projectId: packet.projectId,
+      contentHash: packet.contentHash,
+      storageKey: packet.storageKey,
+      payload,
+      byteSize: packet.byteSize,
+      createdAt: packet.createdAt,
+      reviewDecisionIds: packet.decisions.map((decision) => decision.reviewDecisionId),
+    };
   }
 }
 
@@ -682,6 +723,21 @@ const proposedFactSelect = {
     },
   },
 } as const;
+
+const exportPacketInclude = {
+  decisions: { orderBy: { ordinal: "asc" as const }, select: { reviewDecisionId: true } },
+} as const;
+
+type ExportPacketRow = {
+  id: string;
+  projectId: string;
+  contentHash: string;
+  storageKey: string;
+  payload: Uint8Array | null;
+  byteSize: number;
+  createdAt: Date;
+  decisions: Array<{ reviewDecisionId: string }>;
+};
 
 const emailSendInclude = {
   decisions: { orderBy: { ordinal: "asc" as const }, select: { reviewDecisionId: true } },
@@ -718,13 +774,6 @@ function toEmailSendRecord(email: {
     updatedAt: email.updatedAt,
     sentAt: email.sentAt,
   };
-}
-
-function toStoredExportPacket(
-  packet: { id: string; projectId: string; contentHash: string; storageKey: string; payload: Uint8Array; byteSize: number; createdAt: Date },
-  reviewDecisionIds: string[],
-): StoredExportPacket {
-  return { ...packet, payload: Buffer.from(packet.payload), reviewDecisionIds };
 }
 
 function toReviewDecisionRecord(decision: {
