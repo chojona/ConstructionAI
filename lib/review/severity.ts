@@ -145,12 +145,7 @@ function scoreSchedule(change: ScoredChange): SeverityAssessment {
   if (days >= SCHEDULE_HIGH_DAY_SHIFT) {
     return assessment("high", "material_change", "schedule.day_shift", shift);
   }
-  return assessment(
-    "medium",
-    "material_change",
-    "schedule.short_shift",
-    `${shift} Shifts under ${SCHEDULE_HIGH_DAY_SHIFT} days stay medium.`,
-  );
+  return assessment("medium", "material_change", "schedule.short_shift", shift);
 }
 
 function scoreQuantity(change: ScoredChange): SeverityAssessment {
@@ -198,12 +193,7 @@ function scoreQuantity(change: ScoredChange): SeverityAssessment {
   if (relative >= QUANTITY_HIGH_RELATIVE_CHANGE) {
     return assessment("high", "material_change", "quantity.relative_change", described);
   }
-  return assessment(
-    "medium",
-    "material_change",
-    "quantity.small_change",
-    `${described} Changes under ${QUANTITY_HIGH_RELATIVE_CHANGE * 100}% stay medium.`,
-  );
+  return assessment("medium", "material_change", "quantity.small_change", described);
 }
 
 function modalityAssessment(change: ScoredChange, noun: string): SeverityAssessment {

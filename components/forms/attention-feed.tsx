@@ -30,6 +30,8 @@ export function AttentionFeed({ projectId, items, settled = [] }: { projectId: s
   const storedReviewer = useSyncExternalStore(subscribeToReviewer, readStoredReviewer, () => "");
   const [reviewerDraft, setReviewerDraft] = useState<string | null>(null);
   const reviewerId = reviewerDraft ?? storedReviewer;
+  const [editingReviewer, setEditingReviewer] = useState(false);
+  const [settledOpen, setSettledOpen] = useState(false);
   const [armed, setArmed] = useState<ArmedDecision | null>(null);
   const [status, setStatus] = useState("");
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -69,14 +71,15 @@ export function AttentionFeed({ projectId, items, settled = [] }: { projectId: s
     setArmed(null);
     setReason("");
     setError("");
+    setStatus("");
     window.history.replaceState(null, "", `#${findingDomId(finding.subjectKey)}`);
   }
 
   async function review(finding: FindingDto, decision: (typeof decisions)[number]) {
     if (submitting.current || refreshing) return;
     setError("");
-    if (!reviewerId.trim()) { setError("Enter a reviewer id before recording a decision."); reviewerRef.current?.focus(); return; }
-    if (decision !== "ACCEPTED" && !reason.trim()) { setArmed(decision); setError("Dismissing or flagging a finding requires a reason."); reasonRef.current?.focus(); return; }
+    if (!reviewerId.trim()) { setEditingReviewer(true); setError("Enter your name before recording a decision."); reviewerRef.current?.focus(); return; }
+    if (decision !== "ACCEPTED" && !reason.trim()) { setArmed(decision); setError("Add a reason to dismiss or flag."); return; }
     submitting.current = true;
     setPendingKey(finding.subjectKey);
     try {
@@ -89,11 +92,13 @@ export function AttentionFeed({ projectId, items, settled = [] }: { projectId: s
       if (!response.ok) { setError(result.error?.message ?? "Could not record the review."); return; }
       setReason("");
       setArmed(null);
-      setStatus(`${decision.toLowerCase()} “${finding.label}”.`);
-      if (decision !== "FLAGGED") {
+      const verb = decision === "ACCEPTED" ? "Accepted" : decision === "DISMISSED" ? "Dismissed" : "Flagged";
+      if (decision === "FLAGGED") setStatus(`${verb} “${finding.label}”.`);
+      else {
         const index = items.findIndex((item) => item.finding.subjectKey === finding.subjectKey);
         const next = items[index + 1] ?? items.find((item) => item.finding.subjectKey !== finding.subjectKey);
         const nextKey = next?.finding.subjectKey ?? finding.subjectKey;
+        setStatus(next && next.finding.subjectKey !== finding.subjectKey ? `${verb} “${finding.label}”. Next item is ready.` : `${verb} “${finding.label}”.`);
         moveFocus.current = true;
         setSelectedKey(nextKey);
         nextSelection.current = { reviewedKey: finding.subjectKey, nextKey };
@@ -108,6 +113,14 @@ export function AttentionFeed({ projectId, items, settled = [] }: { projectId: s
     moveFocus.current = false;
     headingRef.current?.focus();
   }, [selectedKey]);
+
+  useEffect(() => {
+    if (armed) reasonRef.current?.focus();
+  }, [armed]);
+
+  useEffect(() => {
+    if (editingReviewer) reviewerRef.current?.focus();
+  }, [editingReviewer]);
 
   function move(direction: -1 | 1) {
     if (busy || items.length < 2) return;
@@ -126,7 +139,7 @@ export function AttentionFeed({ projectId, items, settled = [] }: { projectId: s
     if (!action) return;
     event.preventDefault();
     if (action.type === "accept") void review(activeItem.finding, "ACCEPTED");
-    if (action.type === "arm") { setArmed(action.decision); setError(""); reasonRef.current?.focus(); }
+    if (action.type === "arm") { setArmed(action.decision); setError(""); }
     if (action.type === "confirm" && armed) void review(activeItem.finding, armed);
     if (action.type === "cancel") { setArmed(null); setError(""); headingRef.current?.focus(); }
     if (action.type === "move") move(action.direction);
@@ -137,7 +150,10 @@ export function AttentionFeed({ projectId, items, settled = [] }: { projectId: s
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  if (!finding) return <div className="empty"><CheckCheck size={24} aria-hidden /><strong>No open exceptions</strong><span>Material changes and unreviewed facts will appear here.</span></div>;
+  if (!finding) return <div className="empty"><CheckCheck size={24} aria-hidden /><strong>No open exceptions</strong><span>Material changes and new items will appear here.</span></div>;
+
+  const showReviewerField = editingReviewer || !reviewerId.trim();
+  const showSettled = settledOpen || settled.some((item) => item.subjectKey === finding.subjectKey);
 
   const sides = [
     finding.before ? { title: sideTitle(finding, "before"), value: finding.before } : null,
@@ -146,14 +162,14 @@ export function AttentionFeed({ projectId, items, settled = [] }: { projectId: s
 
   return (
     <div ref={deskRef} className="review-workspace" aria-label="Change review">
-      <nav className="change-queue" aria-label="Findings">
+      <nav className="change-queue" aria-label="Open items">
         <div className="queue-heading">Open <span>{items.length}</span></div>
         {!items.length && <p className="queue-empty">All decisions recorded.</p>}
         {items.map((item) => <button key={item.finding.subjectKey} className={`change-row ${finding.subjectKey === item.finding.subjectKey ? "is-selected" : ""}`} aria-current={finding.subjectKey === item.finding.subjectKey ? "true" : undefined} disabled={busy} onClick={() => select(item.finding)}><span className={`severity-dot severity-dot-${item.severity}`} /><span><strong>{reviewTitle(item.finding)}</strong><small>{comparisonLabel(item.finding)}</small><small>{item.finding.documentTitle}</small></span>{item.disposition === "reviewer_flag" && <Flag size={13} aria-label="Flagged" />}</button>)}
-        {settled.length > 0 && <><div className="queue-heading settled-heading">Settled <span>{settled.length}</span></div>{settled.map((item) => <button key={item.subjectKey} className={`change-row settled-row ${finding.subjectKey === item.subjectKey ? "is-selected" : ""}`} aria-current={finding.subjectKey === item.subjectKey ? "true" : undefined} disabled={busy} onClick={() => select(item)}><Check size={14} aria-hidden /><span><strong>{reviewTitle(item)}</strong><small>{item.currentDecision?.decision.toLowerCase() ?? "No decision required"}</small></span></button>)}</>}
+        {settled.length > 0 && <><button type="button" className="queue-heading settled-heading" aria-expanded={showSettled} onClick={() => setSettledOpen((open) => !open)}>Settled <span>{settled.length}</span></button>{showSettled && settled.map((item) => <button key={item.subjectKey} className={`change-row settled-row ${finding.subjectKey === item.subjectKey ? "is-selected" : ""}`} aria-current={finding.subjectKey === item.subjectKey ? "true" : undefined} disabled={busy} onClick={() => select(item)}><Check size={14} aria-hidden /><span><strong>{reviewTitle(item)}</strong><small>{settledLabel(item)}</small></span></button>)}</>}
       </nav>
       <article className="change-detail" id={findingDomId(finding.subjectKey)} aria-labelledby="finding-title" aria-busy={busy}>
-        <div className="attention-kicker">{activeItem ? <Badge className={`severity-${activeItem.severity}`}>{activeItem.severity}</Badge> : <Badge className={finding.currentDecision?.decision === "ACCEPTED" ? "status-processed" : "status-pending"}>{finding.currentDecision?.decision ?? "Recorded"}</Badge>}<span>{activeItem ? kindLabel(activeItem) : "Settled finding"}</span></div>
+        <div className="attention-kicker">{activeItem ? <Badge className={`severity-${activeItem.severity}`}>{activeItem.severity}</Badge> : <Badge className={finding.currentDecision?.decision === "ACCEPTED" ? "status-processed" : "status-pending"}>{decisionLabel(finding.currentDecision?.decision) ?? "Recorded"}</Badge>}<span>{activeItem ? kindLabel(activeItem) : "Settled"}</span></div>
         <p className="row-meta">{finding.documentTitle} · {finding.revisionLabel}</p>
         <h3 ref={headingRef} tabIndex={-1} id="finding-title">{reviewTitle(finding)}</h3>
         <p className="finding-summary">{finding.label}</p>
@@ -161,16 +177,16 @@ export function AttentionFeed({ projectId, items, settled = [] }: { projectId: s
           {sides.map((side, index) => <div className={`comparison-side ${index === 0 && sides.length > 1 ? "comparison-before" : "comparison-after"}`} key={side.title}><h4>{side.title}</h4><p className="compare-value">{side.value.displayValue ?? side.value.summary}</p></div>)}
           {sides.length > 1 && <ArrowRight className="comparison-arrow" size={18} aria-hidden />}
         </div>
-        <div className="change-explanation"><h4>Why this matters</h4><p>{activeItem?.reason ?? finding.assessment?.reason ?? "This finding has been recorded in the project review."}</p></div>
-        {finding.currentDecision && <p className="decision-record">{finding.currentDecision.decision.toLowerCase()} by <strong>{finding.currentDecision.reviewerId}</strong>{finding.currentDecision.reason && ` · ${finding.currentDecision.reason}`}</p>}
+        <div className="change-explanation"><h4>Why this matters</h4><p>{activeItem?.reason ?? finding.assessment?.reason ?? "This item is already in the project review."}</p></div>
+        {finding.currentDecision && <p className="decision-record">{decisionLabel(finding.currentDecision.decision)} by <strong>{finding.currentDecision.reviewerId}</strong>{finding.currentDecision.reason && ` · ${finding.currentDecision.reason}`}</p>}
         {activeItem && <form className="decision-form" onSubmit={(event) => { event.preventDefault(); void review(finding, armed ?? "ACCEPTED"); }}>
-          <span className="sr-only" role="status">{status}</span>
+          {status && <p className="decision-status" role="status">{status}</p>}
           <div className="decision-heading"><h4>Record a decision</h4><span>Saved to project history</span></div>
-          <div className="form-stack review-fields"><label><span>Reviewer</span><Input ref={reviewerRef} value={reviewerId} onChange={(event) => {
+          <div className="form-stack review-fields">{showReviewerField ? <label><span>Reviewer</span><Input ref={reviewerRef} value={reviewerId} onChange={(event) => {
             const value = event.target.value;
             setReviewerDraft(value);
             try { window.localStorage.setItem(reviewerStorageKey, value); } catch { /* Review remains usable when browser storage is unavailable. */ }
-          }} autoComplete="name" maxLength={120} placeholder="Alex Chen" disabled={busy} /></label><label><span>Reason <small>{armed === "DISMISSED" ? "Confirm dismissal with Enter" : armed === "FLAGGED" ? "Confirm flag with Enter" : "Required to dismiss or flag"}</small></span><Input ref={reasonRef} value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} placeholder="Add your review context…" disabled={busy} /></label></div>
+          }} onBlur={() => { if (reviewerId.trim()) setEditingReviewer(false); }} autoComplete="name" maxLength={120} placeholder="Alex Chen" disabled={busy} /></label> : <p className="identity-line">Reviewing as <strong>{reviewerId.trim()}</strong><button type="button" className="text-button" aria-label="Change reviewer" onClick={() => setEditingReviewer(true)}>Change</button></p>}{armed && <label><span>Reason <small>{armed === "DISMISSED" ? "Confirm dismissal with Enter" : "Confirm flag with Enter"}</small></span><Input ref={reasonRef} value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} placeholder="Why are you setting this aside?" disabled={busy} /></label>}</div>
           {error && <p className="form-error" role="alert">{error}</p>}
           <div className="finding-actions">{decisions.map((decision) => <Button key={decision} aria-keyshortcuts={decision === "ACCEPTED" ? "A" : decision === "DISMISSED" ? "D" : "F"} type="button" size="sm" variant={decision === "ACCEPTED" ? "default" : "outline"} className={decision === "ACCEPTED" ? "accept-button" : decision === "FLAGGED" ? "flag-button" : ""} disabled={busy} onClick={() => void review(finding, decision)}>{decision === "ACCEPTED" ? <Check size={14} aria-hidden /> : decision === "DISMISSED" ? <X size={14} aria-hidden /> : <Flag size={14} aria-hidden />}{decision === "ACCEPTED" ? "Accept" : decision === "DISMISSED" ? "Dismiss" : "Flag"}</Button>)}{busy && <span role="status" className="row-meta">Saving decision…</span>}</div>
           <div className="review-navigation"><span>A accept · D dismiss · F flag</span><div><Button type="button" variant="ghost" size="sm" disabled={busy || items.length < 2} aria-keyshortcuts="ArrowUp" onClick={() => move(-1)}>Previous</Button><Button type="button" variant="ghost" size="sm" disabled={busy || items.length < 2} aria-keyshortcuts="ArrowDown" onClick={() => move(1)}>Next</Button></div></div>
@@ -192,16 +208,28 @@ function sideTitle(finding: FindingDto, side: "before" | "after") {
 }
 
 function kindLabel(item: AttentionItemDto) {
-  if (item.disposition === "proven_conflict") return "Proven conflict";
+  if (item.disposition === "proven_conflict") return "Conflicts with a record";
   if (item.disposition === "material_change") return "Material change";
-  if (item.disposition === "change_detected") return "Change detected";
+  if (item.disposition === "change_detected") return "Wording only";
   if (item.disposition === "reviewer_flag") return "Flagged";
-  return "Unreviewed fact";
+  return "Not yet reviewed";
+}
+
+function decisionLabel(decision: string | undefined) {
+  if (decision === "ACCEPTED") return "Accepted";
+  if (decision === "DISMISSED") return "Dismissed";
+  if (decision === "FLAGGED") return "Flagged";
+  return "Recorded";
+}
+
+function settledLabel(finding: FindingDto) {
+  if (!finding.currentDecision) return "No decision required";
+  return decisionLabel(finding.currentDecision.decision);
 }
 
 function reviewTitle(finding: FindingDto) {
   const category = (finding.after ?? finding.before)?.category;
-  const label = category === "equipment_requirement" ? "Equipment requirement" : category === "schedule_date" ? "Schedule date" : category === "quantity" ? "Quantity" : "Finding";
+  const label = category === "equipment_requirement" ? "Equipment requirement" : category === "schedule_date" ? "Schedule date" : category === "quantity" ? "Quantity" : "Item";
   if (finding.subject.type === "proposed_fact") return `${label} to review`;
   return `${label} ${finding.subject.changeType === "ADDED" ? "added" : finding.subject.changeType === "REMOVED" ? "removed" : "changed"}`;
 }

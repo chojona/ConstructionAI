@@ -70,12 +70,12 @@ export async function recordReviewDecision(
 ) {
   const reviewer = reviewerId?.trim() ?? "";
   if (!reviewer || reviewer.length > 120) {
-    throw new DomainError("INVALID_INPUT", "A reviewer id is required.", 400);
+    throw new DomainError("INVALID_INPUT", "Enter your name before recording a decision.", 400);
   }
   const input = reviewSchema.parse(rawInput);
   const reason = input.reason?.trim() || null;
   if ((input.decision === "DISMISSED" || input.decision === "FLAGGED") && !reason) {
-    throw new DomainError("INVALID_INPUT", "Dismissing or flagging a finding requires a reason.", 400);
+    throw new DomainError("INVALID_INPUT", "Add a reason to dismiss or flag.", 400);
   }
 
   const { source } = await load(organizationId, projectId, repository);

@@ -124,6 +124,8 @@ details.create-panel[open] > summary { margin-bottom: 18px; }
 .review-workspace { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(280px, 1.7fr) minmax(220px, 1fr); align-items: start; border: 1px solid var(--color-line); border-radius: 6px; overflow: clip; background: var(--color-surface); min-height: 510px; }
 .change-queue { align-self: stretch; background: #191c23; border-right: 1px solid var(--color-line); padding: 8px 0 20px; max-height: 720px; overflow-y: auto; }
 .queue-heading { display: flex; justify-content: space-between; padding: 12px 15px; color: #c4cbd9; font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: .08em; }
+button.queue-heading { width: 100%; background: transparent; border: 0; text-align: left; cursor: pointer; }
+button.queue-heading:hover { color: #f3f5f8; }
 .queue-heading span { color: var(--color-ink-secondary); }
 .queue-empty { padding: 0 15px; font-size: 11px; color: var(--color-ink-secondary); }
 .change-row { width: 100%; display: flex; align-items: flex-start; gap: 9px; background: transparent; color: var(--color-ink); border: 0; border-left: 2px solid transparent; padding: 12px 12px; text-align: left; }
@@ -255,6 +257,8 @@ details.create-panel[open] > summary { margin-bottom: 18px; }
 .review-navigation > div { display: flex; gap: 4px; }
 .breadcrumb a, .breadcrumb span { white-space: nowrap; }
 .identity-line { margin: 0 0 8px; color: var(--color-ink-secondary); font-size: 12px; }
+.text-button { background: none; border: 0; color: var(--color-info); font-size: 12px; padding: 0; margin-left: 8px; cursor: pointer; }
+.decision-status { margin: 0 0 12px; color: var(--color-ink); font-size: 12px; }
 .revision-timeline { display: grid; margin: 0; padding: 0; list-style: none; border: 1px solid var(--color-line); border-radius: 6px; overflow: hidden; background: var(--color-surface); }
 .revision-step { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 14px; align-items: start; border-bottom: 1px solid var(--color-line); padding: 14px 18px; }
 .revision-timeline li:last-child .revision-step { border-bottom: 0; }
