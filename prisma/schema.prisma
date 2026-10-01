@@ -41,6 +41,7 @@ model Project {
   documents             Document[]
   reviewDecisions       ReviewDecision[]
   exportPackets         ExportPacket[]
+  emailSends            EmailSend[]
   heavyJobSourceObjects HeavyJobSourceObject[]
 
   @@index([organizationId, createdAt])
@@ -56,6 +57,7 @@ model Document {
 
   project   Project            @relation(fields: [projectId], references: [id], onDelete: Restrict)
   revisions DocumentRevision[]
+  emailSends EmailSendDocument[]
 
   @@index([projectId, createdAt])
 }
@@ -193,6 +195,7 @@ model ReviewDecision {
   supersedes         ReviewDecision?        @relation("ReviewSupersession", fields: [supersedesDecisionId], references: [id], onDelete: Restrict)
   supersededBy       ReviewDecision?        @relation("ReviewSupersession")
   exportPackets      ExportPacketDecision[]
+  emailSends         EmailSendDecision[]
 
   @@index([projectId, subjectKey, createdAt])
   @@index([projectId, createdAt])
@@ -229,8 +232,9 @@ model ExportPacket {
   byteSize    Int
   createdAt   DateTime @default(now())
 
-  project   Project                 @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  decisions ExportPacketDecision[]
+  project    Project                 @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  decisions  ExportPacketDecision[]
+  emailSends EmailSend[]
 
   @@unique([projectId, contentHash])
   @@index([projectId, createdAt])
@@ -247,6 +251,62 @@ model ExportPacketDecision {
   @@id([exportPacketId, reviewDecisionId])
   @@unique([exportPacketId, ordinal])
   @@index([reviewDecisionId])
+}
+
+enum EmailSendStatus {
+  DRAFT
+  SENT
+}
+
+/// Human email ledger for one approved pack. Send records intent only.
+/// actorId is free text until a User model exists. No mail transport is attached.
+model EmailSend {
+  id             String          @id @default(cuid())
+  projectId      String
+  exportPacketId String
+  status         EmailSendStatus
+  recipients     String[]
+  subject        String
+  body           String
+  actorId        String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime
+  sentAt         DateTime?
+
+  project      Project             @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  exportPacket ExportPacket        @relation(fields: [exportPacketId], references: [id], onDelete: Restrict)
+  decisions    EmailSendDecision[]
+  documents    EmailSendDocument[]
+
+  @@index([projectId, createdAt])
+  @@index([projectId, exportPacketId, status])
+  @@index([exportPacketId])
+}
+
+model EmailSendDecision {
+  emailSendId      String
+  reviewDecisionId String
+  ordinal          Int
+
+  emailSend      EmailSend      @relation(fields: [emailSendId], references: [id], onDelete: Restrict)
+  reviewDecision ReviewDecision @relation(fields: [reviewDecisionId], references: [id], onDelete: Restrict)
+
+  @@id([emailSendId, reviewDecisionId])
+  @@unique([emailSendId, ordinal])
+  @@index([reviewDecisionId])
+}
+
+model EmailSendDocument {
+  emailSendId String
+  documentId  String
+  ordinal     Int
+
+  emailSend EmailSend @relation(fields: [emailSendId], references: [id], onDelete: Restrict)
+  document  Document  @relation(fields: [documentId], references: [id], onDelete: Restrict)
+
+  @@id([emailSendId, documentId])
+  @@unique([emailSendId, ordinal])
+  @@index([documentId])
 }
 
 enum HeavyJobObjectType {

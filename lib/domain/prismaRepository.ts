@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { DomainError } from "./errors";
 import { isSerializationConflict, serializationAttempts, uniqueConstraintTargets } from "./transactionConflict";
+import { PACK_MISSING_MESSAGE } from "@/lib/email/emailSendView";
 import { EXPORT_BLOCKED_MESSAGE } from "@/lib/review/exportPacket";
 import type {
   AppendReviewDecisionInput,
@@ -11,8 +12,11 @@ import type {
   CreateRevisionRecordInput,
   ExtractionRunTransitionInput,
   FailOpenExtractionInput,
+  CreateEmailSendInput,
+  EmailSendRecord,
   SaveExportPacketInput,
   StoredExportPacket,
+  UpdateEmailDraftInput,
 } from "./repository";
 import type {
   DocumentDetail,
@@ -532,6 +536,124 @@ export class PrismaConstructionRepository implements ConstructionRepository {
     }
   }
 
+  async getExportPacketByContentHash(organizationId: string, projectId: string, contentHash: string) {
+    const project = await this.db.project.findFirst({
+      where: { id: projectId, organizationId },
+      select: { id: true },
+    });
+    if (!project) return null;
+    return this.findExportPacket(projectId, contentHash);
+  }
+
+  async getExportPacketById(organizationId: string, projectId: string, exportPacketId: string) {
+    const packet = await this.db.exportPacket.findFirst({
+      where: { id: exportPacketId, projectId, project: { organizationId } },
+      include: { decisions: { orderBy: { ordinal: "asc" }, select: { reviewDecisionId: true } } },
+    });
+    if (!packet) return null;
+    return toStoredExportPacket(packet, packet.decisions.map((decision) => decision.reviewDecisionId));
+  }
+
+  async createEmailSend(input: CreateEmailSendInput): Promise<EmailSendRecord | null> {
+    const project = await this.db.project.findFirst({
+      where: { id: input.projectId, organizationId: input.organizationId },
+      select: { id: true },
+    });
+    if (!project) return null;
+    await this.assertEmailLinks(input.projectId, input.exportPacketId, input.documentIds, input.reviewDecisionIds);
+    const created = await this.db.emailSend.create({
+      data: {
+        projectId: input.projectId,
+        exportPacketId: input.exportPacketId,
+        status: input.status,
+        recipients: input.recipients,
+        subject: input.subject,
+        body: input.body,
+        actorId: input.actorId,
+        createdAt: input.createdAt,
+        updatedAt: input.createdAt,
+        sentAt: input.sentAt,
+        decisions: {
+          create: input.reviewDecisionIds.map((reviewDecisionId, ordinal) => ({ reviewDecisionId, ordinal })),
+        },
+        documents: {
+          create: input.documentIds.map((documentId, ordinal) => ({ documentId, ordinal })),
+        },
+      },
+      include: emailSendInclude,
+    });
+    return toEmailSendRecord(created);
+  }
+
+  async updateEmailDraft(input: UpdateEmailDraftInput): Promise<EmailSendRecord | null> {
+    const updated = await this.db.emailSend.updateMany({
+      where: {
+        id: input.emailSendId,
+        projectId: input.projectId,
+        status: "DRAFT",
+        project: { organizationId: input.organizationId },
+      },
+      data: {
+        status: input.status,
+        recipients: input.recipients,
+        subject: input.subject,
+        body: input.body,
+        actorId: input.actorId,
+        updatedAt: input.updatedAt,
+        sentAt: input.sentAt,
+      },
+    });
+    if (updated.count !== 1) return null;
+    return this.getEmailSend(input.organizationId, input.projectId, input.emailSendId);
+  }
+
+  async getEmailSend(organizationId: string, projectId: string, emailSendId: string) {
+    const email = await this.db.emailSend.findFirst({
+      where: { id: emailSendId, projectId, project: { organizationId } },
+      include: emailSendInclude,
+    });
+    return email ? toEmailSendRecord(email) : null;
+  }
+
+  async findLatestDraftEmailSend(organizationId: string, projectId: string, exportPacketId: string) {
+    const email = await this.db.emailSend.findFirst({
+      where: {
+        projectId,
+        exportPacketId,
+        status: "DRAFT",
+        project: { organizationId },
+      },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      include: emailSendInclude,
+    });
+    return email ? toEmailSendRecord(email) : null;
+  }
+
+  private async assertEmailLinks(projectId: string, exportPacketId: string, documentIds: string[], reviewDecisionIds: string[]) {
+    const packet = await this.db.exportPacket.findFirst({
+      where: { id: exportPacketId, projectId },
+      select: { id: true },
+    });
+    if (!packet || documentIds.length === 0 || reviewDecisionIds.length === 0) {
+      throw new DomainError("INVALID_INPUT", PACK_MISSING_MESSAGE, 400);
+    }
+    const decisions = await this.db.reviewDecision.findMany({
+      where: { projectId, id: { in: reviewDecisionIds } },
+      select: { id: true, decision: true },
+    });
+    const decisionById = new Map(decisions.map((decision) => [decision.id, decision.decision]));
+    if (reviewDecisionIds.some((id) => decisionById.get(id) !== "ACCEPTED")) {
+      throw new DomainError("INVALID_INPUT", "Only an approved change can be exported.", 400);
+    }
+    const documents = await this.db.document.findMany({
+      where: { projectId, id: { in: documentIds } },
+      select: { id: true },
+    });
+    if (documents.length !== new Set(documentIds).size) {
+      throw new DomainError("INVALID_INPUT", PACK_MISSING_MESSAGE, 400);
+    }
+  }
+
   private async findExportPacket(projectId: string, contentHash: string): Promise<StoredExportPacket | null> {
     const packet = await this.db.exportPacket.findUnique({
       where: { projectId_contentHash: { projectId, contentHash } },
@@ -560,6 +682,43 @@ const proposedFactSelect = {
     },
   },
 } as const;
+
+const emailSendInclude = {
+  decisions: { orderBy: { ordinal: "asc" as const }, select: { reviewDecisionId: true } },
+  documents: { orderBy: { ordinal: "asc" as const }, select: { documentId: true } },
+} as const;
+
+function toEmailSendRecord(email: {
+  id: string;
+  projectId: string;
+  exportPacketId: string;
+  status: EmailSendRecord["status"];
+  recipients: string[];
+  subject: string;
+  body: string;
+  actorId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  sentAt: Date | null;
+  decisions: Array<{ reviewDecisionId: string }>;
+  documents: Array<{ documentId: string }>;
+}): EmailSendRecord {
+  return {
+    id: email.id,
+    projectId: email.projectId,
+    exportPacketId: email.exportPacketId,
+    status: email.status,
+    recipients: [...email.recipients],
+    subject: email.subject,
+    body: email.body,
+    actorId: email.actorId,
+    documentIds: email.documents.map((document) => document.documentId),
+    reviewDecisionIds: email.decisions.map((decision) => decision.reviewDecisionId),
+    createdAt: email.createdAt,
+    updatedAt: email.updatedAt,
+    sentAt: email.sentAt,
+  };
+}
 
 function toStoredExportPacket(
   packet: { id: string; projectId: string; contentHash: string; storageKey: string; payload: Uint8Array; byteSize: number; createdAt: Date },
