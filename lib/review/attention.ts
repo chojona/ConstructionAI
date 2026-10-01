@@ -1,3 +1,4 @@
+import { type ProcessingRun, withProcessingRunSync } from "@/lib/observability/pipelineTiming";
 import type { ProjectFinding } from "./findings";
 
 export type AttentionSeverity = "high" | "medium";
@@ -19,7 +20,15 @@ const basisReason: Record<NonNullable<ProjectFinding["basis"]>, string> = {
   wording: "Only the wording changed.",
 };
 
-export function listAttention(findings: readonly ProjectFinding[]): AttentionItem[] {
+export function listAttention(findings: readonly ProjectFinding[], timings?: ProcessingRun): AttentionItem[] {
+  return withProcessingRunSync(timings, "review_attention", (run) => run.measure(
+    "review_attention",
+    () => selectAttention(findings),
+    (items) => ({ findingCount: findings.length, attentionCount: items.length }),
+  ));
+}
+
+function selectAttention(findings: readonly ProjectFinding[]): AttentionItem[] {
   return findings.flatMap((finding) => {
     const item = toAttention(finding);
     return item ? [item] : [];
@@ -33,7 +42,7 @@ export function listAttention(findings: readonly ProjectFinding[]): AttentionIte
 }
 
 export function listSettled(findings: readonly ProjectFinding[]): ProjectFinding[] {
-  const open = new Set(listAttention(findings).map((item) => item.finding.subjectKey));
+  const open = new Set(selectAttention(findings).map((item) => item.finding.subjectKey));
   return findings.filter((finding) => !open.has(finding.subjectKey));
 }
 

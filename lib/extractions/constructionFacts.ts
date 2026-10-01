@@ -2,6 +2,7 @@ import { z } from "zod";
 import { DomainError, isDomainError } from "@/lib/domain/errors";
 import type { ConstructionRepository } from "@/lib/domain/repository";
 import { constructionRepository } from "@/lib/domain/prismaRepository";
+import { isPipelineTimeout, type ProcessingRun, withProcessingRun } from "@/lib/observability/pipelineTiming";
 import { recordProposedFacts } from "./proposedFacts";
 import { advanceExtractionRun, createExtractionRun, type Clock } from "./service";
 
@@ -110,52 +111,66 @@ export async function runConstructionFactsExtraction(input: {
   model: ConstructionFactsModelClient;
   repository?: ConstructionRepository;
   clock?: Clock;
+  timings?: ProcessingRun;
 }) {
   const repository = input.repository ?? constructionRepository;
   const clock = input.clock ?? (() => new Date());
-  const run = await createExtractionRun(input.organizationId, input.documentRevisionId, {
-    extractorName: CONSTRUCTION_FACTS_EXTRACTOR.name,
-    extractorVersion: CONSTRUCTION_FACTS_EXTRACTOR.version,
-    provider: input.model.provider,
-    model: input.model.model,
-  }, repository);
-  await advanceExtractionRun(input.organizationId, run.id, { status: "RUNNING" }, repository, clock);
-
-  const revision = await repository.getRevision(input.organizationId, input.documentRevisionId);
-  if (!revision) throw new DomainError("NOT_FOUND", "Revision not found.", 404);
-  const pages = [...revision.pages]
-    .sort((left, right) => left.pageNumber - right.pageNumber)
-    .map((page) => ({ pageNumber: page.pageNumber, text: page.text }));
-
-  try {
-    const raw = await input.model.extract({
+  return withProcessingRun(input.timings, "extraction", async (timings) => {
+    const run = await createExtractionRun(input.organizationId, input.documentRevisionId, {
       extractorName: CONSTRUCTION_FACTS_EXTRACTOR.name,
       extractorVersion: CONSTRUCTION_FACTS_EXTRACTOR.version,
-      pages,
-    });
-    const proposedFacts = parseConstructionFactsV1(raw, pages);
-    const succeeded = await recordProposedFacts(
-      input.organizationId,
-      run.id,
-      proposedFacts,
-      repository,
-      clock,
-    );
-    return { run: succeeded, proposedFacts };
-  } catch (error) {
-    const malformed = isDomainError(error) && (error.code === "MALFORMED_OUTPUT" || error.code === "INVALID_INPUT");
-    const failureCode = malformed ? "MALFORMED_OUTPUT" : "PROVIDER_ERROR";
-    const failureMessage = malformed
-      ? error.message
-      : "The extraction model failed before it produced valid proposed facts.";
-    await advanceExtractionRun(input.organizationId, run.id, {
-      status: "FAILED",
-      failureCode,
-      failureMessage: failureMessage.slice(0, 500),
-    }, repository, clock);
-    if (malformed) throw error;
-    throw new DomainError("PROVIDER_ERROR", failureMessage, 502);
-  }
+      provider: input.model.provider,
+      model: input.model.model,
+    }, repository);
+    await advanceExtractionRun(input.organizationId, run.id, { status: "RUNNING" }, repository, clock);
+
+    const revision = await repository.getRevision(input.organizationId, input.documentRevisionId);
+    if (!revision) throw new DomainError("NOT_FOUND", "Revision not found.", 404);
+    const pages = [...revision.pages]
+      .sort((left, right) => left.pageNumber - right.pageNumber)
+      .map((page) => ({ pageNumber: page.pageNumber, text: page.text }));
+    const size = {
+      byteSize: revision.byteSize,
+      pageCount: pages.length,
+      pageTextBytes: pages.reduce((sum, page) => sum + Buffer.byteLength(page.text), 0),
+    };
+
+    try {
+      const raw = await timings.stage("ai_extraction", () => input.model.extract({
+        extractorName: CONSTRUCTION_FACTS_EXTRACTOR.name,
+        extractorVersion: CONSTRUCTION_FACTS_EXTRACTOR.version,
+        pages,
+      }), size);
+      const proposedFacts = await timings.stage(
+        "structured_output_validation",
+        () => parseConstructionFactsV1(raw, pages),
+        (facts) => ({ ...size, factCount: facts.length }),
+      );
+      const succeeded = await timings.stage(
+        "proposed_fact_persistence",
+        () => recordProposedFacts(input.organizationId, run.id, proposedFacts, repository, clock),
+        { ...size, factCount: proposedFacts.length },
+      );
+      return { run: succeeded, proposedFacts };
+    } catch (error) {
+      const timedOut = isPipelineTimeout(error);
+      const malformed = isDomainError(error) && (error.code === "MALFORMED_OUTPUT" || error.code === "INVALID_INPUT");
+      const failureCode = timedOut ? "TIMEOUT" : malformed ? "MALFORMED_OUTPUT" : "PROVIDER_ERROR";
+      const failureMessage = timedOut
+        ? "The extraction model timed out before it produced valid proposed facts."
+        : malformed
+          ? error.message
+          : "The extraction model failed before it produced valid proposed facts.";
+      await advanceExtractionRun(input.organizationId, run.id, {
+        status: "FAILED",
+        failureCode,
+        failureMessage: failureMessage.slice(0, 500),
+      }, repository, clock);
+      if (timedOut) throw new DomainError("TIMEOUT", failureMessage, 504);
+      if (malformed) throw error;
+      throw new DomainError("PROVIDER_ERROR", failureMessage, 502);
+    }
+  });
 }
 
 function assertEvidence(fact: ProposedConstructionFact, pages: readonly ConstructionFactPage[]) {
