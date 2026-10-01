@@ -237,7 +237,7 @@ function equipmentNames(sentence: string) {
   const permission = /^(.*?)\s+(?:may be (?:used|disposed|added)|shall not be (?:used|disposed))\b/i.exec(sentence);
   if (permission?.[1]) {
     const name = permission[1].replace(/\s+more than\b[\s\S]*$/i, "").trim();
-    return name ? [displayName(name)] : [];
+    return name ? [canonicalEquipmentName(name)] : [];
   }
 
   const suchAs = /such as:\s*(.+)$/i.exec(sentence);
@@ -312,19 +312,12 @@ function dedupe(drafts: Draft[]) {
     const fact = item.fact;
     if (fact.evidence.length === 0) continue;
     if (fact.type === "quantity") {
-      const duplicate = kept.find((candidate) => (
-        candidate.fact.type === "quantity"
-        && candidate.fact.amount === fact.amount
-        && candidate.fact.unit === fact.unit
-        && candidate.fact.originalText === fact.originalText
-      ));
+      const duplicate = kept.some((candidate) => candidate.fact.type === "quantity" && sameQuantity(candidate.fact, fact));
       if (duplicate) continue;
       const assertedTwin = fact.modality !== "asserted" && kept.some((candidate) => (
         candidate.fact.type === "quantity"
         && candidate.fact.modality === "asserted"
-        && candidate.fact.amount === fact.amount
-        && candidate.fact.unit === fact.unit
-        && candidate.fact.originalText === fact.originalText
+        && sameQuantity(candidate.fact, { ...fact, modality: "asserted" })
       ));
       if (assertedTwin) continue;
     }
@@ -332,12 +325,44 @@ function dedupe(drafts: Draft[]) {
       const duplicate = kept.some((candidate) => (
         candidate.fact.type === "equipment_requirement"
         && candidate.fact.equipment.toLowerCase() === fact.equipment.toLowerCase()
+        && candidate.fact.modality === fact.modality
+        && normalizeStatement(candidate.fact.statement) === normalizeStatement(fact.statement)
       ));
       if (duplicate) continue;
     }
     kept.push(item);
   }
   return kept;
+}
+
+function sameQuantity(
+  left: Extract<ProposedConstructionFact, { type: "quantity" }>,
+  right: Extract<ProposedConstructionFact, { type: "quantity" }>,
+) {
+  if (left.amount !== right.amount || left.unit !== right.unit || left.originalText !== right.originalText) return false;
+  if (left.modality !== right.modality) return false;
+  return left.subject === right.subject || bareQuantity(left) || bareQuantity(right);
+}
+
+function bareQuantity(fact: Extract<ProposedConstructionFact, { type: "quantity" }>) {
+  const subject = fact.subject.toLowerCase().replace(/[^a-z0-9.]+/g, "");
+  const original = fact.originalText.toLowerCase().replace(/[^a-z0-9.]+/g, "");
+  return fact.subject === "quantity" || subject === original;
+}
+
+function normalizeStatement(value: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function canonicalEquipmentName(value: string) {
+  const stripped = value.replace(/^(?:a|an|the)\s+/i, "").trim();
+  const model = /\b([A-Z]{2,}\s+\d{2,})\s+(?:excavator|crane|pump)\b/.exec(stripped);
+  if (model?.[1]) return model[1];
+  const described = /\b([A-Za-z]+)\s+(crane|pump|excavator)\b/.exec(stripped);
+  if (described?.[1] && described[2] && !/^(?:a|an|the)$/i.test(described[1])) {
+    return displayName(`${described[1]} ${described[2]}`);
+  }
+  return displayName(stripped);
 }
 
 function modalityFor(text: string) {

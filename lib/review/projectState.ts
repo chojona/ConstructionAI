@@ -1,5 +1,5 @@
 import type { ProjectFactContext, ProjectRevisionContext, ReviewDecisionRecord } from "@/lib/domain/types";
-import { factSlotKey, toComparableFact } from "@/lib/revisions/compareFacts";
+import { factSlotKey, requirementFingerprint, toComparableFact } from "@/lib/revisions/compareFacts";
 import { describeFact } from "./describe";
 import { proposedFactSubjectKey } from "./subjects";
 
@@ -41,6 +41,8 @@ interface Slot {
   fact: ProjectFactContext;
   supersedesProposedFactId: string | null;
   decision: ReviewDecisionRecord;
+  fingerprint: string;
+  slotKey: string;
 }
 
 export function projectEffectiveState(input: {
@@ -50,7 +52,6 @@ export function projectEffectiveState(input: {
   decisions: readonly ReviewDecisionRecord[];
 }): EffectiveProjectState {
   const latest = latestBySubject(input.decisions);
-  const factsById = new Map(input.facts.map((fact) => [fact.id, fact]));
   const revisionsById = new Map(input.revisions.map((revision) => [revision.id, revision]));
   const accepted = input.facts.filter((fact) => {
     const decision = latest.get(subjectMapKey(input.projectId, proposedFactSubjectKey(fact.id)));
@@ -60,48 +61,82 @@ export function projectEffectiveState(input: {
   const facts: EffectiveFact[] = [];
 
   for (const revisions of revisionsByDocument(input.revisions)) {
-    const slots = new Map<string, Slot>();
+    const slots: Slot[] = [];
     for (const revision of revisions) {
       for (const removal of acceptedRemovals(latest, input.projectId, revision.id)) {
-        const before = factsById.get(removal.proposedFactId);
-        if (!before) continue;
-        const key = factSlotKey(toComparableFact(before));
-        const slot = slots.get(key);
-        if (slot?.fact.id !== before.id) continue;
+        const index = slots.findIndex((slot) => slot.fact.id === removal.proposedFactId);
+        if (index < 0) continue;
+        const slot = slots[index]!;
         retire(retirements, slot.fact, revision.documentId, null, removal);
-        slots.delete(key);
+        slots.splice(index, 1);
       }
 
+      const incoming = accepted
+        .filter((item) => item.documentRevisionId === revision.id)
+        .sort((left, right) => left.ordinal - right.ordinal || left.id.localeCompare(right.id));
       const grouped = new Map<string, ProjectFactContext[]>();
-      for (const fact of accepted.filter((item) => item.documentRevisionId === revision.id)) {
-        const key = factSlotKey(toComparableFact(fact));
-        grouped.set(key, [...(grouped.get(key) ?? []), fact]);
+      for (const fact of incoming) {
+        const print = requirementFingerprint(toComparableFact(fact));
+        grouped.set(print, [...(grouped.get(print) ?? []), fact]);
       }
-      for (const [key, candidates] of grouped) {
+      const distinct: ProjectFactContext[] = [];
+      for (const candidates of grouped.values()) {
         const ordered = [...candidates].sort((left, right) => compareDecisions(
           decisionFor(latest, input.projectId, left.id),
           decisionFor(latest, input.projectId, right.id),
         ));
         const winner = ordered[ordered.length - 1]!;
         const winningDecision = decisionFor(latest, input.projectId, winner.id);
-        const previous = slots.get(key);
-        if (previous && previous.fact.id !== winner.id && !ordered.some((fact) => fact.id === previous.fact.id)) {
-          retire(retirements, previous.fact, revision.documentId, winner.id, winningDecision);
-        }
         for (const loser of ordered) {
           if (loser.id !== winner.id) retire(retirements, loser, revision.documentId, winner.id, winningDecision);
         }
-        slots.set(key, {
-          fact: winner,
-          decision: winningDecision,
-          supersedesProposedFactId: previous && previous.fact.id !== winner.id
+        distinct.push(winner);
+      }
+
+      const claimed = new Set<number>();
+      const placed = new Set<string>();
+      const place = (fact: ProjectFactContext, match: (slot: Slot) => boolean) => {
+        const index = slots.findIndex((slot, slotIndex) => !claimed.has(slotIndex) && match(slot));
+        if (index < 0) return;
+        claimed.add(index);
+        placed.add(fact.id);
+        const previous = slots[index]!;
+        const decision = decisionFor(latest, input.projectId, fact.id);
+        if (previous.fact.id !== fact.id) {
+          retire(retirements, previous.fact, revision.documentId, fact.id, decision);
+        }
+        slots[index] = {
+          fact,
+          decision,
+          fingerprint: requirementFingerprint(toComparableFact(fact)),
+          slotKey: factSlotKey(toComparableFact(fact)),
+          supersedesProposedFactId: previous.fact.id !== fact.id
             ? previous.fact.id
-            : previous?.supersedesProposedFactId ?? null,
+            : previous.supersedesProposedFactId,
+        };
+      };
+      for (const fact of distinct) {
+        const print = requirementFingerprint(toComparableFact(fact));
+        place(fact, (slot) => slot.fingerprint === print);
+      }
+      for (const fact of distinct) {
+        if (placed.has(fact.id)) continue;
+        const key = factSlotKey(toComparableFact(fact));
+        place(fact, (slot) => slot.slotKey === key);
+      }
+      for (const fact of distinct) {
+        if (placed.has(fact.id)) continue;
+        slots.push({
+          fact,
+          decision: decisionFor(latest, input.projectId, fact.id),
+          fingerprint: requirementFingerprint(toComparableFact(fact)),
+          slotKey: factSlotKey(toComparableFact(fact)),
+          supersedesProposedFactId: null,
         });
       }
     }
 
-    for (const slot of slots.values()) {
+    for (const slot of slots) {
       const revision = revisionsById.get(slot.fact.documentRevisionId);
       if (!revision) continue;
       facts.push({

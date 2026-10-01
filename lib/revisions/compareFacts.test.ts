@@ -113,6 +113,46 @@ describe("compareFacts", () => {
     ]);
   });
 
+  it("treats a shall to shall-not reversal as a material modality change", () => {
+    const changes = compareFacts(
+      [equipment("dewatering pump", "A dewatering pump shall be used.", [], "asserted")],
+      [equipment("dewatering pump", "A dewatering pump shall not be used.", [], "asserted")],
+    );
+    expect(changes).toEqual([
+      expect.objectContaining({
+        changeType: "MODIFIED",
+        category: "equipment_requirement",
+        material: true,
+        basis: "modality",
+      }),
+    ]);
+  });
+
+  it("keeps a small quantity edit and a large quantity edit material", () => {
+    const changes = compareFacts(
+      [
+        quantity("excavation", "1250", "CY", "1,250 CY"),
+        quantity("backfill", "10", "cubic yards", "10 cubic yards"),
+      ],
+      [
+        quantity("excavation", "1251", "cubic yards", "1251 cubic yards"),
+        quantity("backfill", "10000", "CY", "10,000 CY"),
+      ],
+    );
+    expect(changes.filter((change) => change.material)).toEqual([
+      expect.objectContaining({
+        basis: "numeric",
+        before: expect.objectContaining({ payload: expect.objectContaining({ subject: "backfill", amount: "10" }) }),
+        after: expect.objectContaining({ payload: expect.objectContaining({ amount: "10000" }) }),
+      }),
+      expect.objectContaining({
+        basis: "numeric",
+        before: expect.objectContaining({ payload: expect.objectContaining({ subject: "excavation", amount: "1250" }) }),
+        after: expect.objectContaining({ payload: expect.objectContaining({ amount: "1251" }) }),
+      }),
+    ]);
+  });
+
   it("treats a modality or unit change as a material modification", () => {
     const changes = compareFacts(
       [

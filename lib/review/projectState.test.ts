@@ -104,6 +104,42 @@ describe("projectEffectiveState", () => {
     ]);
   });
 
+  it("keeps distinct requirements for the same equipment on one revision", () => {
+    const required = equipment("fact-required", "rev-a", "dewatering pump", "A dewatering pump shall be used.", 0);
+    const conditional = equipment("fact-conditional", "rev-a", "dewatering pump", "A dewatering pump may be used if groundwater is present.", 1);
+    conditional.payload.modality = "tentative";
+    const state = projectEffectiveState({
+      projectId: "project-1",
+      revisions: [rev("rev-a", "doc-1", 1)],
+      facts: [required, conditional],
+      decisions: [
+        decision("decision-required", "fact-required", "ACCEPTED", "2026-09-30T12:00:00.000Z"),
+        decision("decision-conditional", "fact-conditional", "ACCEPTED", "2026-09-30T12:01:00.000Z"),
+      ],
+    });
+
+    expect(state.facts.map((fact) => fact.proposedFactId).sort()).toEqual(["fact-conditional", "fact-required"]);
+    expect(state.retirements).toEqual([]);
+  });
+
+  it("keeps an omitted requirement until its removal is accepted", () => {
+    const trench = equipment("fact-trench", "rev-b", "CAT 336", "A CAT 336 excavator shall be used for the trench.", 0);
+    const loading = equipment("fact-loading", "rev-b", "CAT 336", "A CAT 336 excavator shall be used for loading.", 1);
+    const state = projectEffectiveState({
+      projectId: "project-1",
+      revisions: [rev("rev-b", "doc-1", 1, "Rev B"), rev("rev-a", "doc-1", 2, "Rev A")],
+      facts: [trench, loading, equipment("fact-later", "rev-a", "CAT 336", "A CAT 336 excavator shall be used for the trench.", 0)],
+      decisions: [
+        decision("decision-trench", "fact-trench", "ACCEPTED", "2026-09-30T12:00:00.000Z"),
+        decision("decision-loading", "fact-loading", "ACCEPTED", "2026-09-30T12:01:00.000Z"),
+        decision("decision-later", "fact-later", "ACCEPTED", "2026-09-30T13:00:00.000Z"),
+      ],
+    });
+
+    expect(state.facts.map((fact) => fact.proposedFactId).sort()).toEqual(["fact-later", "fact-loading"]);
+    expect(state.retirements.map((item) => item.proposedFactId)).toEqual(["fact-trench"]);
+  });
+
   it("does not merge the same equipment across documents", () => {
     const state = projectEffectiveState({
       projectId: "project-1",
@@ -127,12 +163,12 @@ function rev(id: string, documentId: string, revisionOrder: number, revisionLabe
   return { id, documentId, documentTitle, revisionLabel, revisionOrder };
 }
 
-function equipment(id: string, revisionId: string, name: string, text: string): ProjectFactContext {
+function equipment(id: string, revisionId: string, name: string, text: string, ordinal = 0): ProjectFactContext {
   return {
     id,
     extractionRunId: "run",
     documentRevisionId: revisionId,
-    ordinal: 0,
+    ordinal,
     factType: "equipment_requirement",
     payload: { equipment: name, statement: text, modality: "asserted" },
     evidence: [{ documentPageId: "page", pageNumber: 1, excerpt: text, startOffset: 0, endOffset: text.length }],

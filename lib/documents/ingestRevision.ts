@@ -1,15 +1,26 @@
 import { createHash } from "node:crypto";
-import { z } from "zod";
+import { ZodError, z } from "zod";
 import { DomainError } from "@/lib/domain/errors";
 import { constructionRepository } from "@/lib/domain/prismaRepository";
 import type { ConstructionRepository } from "@/lib/domain/repository";
 import { type ProcessingRun, withProcessingRun } from "@/lib/observability/pipelineTiming";
-import { extractPdfDocumentCached, PdfExtractionError, type PdfExtractor } from "./extractPdf";
+import { extractPdfDocumentCached, MAX_PDF_PAGES, PdfExtractionError, type PdfExtractor } from "./extractPdf";
 import { hasUsableText } from "./pageText";
 import { displayFilename, getDocumentStorage, type DocumentStorage } from "./storage";
 import { validatePdfUpload } from "./validateUpload";
 
 const revisionLabelSchema = z.string().trim().min(1).max(80);
+
+function parseRevisionLabel(value: string) {
+  try {
+    return revisionLabelSchema.parse(value);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      throw new DomainError("INVALID_INPUT", "Enter a revision label up to 80 characters.", 400);
+    }
+    throw error;
+  }
+}
 
 export interface RevisionUploadInput {
   revisionLabel: string;
@@ -37,7 +48,7 @@ export async function ingestRevision(
     if (!document) throw new DomainError("NOT_FOUND", "Document not found.", 404);
 
     const accepted = await run.stage("upload_validation", async () => {
-      const revisionLabel = revisionLabelSchema.parse(rawInput.revisionLabel);
+      const revisionLabel = parseRevisionLabel(rawInput.revisionLabel);
       const originalFilename = displayFilename(rawInput.originalFilename);
       validatePdfUpload({
         bytes: rawInput.bytes,
@@ -57,7 +68,22 @@ export async function ingestRevision(
 
     const extracted = await run.stage("pdf_parsing", async () => {
       try {
-        return await extract(rawInput.bytes);
+        const parsed = await extract(rawInput.bytes);
+        if (parsed.pageCount > MAX_PDF_PAGES || parsed.pages.length > MAX_PDF_PAGES) {
+          throw new DomainError(
+            "FILE_TOO_LARGE",
+            `The PDF exceeds the ${MAX_PDF_PAGES} page limit.`,
+            413,
+          );
+        }
+        if (parsed.pages.length !== parsed.pageCount) {
+          throw new DomainError(
+            "MALFORMED_PDF",
+            "The PDF did not produce one text result for every page.",
+            422,
+          );
+        }
+        return parsed;
       } catch (error) {
         if (error instanceof PdfExtractionError) {
           throw new DomainError("MALFORMED_PDF", "The PDF is malformed or unreadable.", 422);
