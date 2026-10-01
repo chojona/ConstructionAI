@@ -1,19 +1,17 @@
 import Link from "next/link";
+import { AddDocumentDeskButton } from "@/components/workspace/add-document-button";
 import { EmptySolidCard } from "@/components/workspace/empty-solid-card";
 
 export function DocumentsDesk({
-  projectId,
   documents,
 }: {
-  projectId: string;
   documents: readonly { id: string; title: string; documentType: string | null; revisionCount: number }[];
 }) {
   if (!documents.length) {
     return (
-      <EmptySolidCard
-        message="No documents yet"
-        action={{ href: `/projects/${projectId}?view=documents#add-document`, label: "Add document" }}
-      />
+      <EmptySolidCard message="No documents yet">
+        <AddDocumentDeskButton />
+      </EmptySolidCard>
     );
   }
 
