@@ -79,7 +79,7 @@ describe("Prisma Bluebeam markup appendix", () => {
       originalFilename: "a.pdf",
       mimeType: "application/pdf",
       byteSize: 20,
-      sha256: `b${suffix}`.padEnd(64, "0").slice(0, 64),
+      sha256: createHash("sha256").update(`b${suffix}`).digest("hex"),
       storageKey: `revisions/bb-${suffix}.pdf`,
       status: "PROCESSED",
       pages: [{ pageNumber: 1, text: `${approvedExcerpt}\n${rejectedExcerpt}`, textSha256: "f".repeat(64) }],
