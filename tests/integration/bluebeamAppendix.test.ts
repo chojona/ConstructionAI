@@ -134,6 +134,25 @@ describe("Prisma Bluebeam markup appendix", () => {
       title: "Markup Summary",
     });
     expect(row.decisions.map((link) => link.reviewDecisionId)).toEqual([accepted.id]);
+
+    const again = await attachBluebeamMarkupAppendix(organizationId, project.id, {
+      bytes: pdf,
+      filename: "markup-summary-copy.pdf",
+      mimeType: "application/pdf",
+      sourceId: "bb-summary-99",
+    }, repository, objects, () => new Date("2026-10-03T04:00:00.000Z"));
+    expect(again.appendices).toHaveLength(1);
+    expect(again.appendices?.[0]).toMatchObject({
+      sourceId: "bb-summary-17",
+      fetchedAt: fetchedAt.toISOString(),
+      contentHash,
+      filename: "markup-summary.pdf",
+      pageCites: ["2", "C-101"],
+    });
+    expect(await db.exportPacketChapter.count({ where: { projectId: project.id, contentHash, role: "bluebeam-markup" } })).toBe(1);
+    const kept = await db.exportPacketChapter.findFirstOrThrow({ where: { id: row.id } });
+    expect(kept).toMatchObject({ sourceId: "bb-summary-17", fetchedAt, contentHash, pageCites: ["2", "C-101"] });
+
     const storedPack = await objects.get(`export-packets/${project.id}/${packet.contentHash}.json`);
     expect(createHash("sha256").update(storedPack).digest("hex")).toBe(packet.contentHash);
     expect(JSON.parse(storedPack.toString("utf8")).appendices[0].pageCites).toEqual(["2", "C-101"]);

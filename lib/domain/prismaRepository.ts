@@ -833,12 +833,11 @@ const exportPacketChapterInclude = {
   decisions: { orderBy: { ordinal: "asc" as const }, select: { reviewDecisionId: true } },
 } as const;
 
-function chapterIdentity(input: { projectId: string; contentHash: string; sourceId: string; role: string }) {
+function chapterIdentity(input: { projectId: string; contentHash: string; role: string }) {
   return {
-    projectId_contentHash_sourceId_role: {
+    projectId_contentHash_role: {
       projectId: input.projectId,
       contentHash: input.contentHash,
-      sourceId: input.sourceId,
       role: input.role,
     },
   };
