@@ -581,14 +581,9 @@ export class PrismaConstructionRepository implements ConstructionRepository {
       throw new DomainError("INVALID_INPUT", EXPORT_BLOCKED_MESSAGE, 400);
     }
     await this.assertAcceptedDecisions(input.projectId, input.reviewDecisionIds);
+    const pageCites = pageCitesFor(input);
     const existing = await this.db.exportPacketChapter.findUnique({
-      where: {
-        projectId_contentHash_sourceId: {
-          projectId: input.projectId,
-          contentHash: input.contentHash,
-          sourceId: input.sourceId,
-        },
-      },
+      where: chapterIdentity(input),
       include: exportPacketChapterInclude,
     });
     if (existing) {
@@ -625,6 +620,7 @@ export class PrismaConstructionRepository implements ConstructionRepository {
           storageKey: input.storageKey,
           filename: input.filename,
           byteSize: input.byteSize,
+          pageCites,
           decisions: {
             create: input.reviewDecisionIds.map((reviewDecisionId, ordinal) => ({ reviewDecisionId, ordinal })),
           },
@@ -635,13 +631,7 @@ export class PrismaConstructionRepository implements ConstructionRepository {
     } catch (error) {
       if (uniqueConstraintTargets(error)) {
         const raced = await this.db.exportPacketChapter.findUnique({
-          where: {
-            projectId_contentHash_sourceId: {
-              projectId: input.projectId,
-              contentHash: input.contentHash,
-              sourceId: input.sourceId,
-            },
-          },
+          where: chapterIdentity(input),
           include: exportPacketChapterInclude,
         });
         if (raced) return toStoredChapter(raced);
@@ -842,6 +832,26 @@ const exportPacketChapterInclude = {
   decisions: { orderBy: { ordinal: "asc" as const }, select: { reviewDecisionId: true } },
 } as const;
 
+function chapterIdentity(input: { projectId: string; contentHash: string; sourceId: string; role: string }) {
+  return {
+    projectId_contentHash_sourceId_role: {
+      projectId: input.projectId,
+      contentHash: input.contentHash,
+      sourceId: input.sourceId,
+      role: input.role,
+    },
+  };
+}
+
+function pageCitesFor(input: SaveExportPacketChapterInput) {
+  const cites = [...(input.pageCites ?? [])];
+  if (input.role !== "bluebeam-markup") return [];
+  if (cites.length === 0 || cites.some((cite) => cite.length === 0 || cite.length > 80 || cite.trim() !== cite)) {
+    throw new DomainError("INVALID_INPUT", "The markup summary needs a page cite.", 400);
+  }
+  return cites;
+}
+
 function toStoredChapter(chapter: {
   id: string;
   projectId: string;
@@ -853,10 +863,14 @@ function toStoredChapter(chapter: {
   storageKey: string;
   filename: string;
   byteSize: number;
+  pageCites: string[];
   decisions: Array<{ reviewDecisionId: string }>;
 }): StoredExportPacketChapter {
-  if (chapter.role !== "acc-docs" && chapter.role !== "rfi") {
+  if (chapter.role !== "acc-docs" && chapter.role !== "rfi" && chapter.role !== "bluebeam-markup") {
     throw new DomainError("MALFORMED_OUTPUT", "Stored pack chapter could not be read.", 500);
+  }
+  if (chapter.role === "bluebeam-markup" && chapter.pageCites.length === 0) {
+    throw new DomainError("MALFORMED_OUTPUT", "Stored pack appendix could not be read.", 500);
   }
   return {
     id: chapter.id,
@@ -869,6 +883,7 @@ function toStoredChapter(chapter: {
     storageKey: chapter.storageKey,
     filename: chapter.filename,
     byteSize: chapter.byteSize,
+    pageCites: chapter.role === "bluebeam-markup" ? [...chapter.pageCites] : [],
     reviewDecisionIds: chapter.decisions.map((decision) => decision.reviewDecisionId),
   };
 }

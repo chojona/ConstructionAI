@@ -14,12 +14,28 @@ import { getProject } from "@/lib/projects/service";
 import { listAttention } from "@/lib/review/attention";
 import { decidedRowChrome } from "@/lib/review/changeRow";
 import { approvedChangePreview } from "@/lib/review/exportPacket";
+import { deskPackFiles, EXPORT_BLOCKED_MESSAGE } from "@/lib/review/exportPacketView";
 import { uploadRevisionHref } from "@/lib/review/emptyState";
 import { toAttentionDto } from "@/lib/review/dto";
-import { getProjectReview } from "@/lib/review/service";
+import { currentApprovedChangePacket, getProjectReview } from "@/lib/review/service";
 import { currentOrganizationId } from "@/lib/tenancy";
 
 export const dynamic = "force-dynamic";
+
+async function loadPackFiles(organizationId: string, projectId: string) {
+  try {
+    const packet = await currentApprovedChangePacket(organizationId, projectId);
+    return {
+      chapters: deskPackFiles(packet.chapters),
+      appendices: deskPackFiles(packet.appendices),
+    };
+  } catch (error) {
+    if (error instanceof DomainError && error.message === EXPORT_BLOCKED_MESSAGE) {
+      return { chapters: [], appendices: [] };
+    }
+    throw error;
+  }
+}
 
 export default async function ProjectPage({ params, searchParams }: { params: Promise<{ projectId: string }>; searchParams: Promise<{ view?: string }> }) {
   const { view: requestedView } = await searchParams;
@@ -34,6 +50,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   }
   catch (error) { if (error instanceof DomainError && error.code === "NOT_FOUND") notFound(); throw error; }
   const attention = listAttention(review.findings);
+  const approved = approvedChangePreview(review.findings);
+  const packFiles = approved.length > 0 ? await loadPackFiles(organizationId, projectId) : { chapters: [], appendices: [] };
   const heavyJobObjects = view === "heavyjob"
     ? (await listHeavyJobSourceObjects(organizationId, projectId)).map(toHeavyJobSourceObjectDto)
     : [];
@@ -51,8 +69,10 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         <ChangeReview
           projectId={project.id}
           items={attention.map(toAttentionDto)}
-          approved={approvedChangePreview(review.findings)}
+          approved={approved}
           decided={decidedRowChrome(review.findings)}
+          chapters={packFiles.chapters}
+          appendices={packFiles.appendices}
           notes={review.state.retirements.map((retirement) => ({
             key: `${retirement.proposedFactId}-${retirement.decisionId}`,
             text: retirement.supersededByProposedFactId

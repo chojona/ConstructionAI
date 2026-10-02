@@ -1,0 +1,38 @@
+import { NextRequest, NextResponse } from "next/server";
+import { errorResponse } from "@/lib/http";
+import { attachBluebeamMarkupAppendix } from "@/lib/review/bluebeamAppendix";
+import { requestOrganizationId } from "@/lib/tenancy";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function POST(
+  request: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  try {
+    const { projectId } = await context.params;
+    const form = await request.formData();
+    const file = form.get("file");
+    if (!(file instanceof File)) {
+      return NextResponse.json(
+        { error: { code: "INVALID_INPUT", message: "A PDF is required." } },
+        { status: 400 },
+      );
+    }
+    const sourceId = form.get("sourceId");
+    const kind = form.get("kind");
+    const subjectKey = form.get("subjectKey");
+    const packet = await attachBluebeamMarkupAppendix(requestOrganizationId(request), projectId, {
+      bytes: Buffer.from(await file.arrayBuffer()),
+      filename: file.name,
+      mimeType: file.type.trim() || (file.name.toLowerCase().endsWith(".csv") ? "text/csv" : "application/pdf"),
+      sourceId: typeof sourceId === "string" ? sourceId : undefined,
+      kind: typeof kind === "string" ? kind : undefined,
+      subjectKey: typeof subjectKey === "string" ? subjectKey : undefined,
+    });
+    return NextResponse.json({ packet }, { status: 201 });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}

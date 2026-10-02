@@ -4,6 +4,8 @@ import type { ProjectRevisionContext, ReviewDecisionRecord, RevisionChangeType }
 import type { FindingEvidence, ProjectFinding } from "./findings";
 import {
   ACC_EXPORT_CHAPTER_TITLE,
+  BLUEBEAM_APPENDIX_ROLE,
+  BLUEBEAM_MARKUP_APPENDIX_TITLE,
   EXPORT_BLOCKED_MESSAGE,
   RFI_PDF_CHAPTER_TITLE,
   type AccChapterRole,
@@ -69,6 +71,19 @@ export interface ExportPacketChapter {
   byteSize: number;
 }
 
+/** Bluebeam Markup Summary on an approved pack. Raw bytes stay in object storage. */
+export interface ExportPacketAppendix {
+  role: typeof BLUEBEAM_APPENDIX_ROLE;
+  title: typeof BLUEBEAM_MARKUP_APPENDIX_TITLE;
+  sourceId: string;
+  fetchedAt: string;
+  contentHash: string;
+  storageKey: string;
+  filename: string;
+  byteSize: number;
+  pageCites: string[];
+}
+
 export interface ExportPacketCanonical {
   kind: typeof APPROVED_CHANGE_PACKET_KIND;
   version: typeof APPROVED_CHANGE_PACKET_VERSION;
@@ -77,6 +92,7 @@ export interface ExportPacketCanonical {
   decisionIds: string[];
   changes: ApprovedChangePacketItem[];
   chapters?: ExportPacketChapter[];
+  appendices?: ExportPacketAppendix[];
 }
 
 export interface ApprovedChangePacket extends ExportPacketCanonical {
@@ -105,6 +121,7 @@ export function canonicalPacketBytes(packet: ExportPacketCanonical) {
     decisionIds: string[];
     changes: ApprovedChangePacketItem[];
     chapters?: ExportPacketChapter[];
+    appendices?: ExportPacketAppendix[];
   } = {
     kind: packet.kind,
     version: packet.version,
@@ -114,6 +131,7 @@ export function canonicalPacketBytes(packet: ExportPacketCanonical) {
     changes: packet.changes,
   };
   if (packet.chapters && packet.chapters.length > 0) body.chapters = packet.chapters.map(canonicalChapter);
+  if (packet.appendices && packet.appendices.length > 0) body.appendices = packet.appendices.map(canonicalAppendix);
   return Buffer.from(JSON.stringify(body));
 }
 
@@ -127,6 +145,10 @@ export function exportPacketStorageKey(projectId: string, contentHash: string) {
 
 export function accChapterStorageKey(projectId: string, contentHash: string) {
   return `export-packets/${projectId}/chapters/${contentHash}.pdf`;
+}
+
+export function appendixStorageKey(projectId: string, contentHash: string, extension: "pdf" | "csv") {
+  return `export-packets/${projectId}/appendices/${contentHash}.${extension}`;
 }
 
 export function packetFromStored(stored: { contentHash: string; payload: Uint8Array; createdAt: Date }): ApprovedChangePacket {
@@ -151,7 +173,8 @@ function isCanonicalPacket(value: unknown): value is ExportPacketCanonical {
     && packet.note === APPROVED_CHANGE_PACKET_NOTE
     && Array.isArray(packet.decisionIds)
     && Array.isArray(packet.changes)
-    && (packet.chapters === undefined || (Array.isArray(packet.chapters) && packet.chapters.every(isChapter)));
+    && (packet.chapters === undefined || (Array.isArray(packet.chapters) && packet.chapters.every(isChapter)))
+    && (packet.appendices === undefined || (Array.isArray(packet.appendices) && packet.appendices.every(isAppendix)));
 }
 
 function isChapter(value: unknown): value is ExportPacketChapter {
@@ -174,6 +197,28 @@ function isChapter(value: unknown): value is ExportPacketChapter {
     && chapter.byteSize >= 0;
 }
 
+function isAppendix(value: unknown): value is ExportPacketAppendix {
+  if (!value || typeof value !== "object") return false;
+  const appendix = value as Partial<ExportPacketAppendix>;
+  return appendix.role === BLUEBEAM_APPENDIX_ROLE
+    && appendix.title === BLUEBEAM_MARKUP_APPENDIX_TITLE
+    && typeof appendix.sourceId === "string"
+    && appendix.sourceId.length > 0
+    && typeof appendix.fetchedAt === "string"
+    && typeof appendix.contentHash === "string"
+    && /^[a-f0-9]{64}$/.test(appendix.contentHash)
+    && typeof appendix.storageKey === "string"
+    && appendix.storageKey.length > 0
+    && typeof appendix.filename === "string"
+    && appendix.filename.length > 0
+    && typeof appendix.byteSize === "number"
+    && Number.isInteger(appendix.byteSize)
+    && appendix.byteSize >= 0
+    && Array.isArray(appendix.pageCites)
+    && appendix.pageCites.length > 0
+    && appendix.pageCites.every((cite) => typeof cite === "string" && cite.length > 0 && cite.length <= 80 && cite.trim() === cite);
+}
+
 function canonicalChapter(chapter: ExportPacketChapter): ExportPacketChapter {
   return {
     role: chapter.role,
@@ -187,15 +232,31 @@ function canonicalChapter(chapter: ExportPacketChapter): ExportPacketChapter {
   };
 }
 
+function canonicalAppendix(appendix: ExportPacketAppendix): ExportPacketAppendix {
+  return {
+    role: BLUEBEAM_APPENDIX_ROLE,
+    title: BLUEBEAM_MARKUP_APPENDIX_TITLE,
+    sourceId: appendix.sourceId,
+    fetchedAt: appendix.fetchedAt,
+    contentHash: appendix.contentHash,
+    storageKey: appendix.storageKey,
+    filename: appendix.filename,
+    byteSize: appendix.byteSize,
+    pageCites: [...appendix.pageCites],
+  };
+}
+
 export function buildApprovedChangePacket(input: {
   projectId: string;
   findings: readonly ProjectFinding[];
   revisions: readonly ProjectRevisionContext[];
   subjectKey?: string;
   chapters?: readonly ExportPacketChapter[];
+  appendices?: readonly ExportPacketAppendix[];
 }): ExportPacketCanonical {
   const changes = selectApprovedFindings(input.findings, input.subjectKey).map((finding) => toPacketItem(finding, input.revisions));
   const chapters = canonicalChapters(input.chapters ?? []);
+  const appendices = canonicalAppendices(input.appendices ?? []);
   return {
     kind: APPROVED_CHANGE_PACKET_KIND,
     version: APPROVED_CHANGE_PACKET_VERSION,
@@ -204,11 +265,12 @@ export function buildApprovedChangePacket(input: {
     decisionIds: changes.map((change) => change.decisionId),
     changes,
     ...(chapters.length > 0 ? { chapters } : {}),
+    ...(appendices.length > 0 ? { appendices } : {}),
   };
 }
 
 export function packetChapterFromStored(row: {
-  role: AccChapterRole;
+  role: string;
   title: string;
   sourceId: string;
   fetchedAt: Date;
@@ -217,12 +279,13 @@ export function packetChapterFromStored(row: {
   filename: string;
   byteSize: number;
 }): ExportPacketChapter {
-  const title = row.role === "rfi" ? RFI_PDF_CHAPTER_TITLE : ACC_EXPORT_CHAPTER_TITLE;
-  if (row.title !== title || !/^[a-f0-9]{64}$/.test(row.contentHash) || !row.sourceId) {
+  const role: AccChapterRole | null = row.role === "rfi" || row.role === "acc-docs" ? row.role : null;
+  const title = role === "rfi" ? RFI_PDF_CHAPTER_TITLE : role === "acc-docs" ? ACC_EXPORT_CHAPTER_TITLE : null;
+  if (!role || title === null || row.title !== title || !/^[a-f0-9]{64}$/.test(row.contentHash) || !row.sourceId) {
     throw new DomainError("MALFORMED_OUTPUT", "Stored pack chapter could not be read.", 500);
   }
   return canonicalChapter({
-    role: row.role,
+    role,
     title,
     sourceId: row.sourceId,
     fetchedAt: row.fetchedAt.toISOString(),
@@ -233,12 +296,50 @@ export function packetChapterFromStored(row: {
   });
 }
 
+export function packetAppendixFromStored(row: {
+  role: string;
+  title: string;
+  sourceId: string;
+  fetchedAt: Date;
+  contentHash: string;
+  storageKey: string;
+  filename: string;
+  byteSize: number;
+  pageCites: readonly string[];
+}): ExportPacketAppendix {
+  const appendix = canonicalAppendix({
+    role: BLUEBEAM_APPENDIX_ROLE,
+    title: BLUEBEAM_MARKUP_APPENDIX_TITLE,
+    sourceId: row.sourceId,
+    fetchedAt: row.fetchedAt.toISOString(),
+    contentHash: row.contentHash,
+    storageKey: row.storageKey,
+    filename: row.filename,
+    byteSize: row.byteSize,
+    pageCites: [...row.pageCites],
+  });
+  if (row.role !== BLUEBEAM_APPENDIX_ROLE || row.title !== BLUEBEAM_MARKUP_APPENDIX_TITLE || !isAppendix(appendix)) {
+    throw new DomainError("MALFORMED_OUTPUT", "Stored pack appendix could not be read.", 500);
+  }
+  return appendix;
+}
+
 function canonicalChapters(chapters: readonly ExportPacketChapter[]) {
   return [...chapters]
     .map(canonicalChapter)
     .sort((left, right) => (
       left.role.localeCompare(right.role)
       || left.sourceId.localeCompare(right.sourceId)
+      || left.contentHash.localeCompare(right.contentHash)
+      || left.fetchedAt.localeCompare(right.fetchedAt)
+    ));
+}
+
+function canonicalAppendices(appendices: readonly ExportPacketAppendix[]) {
+  return [...appendices]
+    .map(canonicalAppendix)
+    .sort((left, right) => (
+      left.sourceId.localeCompare(right.sourceId)
       || left.contentHash.localeCompare(right.contentHash)
       || left.fetchedAt.localeCompare(right.fetchedAt)
     ));

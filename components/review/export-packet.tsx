@@ -11,12 +11,23 @@ import {
   ACC_CHAPTER_SOURCE_LABEL,
   ACC_EXPORT_CHAPTER_TITLE,
   ADD_ACC_EXPORT_LABEL,
+  ADD_PACK_APPENDIX_LABEL,
+  BLUEBEAM_APPENDIX_ROLE,
+  BLUEBEAM_MARKUP_APPENDIX_TITLE,
+  CONTENT_SHA256_LABEL,
+  PACK_APPENDIX_ADDED_MESSAGE,
+  PACK_APPENDIX_FILE_LABEL,
+  PACK_APPENDIX_SOURCE_LABEL,
   RFI_PDF_CHAPTER_TITLE,
   accChapterAttachVisible,
+  deskPackFiles,
   exportPacketAction,
+  shortContentSha256,
   subjectExportVisible,
+  visiblePackProof,
   visiblePacketChanges,
   type ApprovedChangePreview,
+  type DeskPackFile,
 } from "@/lib/review/exportPacketView";
 
 export function ExportPacketControl({
@@ -24,11 +35,15 @@ export function ExportPacketControl({
   changes,
   actorId = "",
   openCount = 0,
+  chapters = [],
+  appendices = [],
 }: {
   projectId: string;
   changes: readonly ApprovedChangePreview[];
   actorId?: string;
   openCount?: number;
+  chapters?: readonly DeskPackFile[];
+  appendices?: readonly DeskPackFile[];
 }) {
   const approved = visiblePacketChanges(changes).filter((change) => subjectExportVisible(change.decision));
   const action = exportPacketAction(approved.length, projectId, openCount);
@@ -43,14 +58,16 @@ export function ExportPacketControl({
         </Button>
         {draftEmailVisible(approved.length) && <DraftEmailButton projectId={projectId} actorId={actorId} />}
       </div>
-      <AccChapterForm projectId={projectId} />
+      <AccChapterForm projectId={projectId} initialFiles={chapters} />
+      <MarkupAppendixForm projectId={projectId} initialFiles={appendices} />
     </div>
   );
 }
 
-function AccChapterForm({ projectId }: { projectId: string }) {
+function AccChapterForm({ projectId, initialFiles }: { projectId: string; initialFiles: readonly DeskPackFile[] }) {
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
+  const [files, setFiles] = useState(() => visiblePackProof(initialFiles));
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -62,11 +79,13 @@ function AccChapterForm({ projectId }: { projectId: string }) {
         method: "POST",
         body: new FormData(form),
       });
-      const result = await response.json() as { error?: { message?: string } };
-      if (!response.ok) {
+      const result = await response.json() as { packet?: { chapters?: DeskPackFile[] }; error?: { message?: string } };
+      const proof = visiblePackProof(deskPackFiles(result.packet?.chapters));
+      if (!response.ok || proof.length === 0) {
         setMessage(result.error?.message ?? "Could not add the pack chapter.");
         return;
       }
+      setFiles(proof);
       setMessage(ACC_CHAPTER_ADDED_MESSAGE);
       form.reset();
     } catch {
@@ -77,7 +96,7 @@ function AccChapterForm({ projectId }: { projectId: string }) {
   }
 
   return (
-    <form className="packet-chapter" onSubmit={onSubmit}>
+    <form className="packet-chapter" aria-label="Pack chapter" onSubmit={onSubmit}>
       <label className="packet-chapter-label" htmlFor={`acc-chapter-file-${projectId}`}>
         {ACC_CHAPTER_FILE_LABEL}
         <input id={`acc-chapter-file-${projectId}`} className="field" name="file" type="file" accept="application/pdf,.pdf" required />
@@ -94,7 +113,81 @@ function AccChapterForm({ projectId }: { projectId: string }) {
         </select>
       </label>
       <Button type="submit" variant="outline" disabled={pending}>{ADD_ACC_EXPORT_LABEL}</Button>
+      <PackProofList files={files} />
       {message ? <p className="packet-blocked">{message}</p> : null}
     </form>
+  );
+}
+
+function MarkupAppendixForm({ projectId, initialFiles }: { projectId: string; initialFiles: readonly DeskPackFile[] }) {
+  const [message, setMessage] = useState("");
+  const [pending, setPending] = useState(false);
+  const [files, setFiles] = useState(() => visiblePackProof(initialFiles));
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    setPending(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/projects/${projectId}/export/appendices`, {
+        method: "POST",
+        body: new FormData(form),
+      });
+      const result = await response.json() as { packet?: { appendices?: DeskPackFile[] }; error?: { message?: string } };
+      const proof = visiblePackProof(deskPackFiles(result.packet?.appendices));
+      if (!response.ok || proof.length === 0) {
+        setMessage(result.error?.message ?? "Could not add the pack appendix.");
+        return;
+      }
+      setFiles(proof);
+      setMessage(PACK_APPENDIX_ADDED_MESSAGE);
+      form.reset();
+    } catch {
+      setMessage("Could not add the pack appendix.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <form className="packet-chapter" aria-label="Pack appendix" onSubmit={onSubmit}>
+      <label className="packet-chapter-label" htmlFor={`appendix-file-${projectId}`}>
+        {PACK_APPENDIX_FILE_LABEL}
+        <input id={`appendix-file-${projectId}`} className="field" name="file" type="file" accept="application/pdf,.pdf,text/csv,.csv" required />
+      </label>
+      <label className="packet-chapter-label" htmlFor={`appendix-source-${projectId}`}>
+        {PACK_APPENDIX_SOURCE_LABEL}
+        <input id={`appendix-source-${projectId}`} className="field" name="sourceId" maxLength={200} />
+      </label>
+      <label className="packet-chapter-label" htmlFor={`appendix-kind-${projectId}`}>
+        {BLUEBEAM_MARKUP_APPENDIX_TITLE}
+        <select id={`appendix-kind-${projectId}`} className="field" name="kind" defaultValue={BLUEBEAM_APPENDIX_ROLE}>
+          <option value={BLUEBEAM_APPENDIX_ROLE}>{BLUEBEAM_MARKUP_APPENDIX_TITLE}</option>
+        </select>
+      </label>
+      <Button type="submit" variant="outline" disabled={pending}>{ADD_PACK_APPENDIX_LABEL}</Button>
+      <PackProofList files={files} />
+      {message ? <p className="packet-blocked">{message}</p> : null}
+    </form>
+  );
+}
+
+function PackProofList({ files }: { files: readonly DeskPackFile[] }) {
+  if (files.length === 0) return null;
+  return (
+    <ul className="packet-proof">
+      {files.map((file) => (
+        <li key={`${file.sourceId}:${file.contentHash}`}>
+          <span className="packet-summary">{file.title}</span>
+          <span className="row-meta">{file.sourceId}</span>
+          <time className="row-meta" dateTime={file.fetchedAt}>{file.fetchedAt}</time>
+          <span className="page-chip">{CONTENT_SHA256_LABEL} {shortContentSha256(file.contentHash)}</span>
+          {file.pageCites.map((page) => (
+            <span className="page-chip" key={`${file.contentHash}:${page}`}>p. {page}</span>
+          ))}
+        </li>
+      ))}
+    </ul>
   );
 }

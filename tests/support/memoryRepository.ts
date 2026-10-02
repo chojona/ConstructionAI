@@ -381,10 +381,12 @@ export class MemoryRepository implements ConstructionRepository {
     if (linked.some((decision) => decision?.decision !== "ACCEPTED")) {
       throw new DomainError("INVALID_INPUT", "Only an approved change can be exported.", 400);
     }
+    const pageCites = pageCitesFor(input);
     const existing = this.exportPacketChapters.find((chapter) => (
       chapter.projectId === input.projectId
       && chapter.contentHash === input.contentHash
       && chapter.sourceId === input.sourceId
+      && chapter.role === input.role
     ));
     if (existing) {
       const sameLinks = existing.reviewDecisionIds.length === input.reviewDecisionIds.length
@@ -403,6 +405,7 @@ export class MemoryRepository implements ConstructionRepository {
       storageKey: input.storageKey,
       filename: input.filename,
       byteSize: input.byteSize,
+      pageCites,
       reviewDecisionIds: [...input.reviewDecisionIds],
     };
     this.exportPacketChapters.push(stored);
@@ -524,7 +527,21 @@ function copyExportPacket(packet: StoredExportPacket): StoredExportPacket {
 }
 
 function copyExportPacketChapter(chapter: StoredExportPacketChapter): StoredExportPacketChapter {
-  return { ...chapter, fetchedAt: new Date(chapter.fetchedAt), reviewDecisionIds: [...chapter.reviewDecisionIds] };
+  return {
+    ...chapter,
+    fetchedAt: new Date(chapter.fetchedAt),
+    pageCites: [...chapter.pageCites],
+    reviewDecisionIds: [...chapter.reviewDecisionIds],
+  };
+}
+
+function pageCitesFor(input: SaveExportPacketChapterInput) {
+  const cites = [...(input.pageCites ?? [])];
+  if (input.role !== "bluebeam-markup") return [];
+  if (cites.length === 0 || cites.some((cite) => cite.length === 0 || cite.length > 80 || cite.trim() !== cite)) {
+    throw new DomainError("INVALID_INPUT", "The markup summary needs a page cite.", 400);
+  }
+  return cites;
 }
 
 function copyEmailSend(email: EmailSendRecord): EmailSendRecord {

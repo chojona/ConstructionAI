@@ -10,6 +10,7 @@ import {
   buildApprovedChangePacket,
   canonicalPacketBytes,
   exportPacketStorageKey,
+  packetAppendixFromStored,
   packetChapterFromStored,
   packetContentHash,
   packetFromStored,
@@ -201,7 +202,7 @@ const exportQuerySchema = z.object({
 export async function currentApprovedChangePacket(
   organizationId: string,
   projectId: string,
-  repository: ConstructionRepository,
+  repository: ConstructionRepository = constructionRepository,
   subjectKey?: string,
 ) {
   const { source, decisions } = await load(organizationId, projectId, repository);
@@ -215,12 +216,15 @@ export async function currentApprovedChangePacket(
   const storedChapters = await repository.listExportPacketChapters(organizationId, projectId, base.decisionIds);
   if (!storedChapters) throw new DomainError("NOT_FOUND", "Project not found.", 404);
   if (storedChapters.length === 0) return base;
+  const chapters = storedChapters.filter((row) => row.role === "acc-docs" || row.role === "rfi");
+  const appendices = storedChapters.filter((row) => row.role === "bluebeam-markup");
   return buildApprovedChangePacket({
     projectId,
     findings,
     revisions: source.revisions,
     subjectKey,
-    chapters: storedChapters.map(packetChapterFromStored),
+    chapters: chapters.map(packetChapterFromStored),
+    appendices: appendices.map(packetAppendixFromStored),
   });
 }
 

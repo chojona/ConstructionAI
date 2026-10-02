@@ -38,6 +38,15 @@ export interface EmailAttachmentPreview {
   evidence: Array<{ pageNumber: number; excerpt: string }>;
 }
 
+export interface EmailAppendixPreview {
+  title: string;
+  filename: string;
+  sourceId: string;
+  fetchedAt: string;
+  contentHash: string;
+  pageCites: string[];
+}
+
 export interface EmailSendView {
   id: string;
   status: "DRAFT" | "SENT";
@@ -60,6 +69,7 @@ export interface EmailDraftReady {
   subject: string;
   body: string;
   attachments: EmailAttachmentPreview[];
+  appendices: EmailAppendixPreview[];
   draft: EmailSendView | null;
 }
 

@@ -9,7 +9,7 @@ import { ExportPacketControl } from "@/components/review/export-packet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { AttentionItemDto, FindingDto } from "@/lib/review/dto";
-import type { ApprovedChangePreview } from "@/lib/review/exportPacketView";
+import type { ApprovedChangePreview, DeskPackFile } from "@/lib/review/exportPacketView";
 import { changeEvidenceLead, changePageChip, changeRowTitle, type DecidedRowChrome } from "@/lib/review/changeRow";
 import { decisionReturnPath, findingDomId } from "@/lib/review/evidenceLocation";
 import { defaultDeskKey } from "@/lib/review/factList";
@@ -32,6 +32,8 @@ export function ChangeReview({
   approved = [],
   decided = [],
   notes = [],
+  chapters = [],
+  appendices = [],
 }: {
   projectId: string;
   items: AttentionItemDto[];
@@ -39,6 +41,8 @@ export function ChangeReview({
   approved?: readonly ApprovedChangePreview[];
   decided?: readonly DecidedRowChrome[];
   notes?: readonly { key: string; text: string }[];
+  chapters?: readonly DeskPackFile[];
+  appendices?: readonly DeskPackFile[];
 }) {
   const router = useRouter();
   const [selectedKey, setSelectedKey] = useState("");
@@ -127,7 +131,7 @@ export function ChangeReview({
   return (
     <div className="change-desk">
       <div className="change-list-pane">
-        <ExportPacketControl projectId={projectId} changes={approved} actorId={reviewerId} openCount={items.length} />
+        <ExportPacketControl projectId={projectId} changes={approved} actorId={reviewerId} openCount={items.length} chapters={chapters} appendices={appendices} />
         {(decided.length > 0 || notes.length > 0) && (
           <>
             {decided.length > 0 && (

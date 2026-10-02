@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CONTENT_SHA256_LABEL, shortContentSha256 } from "@/lib/review/exportPacketView";
 import {
   ACTOR_REQUIRED,
   APPROVED_CHIP,
@@ -185,6 +186,19 @@ function DraftEmailPanel({
                       <span className="page-chip">{APPROVED_CHIP}</span>
                       {item.evidence.map((evidence) => (
                         <span className="page-chip" key={`${item.decisionId}:${evidence.pageNumber}:${evidence.excerpt}`} title={evidence.excerpt}>p. {evidence.pageNumber}</span>
+                      ))}
+                    </span>
+                  </li>
+                ))}
+                {source.appendices.map((item) => (
+                  <li key={`${item.sourceId}:${item.contentHash}`}>
+                    <span className="packet-summary">{item.title}</span>
+                    <span className="row-meta">{item.sourceId}</span>
+                    <time className="row-meta" dateTime={item.fetchedAt}>{item.fetchedAt}</time>
+                    <span className="page-chip">{CONTENT_SHA256_LABEL} {shortContentSha256(item.contentHash)}</span>
+                    <span className="packet-chips">
+                      {item.pageCites.map((page) => (
+                        <span className="page-chip" key={`${item.sourceId}:${page}`}>p. {page}</span>
                       ))}
                     </span>
                   </li>
