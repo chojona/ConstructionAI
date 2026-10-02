@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import type { S3Client } from "@aws-sdk/client-s3";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -81,6 +81,55 @@ describe("object storage", () => {
     });
   });
 
+  it("uses Neon S3 settings from the production environment names", () => {
+    const config = readObjectStorageConfig({
+      DOCUMENT_STORAGE_BUCKET: "uploads",
+      AWS_ACCESS_KEY_ID: "neon-key",
+      AWS_SECRET_ACCESS_KEY: "neon-secret",
+      AWS_REGION: "us-east-1",
+      AWS_ENDPOINT_URL_S3: "https://storage.neon.tech",
+    });
+    expect(config).toMatchObject({
+      bucket: "uploads",
+      region: "us-east-1",
+      endpoint: "https://storage.neon.tech",
+      forcePathStyle: true,
+      accessKeyId: "neon-key",
+      secretAccessKey: "neon-secret",
+    });
+    expect(createObjectStore({
+      DOCUMENT_STORAGE_BUCKET: "uploads",
+      AWS_ACCESS_KEY_ID: "neon-key",
+      AWS_SECRET_ACCESS_KEY: "neon-secret",
+      AWS_ENDPOINT_URL_S3: "https://storage.neon.tech",
+      VERCEL: "1",
+    }).mode).toBe("s3");
+    expect(createObjectStore({ AWS_ACCESS_KEY_ID: "unrelated", AWS_SECRET_ACCESS_KEY: "unrelated" }, "/tmp/packs").mode).toBe("local");
+  });
+
+  it("prefers explicit object-storage settings over the Neon aliases", () => {
+    expect(readObjectStorageConfig({
+      OBJECT_STORAGE_BUCKET: "packs",
+      DOCUMENT_STORAGE_BUCKET: "uploads",
+      OBJECT_STORAGE_ACCESS_KEY_ID: "object-key",
+      AWS_ACCESS_KEY_ID: "neon-key",
+      OBJECT_STORAGE_SECRET_ACCESS_KEY: "object-secret",
+      AWS_SECRET_ACCESS_KEY: "neon-secret",
+      OBJECT_STORAGE_ENDPOINT: "https://object.example",
+      AWS_ENDPOINT_URL_S3: "https://storage.neon.tech",
+      OBJECT_STORAGE_REGION: "auto",
+      AWS_REGION: "us-east-1",
+      OBJECT_STORAGE_FORCE_PATH_STYLE: "false",
+    })).toMatchObject({
+      bucket: "packs",
+      accessKeyId: "object-key",
+      secretAccessKey: "object-secret",
+      endpoint: "https://object.example",
+      region: "auto",
+      forcePathStyle: false,
+    });
+  });
+
   it("builds an S3 store when bucket credentials are set", () => {
     const config = readObjectStorageConfig({
       OBJECT_STORAGE_BUCKET: "packs",
@@ -118,6 +167,10 @@ describe("object storage", () => {
           objects.set(key, { bytes: body, hash: command.input.Metadata?.["content-sha256"] });
           return {};
         }
+        if (command instanceof DeleteObjectCommand) {
+          objects.delete(key);
+          return {};
+        }
         const found = objects.get(key);
         if (!found) throw Object.assign(new Error("missing"), { name: "NoSuchKey", $metadata: { httpStatusCode: 404 } });
         return { Body: { transformToByteArray: async () => new Uint8Array(found.bytes) } };
@@ -136,12 +189,57 @@ describe("object storage", () => {
     await expect(store.put("export-packets/project/abc.json", Buffer.from("other"))).rejects.toBeInstanceOf(StorageImmutableError);
     expect(await store.exists("export-packets/project/abc.json")).toBe(true);
     expect(await store.exists("export-packets/missing.json")).toBe(false);
+    await store.delete("export-packets/project/abc.json");
+    expect(await store.exists("export-packets/project/abc.json")).toBe(false);
+  });
+
+  it("hides object-storage request failures", async () => {
+    const client = {
+      async send() {
+        throw Object.assign(new Error("signature neon-secret-value rejected"), {
+          name: "UnknownError",
+          $metadata: { httpStatusCode: 500 },
+        });
+      },
+    } as unknown as S3Client;
+    const store = new S3ObjectStore({
+      bucket: "uploads",
+      region: "us-east-1",
+      endpoint: "https://storage.neon.tech",
+      forcePathStyle: true,
+      accessKeyId: "neon-key",
+      secretAccessKey: "neon-secret-value",
+    }, client);
+    await expect(store.put("doc_123/file.pdf", Buffer.from("pdf"))).rejects.toMatchObject({
+      name: "StorageRequestError",
+      message: "Object storage request failed.",
+    });
+    await expect(store.get("doc_123/file.pdf")).rejects.toMatchObject({ name: "StorageRequestError" });
+    await expect(store.delete("doc_123/file.pdf")).rejects.toMatchObject({ name: "StorageRequestError" });
+  });
+
+  it("signs a private read without placing the secret in the URL", async () => {
+    const store = new S3ObjectStore({
+      bucket: "uploads",
+      region: "us-east-1",
+      endpoint: "https://storage.neon.tech",
+      forcePathStyle: true,
+      accessKeyId: "neon-key",
+      secretAccessKey: "neon-secret-value",
+    });
+    const url = await store.signedReadUrl("doc_123/file.pdf", 60);
+    expect(url).toContain("uploads");
+    expect(url).toContain("doc_123/file.pdf");
+    expect(url).toContain("X-Amz-Expires=60");
+    expect(url).not.toContain("neon-secret-value");
+    await expect(store.signedReadUrl("doc_123/file.pdf", 3600)).resolves.toContain("X-Amz-Expires=3600");
+    await expect(store.signedReadUrl("doc_123/file.pdf", 3601)).rejects.toThrow(/1 and 3600/);
   });
 
   it("keeps hashing and object storage off the client components", () => {
     const client = ["components/review/draft-email.tsx", "components/review/export-packet.tsx"]
       .map((file) => readFileSync(file, "utf8"))
       .join("\n");
-    expect(client).not.toMatch(/node:crypto|@\/lib\/storage\/objectStore|@aws-sdk\/client-s3/);
+    expect(client).not.toMatch(/node:crypto|@\/lib\/storage\/objectStore|@aws-sdk\/client-s3|@aws-sdk\/s3-request-presigner/);
   });
 });

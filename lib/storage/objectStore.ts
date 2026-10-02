@@ -8,6 +8,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { DomainError } from "@/lib/domain/errors";
 import { resolveStoragePath } from "./storageKey";
 
@@ -33,6 +34,14 @@ export class StorageImmutableError extends Error {
   }
 }
 
+export class StorageRequestError extends Error {
+  constructor(cause?: unknown) {
+    super("Object storage request failed.");
+    this.name = "StorageRequestError";
+    if (cause !== undefined) this.cause = cause;
+  }
+}
+
 export class ObjectStorageConfigError extends Error {
   constructor(message: string) {
     super(message);
@@ -49,7 +58,7 @@ export interface ObjectStorageS3Config {
   secretAccessKey: string;
 }
 
-const CREDENTIALS_MESSAGE = "Set OBJECT_STORAGE_BUCKET, OBJECT_STORAGE_ACCESS_KEY_ID, and OBJECT_STORAGE_SECRET_ACCESS_KEY together.";
+const CREDENTIALS_MESSAGE = "Set OBJECT_STORAGE_BUCKET or DOCUMENT_STORAGE_BUCKET, plus OBJECT_STORAGE_ACCESS_KEY_ID and OBJECT_STORAGE_SECRET_ACCESS_KEY or AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.";
 export const STORAGE_UNAVAILABLE_MESSAGE = "Could not store the pack file. Object storage is not configured.";
 
 export type ObjectStorageEnv = Record<string, string | undefined>;
@@ -66,7 +75,15 @@ export function readObjectStorageConfig(env: ObjectStorageEnv): ObjectStorageS3C
   const endpoint = first(env.OBJECT_STORAGE_ENDPOINT, env.AWS_ENDPOINT_URL_S3);
   const region = first(env.OBJECT_STORAGE_REGION, env.AWS_REGION);
   const forceFlag = trimmed(env.OBJECT_STORAGE_FORCE_PATH_STYLE);
-  if (!bucket && !accessKeyId && !secretAccessKey && !endpoint) return null;
+  const configured = Boolean(
+    trimmed(env.OBJECT_STORAGE_BUCKET)
+    || trimmed(env.DOCUMENT_STORAGE_BUCKET)
+    || trimmed(env.OBJECT_STORAGE_ACCESS_KEY_ID)
+    || trimmed(env.OBJECT_STORAGE_SECRET_ACCESS_KEY)
+    || trimmed(env.OBJECT_STORAGE_ENDPOINT)
+    || trimmed(env.AWS_ENDPOINT_URL_S3),
+  );
+  if (!configured) return null;
   if (!bucket || !accessKeyId || !secretAccessKey) throw new ObjectStorageConfigError(CREDENTIALS_MESSAGE);
   return {
     bucket,
@@ -83,7 +100,7 @@ export function createObjectStore(env: ObjectStorageEnv = process.env, localRoot
   if (!config) {
     if (trimmed(env.VERCEL)) {
       throw new ObjectStorageConfigError(
-        "Set OBJECT_STORAGE_BUCKET, OBJECT_STORAGE_ACCESS_KEY_ID, and OBJECT_STORAGE_SECRET_ACCESS_KEY. The hosted filesystem does not keep approved pack or document bytes.",
+        "Set OBJECT_STORAGE_BUCKET or DOCUMENT_STORAGE_BUCKET with S3 credentials. The hosted filesystem does not keep approved pack or document bytes.",
       );
     }
     return new LocalObjectStore(localRoot);
@@ -172,6 +189,8 @@ export class S3ObjectStore implements ObjectStore {
       region: config.region,
       endpoint: config.endpoint,
       forcePathStyle: config.forcePathStyle,
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      responseChecksumValidation: "WHEN_REQUIRED",
       credentials: {
         accessKeyId: config.accessKeyId,
         secretAccessKey: config.secretAccessKey,
@@ -190,14 +209,18 @@ export class S3ObjectStore implements ObjectStore {
       return;
     } catch (error) {
       if (error instanceof StorageImmutableError) throw error;
-      if (!isMissingObject(error)) throw error;
+      if (!isMissingObject(error)) throw new StorageRequestError(error);
     }
-    await this.client.send(new PutObjectCommand({
-      Bucket: this.bucket,
-      Key: key,
-      Body: bytes,
-      Metadata: { "content-sha256": hash },
-    }));
+    try {
+      await this.client.send(new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: bytes,
+        Metadata: { "content-sha256": hash },
+      }));
+    } catch (error) {
+      throw new StorageRequestError(error);
+    }
   }
 
   async get(storageKey: string) {
@@ -208,12 +231,16 @@ export class S3ObjectStore implements ObjectStore {
     } catch (error) {
       if (error instanceof StorageObjectMissingError) throw error;
       if (isMissingObject(error)) throw new StorageObjectMissingError(storageKey);
-      throw error;
+      throw new StorageRequestError(error);
     }
   }
 
   async delete(storageKey: string) {
-    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: objectKey(storageKey) }));
+    try {
+      await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: objectKey(storageKey) }));
+    } catch (error) {
+      throw new StorageRequestError(error);
+    }
   }
 
   async exists(storageKey: string) {
@@ -222,7 +249,23 @@ export class S3ObjectStore implements ObjectStore {
       return true;
     } catch (error) {
       if (isMissingObject(error)) return false;
-      throw error;
+      throw new StorageRequestError(error);
+    }
+  }
+
+  async signedReadUrl(storageKey: string, expiresInSeconds = 120) {
+    const expiresIn = expiresInSeconds;
+    if (!Number.isInteger(expiresIn) || expiresIn < 1 || expiresIn > 3600) {
+      throw new ObjectStorageConfigError("Signed read expiry must be between 1 and 3600 seconds.");
+    }
+    try {
+      return await getSignedUrl(
+        this.client,
+        new GetObjectCommand({ Bucket: this.bucket, Key: objectKey(storageKey) }),
+        { expiresIn },
+      );
+    } catch (error) {
+      throw new StorageRequestError(error);
     }
   }
 }
