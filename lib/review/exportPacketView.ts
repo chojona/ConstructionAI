@@ -1,7 +1,7 @@
 export const EXPORT_BLOCKED_MESSAGE = "Approve at least one change to export.";
 export const EXPORT_OPEN_MESSAGE = "Finish open reviews before exporting.";
 export const ADD_ACC_EXPORT_LABEL = "Add pack chapter";
-export const ACC_CHAPTER_FILE_LABEL = "PDF";
+export const ACC_CHAPTER_FILE_LABEL = "File: PDF";
 export const ACC_CHAPTER_SOURCE_LABEL = "Source id";
 export const ACC_CHAPTER_KIND_LABEL = "Pack chapter";
 export const ACC_EXPORT_CHAPTER_TITLE = "ACC export";
@@ -9,11 +9,19 @@ export const RFI_PDF_CHAPTER_TITLE = "RFI PDF";
 export const ACC_CHAPTER_ADDED_MESSAGE = "Pack chapter added.";
 
 export const ADD_PACK_APPENDIX_LABEL = "Add pack appendix";
-export const PACK_APPENDIX_FILE_LABEL = "PDF";
+export const PACK_APPENDIX_FILE_LABEL = "File: PDF";
 export const PACK_APPENDIX_SOURCE_LABEL = "Source id";
 export const PACK_APPENDIX_KIND_LABEL = "Pack appendix";
+/** Stored on approved packs and in object-store metadata. */
 export const BLUEBEAM_MARKUP_APPENDIX_TITLE = "Markup Summary";
+/** PE Desk label (Figma CON-65). */
+export const BLUEBEAM_MARKUP_APPENDIX_LABEL = "Bluebeam Markup Summary";
+export const APPENDIX_ON_ACCEPTED_PACK_ONLY = "Appendix on accepted pack only";
 export const PACK_APPENDIX_ADDED_MESSAGE = "Pack appendix added.";
+
+export const DESK_EMPTY_NO_OPEN_CHANGES = "No open changes";
+export const DESK_EMPTY_NO_SELECTION = "Select a change or fact to view evidence.";
+export const DESK_EMPTY_MISSING_EVIDENCE = "No linked excerpt for this item.";
 export const BLUEBEAM_APPENDIX_ROLE = "bluebeam-markup";
 export const CONTENT_SHA256_LABEL = "sha256";
 export const PACK_PROOF_SOURCE_LABEL = "Source id";
@@ -133,9 +141,17 @@ export function visiblePackProof(files: readonly DeskPackFile[]) {
 }
 
 /** Visible chapter/appendix chrome. A blank source id is already stored as `upload:{sha256}`. */
+export function deskAppendixDisplayTitle(title: string) {
+  const trimmed = title.trim();
+  if (trimmed === BLUEBEAM_MARKUP_APPENDIX_TITLE || trimmed === BLUEBEAM_MARKUP_APPENDIX_LABEL) {
+    return BLUEBEAM_MARKUP_APPENDIX_LABEL;
+  }
+  return trimmed;
+}
+
 export function packProofChrome(file: DeskPackFile) {
   return {
-    title: file.title.trim(),
+    title: deskAppendixDisplayTitle(file.title),
     sourceId: file.sourceId.trim(),
     fetchedAt: file.fetchedAt,
     sha256: shortContentSha256(file.contentHash),

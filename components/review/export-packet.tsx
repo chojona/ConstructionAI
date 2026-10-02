@@ -13,9 +13,10 @@ import {
   ACC_EXPORT_CHAPTER_TITLE,
   ADD_ACC_EXPORT_LABEL,
   ADD_PACK_APPENDIX_LABEL,
+  APPENDIX_ON_ACCEPTED_PACK_ONLY,
   APPENDIX_PAGE_MISSING_MESSAGE,
   BLUEBEAM_APPENDIX_ROLE,
-  BLUEBEAM_MARKUP_APPENDIX_TITLE,
+  BLUEBEAM_MARKUP_APPENDIX_LABEL,
   PACK_APPENDIX_ADDED_MESSAGE,
   PACK_APPENDIX_FILE_LABEL,
   PACK_APPENDIX_SOURCE_LABEL,
@@ -167,6 +168,7 @@ function MarkupAppendixForm({
 
   return (
     <form className="packet-chapter" aria-label="Pack appendix" onSubmit={onSubmit}>
+      <p className="packet-appendix-note">{APPENDIX_ON_ACCEPTED_PACK_ONLY}</p>
       <label className="packet-chapter-label" htmlFor={`appendix-file-${projectId}`}>
         {PACK_APPENDIX_FILE_LABEL}
         <input id={`appendix-file-${projectId}`} className="field" name="file" type="file" accept="application/pdf,.pdf,text/csv,.csv" required />
@@ -176,9 +178,9 @@ function MarkupAppendixForm({
         <input id={`appendix-source-${projectId}`} className="field" name="sourceId" maxLength={200} />
       </label>
       <label className="packet-chapter-label" htmlFor={`appendix-kind-${projectId}`}>
-        {BLUEBEAM_MARKUP_APPENDIX_TITLE}
+        {BLUEBEAM_MARKUP_APPENDIX_LABEL}
         <select id={`appendix-kind-${projectId}`} className="field" name="kind" defaultValue={BLUEBEAM_APPENDIX_ROLE}>
-          <option value={BLUEBEAM_APPENDIX_ROLE}>{BLUEBEAM_MARKUP_APPENDIX_TITLE}</option>
+          <option value={BLUEBEAM_APPENDIX_ROLE}>{BLUEBEAM_MARKUP_APPENDIX_LABEL}</option>
         </select>
       </label>
       {subjectKey && pageCites.length > 0 ? <input type="hidden" name="subjectKey" value={subjectKey} /> : null}

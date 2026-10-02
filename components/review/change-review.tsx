@@ -13,6 +13,7 @@ import { appendixFactBinding, type ApprovedChangePreview, type DeskPackFile } fr
 import { changeEvidenceLead, changePageChip, changeRowTitle, type DecidedRowChrome } from "@/lib/review/changeRow";
 import { decisionReturnPath, findingDomId } from "@/lib/review/evidenceLocation";
 import { defaultDeskKey } from "@/lib/review/factList";
+import { DESK_EMPTY_MISSING_EVIDENCE, DESK_EMPTY_NO_SELECTION } from "@/lib/review/exportPacketView";
 
 const reviewerStorageKey = "construction-ai.reviewer-name";
 
@@ -191,7 +192,7 @@ export function ChangeReview({
                   <h5>{side.title}</h5>
                   {side.value.evidence.length
                     ? <EvidenceQuotes items={side.value.evidence} returnTo={decisionReturnPath(projectId, selected.subjectKey)} />
-                    : <p className="row-meta">No linked excerpt available.</p>}
+                    : <p className="rail-empty rail-empty-inline">{DESK_EMPTY_MISSING_EVIDENCE}</p>}
                 </section>
               ))}
             </div>
@@ -210,7 +211,7 @@ export function ChangeReview({
               </div>
             </form>
           </>
-        ) : selectedDecided ? <DecisionEvidence row={selectedDecided} /> : <p className="rail-empty">Evidence opens here.</p>}
+        ) : selectedDecided ? <DecisionEvidence row={selectedDecided} /> : <p className="rail-empty">{DESK_EMPTY_NO_SELECTION}</p>}
       </aside>
     </div>
   );

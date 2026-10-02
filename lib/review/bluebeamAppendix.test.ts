@@ -15,6 +15,7 @@ import { attachBluebeamMarkupAppendix, markupSummaryPageCites } from "./bluebeam
 import { canonicalPacketBytes, packetContentHash } from "./exportPacket";
 import {
   ADD_PACK_APPENDIX_LABEL,
+  BLUEBEAM_MARKUP_APPENDIX_LABEL,
   BLUEBEAM_MARKUP_APPENDIX_TITLE,
   APPENDIX_PAGE_MISSING_MESSAGE,
   appendixFactBinding,
@@ -42,9 +43,10 @@ afterEach(async () => {
 
 describe("Bluebeam markup summary appendix", () => {
   it("uses the locked desk copy", () => {
-    expect(PACK_APPENDIX_FILE_LABEL).toBe("PDF");
+    expect(PACK_APPENDIX_FILE_LABEL).toBe("File: PDF");
     expect(ADD_PACK_APPENDIX_LABEL).toBe("Add pack appendix");
     expect(BLUEBEAM_MARKUP_APPENDIX_TITLE).toBe("Markup Summary");
+    expect(BLUEBEAM_MARKUP_APPENDIX_LABEL).toBe("Bluebeam Markup Summary");
     expect(PACK_APPENDIX_ADDED_MESSAGE).toBe("Pack appendix added.");
     expect(shortContentSha256(`${"ab".repeat(32)}`)).toBe("abababababab");
     const proved = visiblePackProof([{
@@ -73,10 +75,10 @@ describe("Bluebeam markup summary appendix", () => {
     const copySource = `${view}\n${readFileSync("lib/review/exportPacketView.ts", "utf8")}\n${readFileSync("lib/review/bluebeamAppendix.ts", "utf8")}`;
     expect(view).toContain("ADD_PACK_APPENDIX_LABEL");
     expect(view).toContain("PACK_APPENDIX_FILE_LABEL");
-    expect(view).toContain("BLUEBEAM_MARKUP_APPENDIX_TITLE");
+    expect(view).toContain("BLUEBEAM_MARKUP_APPENDIX_LABEL");
     expect(copySource).toContain(ADD_PACK_APPENDIX_LABEL);
     expect(copySource).toContain(PACK_APPENDIX_FILE_LABEL);
-    expect(copySource).toContain(BLUEBEAM_MARKUP_APPENDIX_TITLE);
+    expect(copySource).toContain(BLUEBEAM_MARKUP_APPENDIX_LABEL);
     expect(view).not.toContain("Add pack chapter appendix");
     expect(view).not.toMatch(/Add pack appendix[\s\S]*Add pack chapter|name="kind"[^>]*>\s*<option[^>]*>\s*Pack chapter/);
     expect(copySource).not.toMatch(BANNED_COPY);
@@ -235,7 +237,7 @@ describe("Bluebeam markup summary appendix", () => {
       contentHash: appendix.contentHash,
       pageCites: appendix.pageCites,
     })).toEqual({
-      title: "Markup Summary",
+      title: "Bluebeam Markup Summary",
       sourceId: `upload:${contentHash}`,
       fetchedAt: "2026-10-02T04:30:00.000Z",
       sha256: contentHash.slice(0, 12),

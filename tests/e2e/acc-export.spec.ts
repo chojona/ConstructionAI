@@ -26,7 +26,7 @@ test("attaches a PDF on an approved pack", async ({ page, request }) => {
   await page.goto(`/projects/${projectId}?view=changes`);
   const bytes = Buffer.from("%PDF-1.4\nACC RFI fixture\n%%EOF");
   const chapter = page.getByRole("form", { name: "Pack chapter" });
-  await chapter.getByRole("button", { name: "PDF", exact: true }).setInputFiles({ name: "rfi-42.pdf", mimeType: "application/pdf", buffer: bytes });
+  await chapter.getByRole("button", { name: "File: PDF", exact: true }).setInputFiles({ name: "rfi-42.pdf", mimeType: "application/pdf", buffer: bytes });
   await chapter.getByLabel("Source id").fill("ACC:RFI:42");
   await chapter.getByRole("button", { name: "Add pack chapter" }).click();
   await expect(page.getByText("Pack chapter added.")).toBeVisible();
@@ -53,15 +53,15 @@ test("attaches a markup summary on an approved pack", async ({ page, request }) 
   await page.goto(`/projects/${projectId}?view=changes`);
   const bytes = buildTextPdf(["Markup Summary", "Page: 2", "Page: 14"]);
   const appendix = page.getByRole("form", { name: "Pack appendix" });
-  await expect(appendix.getByLabel("PDF")).toBeVisible();
+  await expect(appendix.getByLabel("File: PDF")).toBeVisible();
   await expect(appendix.getByRole("button", { name: "Add pack appendix" })).toBeVisible();
-  await expect(appendix.getByLabel("Markup Summary")).toBeVisible();
-  await appendix.getByLabel("PDF").setInputFiles({ name: "markup-summary.pdf", mimeType: "application/pdf", buffer: bytes });
+  await expect(appendix.getByLabel("Bluebeam Markup Summary")).toBeVisible();
+  await appendix.getByLabel("File: PDF").setInputFiles({ name: "markup-summary.pdf", mimeType: "application/pdf", buffer: bytes });
   await appendix.getByLabel("Source id").fill("bb-summary-17");
   await appendix.getByRole("button", { name: "Add pack appendix" }).click();
   await expect(page.getByText("Pack appendix added.")).toBeVisible();
   const proof = appendix.locator(".packet-proof");
-  await expect(proof.getByText("Markup Summary")).toBeVisible();
+  await expect(proof.getByText("Bluebeam Markup Summary")).toBeVisible();
   await expect(proof.getByText("bb-summary-17")).toBeVisible();
   await expect(proof.getByText("Source id")).toBeVisible();
   await expect(proof.locator("time")).toHaveAttribute("datetime", /^\d{4}-\d{2}-\d{2}T/);
@@ -89,7 +89,7 @@ test("binds the accepted fact page when the markup file has no page cite", async
   const appendix = page.getByRole("form", { name: "Pack appendix" });
   await expect(appendix.locator(".packet-chips").getByText("p. 1", { exact: true })).toBeVisible();
   await expect(appendix.getByRole("textbox", { name: "Page" })).toHaveCount(0);
-  await appendix.getByLabel("PDF").setInputFiles({
+  await appendix.getByLabel("File: PDF").setInputFiles({
     name: "markup-summary.pdf",
     mimeType: "application/pdf",
     buffer: buildTextPdf(["Markup Summary", "No pages listed"]),
@@ -120,7 +120,7 @@ test("blank source id shows the upload marker on chapter and appendix proof", as
   await expect(chapterRow.getByText(/^[a-f0-9]{12}$/)).toBeVisible();
 
   const appendix = page.getByRole("form", { name: "Pack appendix" });
-  await appendix.getByLabel("PDF").setInputFiles({
+  await appendix.getByLabel("File: PDF").setInputFiles({
     name: "blank-markup.pdf",
     mimeType: "application/pdf",
     buffer: buildTextPdf(["Markup Summary", "Page: 2"]),
@@ -128,7 +128,7 @@ test("blank source id shows the upload marker on chapter and appendix proof", as
   await appendix.getByRole("button", { name: "Add pack appendix" }).click();
   const appendixProof = appendix.locator(".packet-proof");
   const appendixRow = appendixProof.locator("li", { hasText: "upload:" });
-  await expect(appendixRow.getByText("Markup Summary")).toBeVisible();
+  await expect(appendixRow.getByText("Bluebeam Markup Summary")).toBeVisible();
   await expect(appendixRow.getByText(/^upload:[a-f0-9]{64}$/)).toBeVisible();
   await expect(appendixRow.locator("time")).toHaveAttribute("datetime", /^\d{4}-\d{2}-\d{2}T/);
   await expect(appendixRow.getByText(/^[a-f0-9]{12}$/)).toBeVisible();
