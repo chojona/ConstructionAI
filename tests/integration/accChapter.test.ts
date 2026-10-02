@@ -123,6 +123,25 @@ describe.skipIf(!hasIntegrationDatabase)("Prisma ACC pack chapter", () => {
     });
     expect(row).toMatchObject({ sourceId: "acc-doc-8841", fetchedAt, contentHash, storageKey });
     expect(row.decisions.map((link) => link.reviewDecisionId)).toEqual([accepted.id]);
+
+    const again = await attachAccPdfChapter(organizationId, project.id, {
+      bytes: pdf,
+      filename: "rfi-42-copy.pdf",
+      mimeType: "application/pdf",
+      sourceId: "acc-doc-9999",
+      role: "acc-docs",
+    }, repository, objects, () => new Date("2026-10-03T00:00:00.000Z"));
+    expect(again.chapters).toHaveLength(1);
+    expect(again.chapters?.[0]).toMatchObject({
+      sourceId: "acc-doc-8841",
+      fetchedAt: fetchedAt.toISOString(),
+      contentHash,
+      filename: "rfi-42.pdf",
+    });
+    expect(await db.exportPacketChapter.count({ where: { projectId: project.id, contentHash } })).toBe(1);
+    const kept = await db.exportPacketChapter.findFirstOrThrow({ where: { id: row.id } });
+    expect(kept).toMatchObject({ sourceId: "acc-doc-8841", fetchedAt, contentHash });
+
     const storedPack = await objects.get(`export-packets/${project.id}/${packet.contentHash}.json`);
     expect(createHash("sha256").update(storedPack).digest("hex")).toBe(packet.contentHash);
     expect(JSON.parse(storedPack.toString("utf8")).chapters[0].contentHash).toBe(contentHash);

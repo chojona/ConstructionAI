@@ -386,7 +386,6 @@ export class MemoryRepository implements ConstructionRepository {
     const existing = this.exportPacketChapters.find((chapter) => (
       chapter.projectId === input.projectId
       && chapter.contentHash === input.contentHash
-      && chapter.sourceId === input.sourceId
       && chapter.role === input.role
     ));
     if (existing) {
