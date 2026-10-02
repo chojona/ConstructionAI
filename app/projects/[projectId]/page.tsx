@@ -42,7 +42,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       <ProjectContext projectId={project.id}><Link href="/projects">Projects</Link><span>/</span><span>{project.name}</span></ProjectContext>
       <div className="page-heading">
         <div><p className="eyebrow">{project.projectNumber?.trim() || "No project number"}</p><h1>{project.name}</h1><p className="lede">{view === "heavyjob" ? "Stored HeavyJob snapshots for this project." : "Review source changes, resolve exceptions, and keep the project moving."}</p></div>
-        {view !== "heavyjob" && <details className="create-panel panel" id="add-document" open={view === "documents" && project.documents.length === 0}><summary className="primary-summary">Add document</summary><CreateDocumentForm projectId={project.id} /></details>}
+        {view !== "heavyjob" && <details className="create-panel panel" id="add-document"><summary className="primary-summary">Add document</summary><CreateDocumentForm projectId={project.id} /></details>}
       </div>
       <ProjectNavigation projectId={project.id} active={view} openCount={attention.length} />
       {view !== "documents" && view !== "heavyjob" && <section>
@@ -70,7 +70,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       </section>}
       {view !== "changes" && view !== "heavyjob" && <section className="review-block">
         <div className="section-heading"><h2>Documents</h2><span className="count">{project.documents.length} total</span></div>
-        <DocumentsDesk projectId={project.id} documents={project.documents} />
+        <DocumentsDesk documents={project.documents} />
       </section>}
       {view === "heavyjob" && <HeavyJobSourceBrowser objects={heavyJobObjects} />}
     </main>
