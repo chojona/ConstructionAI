@@ -41,6 +41,7 @@ model Project {
   documents             Document[]
   reviewDecisions       ReviewDecision[]
   exportPackets         ExportPacket[]
+  exportPacketChapters  ExportPacketChapter[]
   emailSends            EmailSend[]
   heavyJobSourceObjects HeavyJobSourceObject[]
 
@@ -194,8 +195,9 @@ model ReviewDecision {
   afterProposedFact  ProposedFact?   @relation("DecisionAfter", fields: [afterProposedFactId], references: [id], onDelete: Restrict)
   supersedes         ReviewDecision?        @relation("ReviewSupersession", fields: [supersedesDecisionId], references: [id], onDelete: Restrict)
   supersededBy       ReviewDecision?        @relation("ReviewSupersession")
-  exportPackets      ExportPacketDecision[]
-  emailSends         EmailSendDecision[]
+  exportPackets        ExportPacketDecision[]
+  exportPacketChapters ExportPacketChapterDecision[]
+  emailSends           EmailSendDecision[]
 
   @@index([projectId, subjectKey, createdAt])
   @@index([projectId, createdAt])
@@ -251,6 +253,43 @@ model ExportPacketDecision {
 
   @@id([exportPacketId, reviewDecisionId])
   @@unique([exportPacketId, ordinal])
+  @@index([reviewDecisionId])
+}
+
+/// ACC Docs or RFI PDF chapter on an approved pack.
+/// Raw bytes live in the private object store at storageKey.
+/// sourceId, fetchedAt, and contentHash (sha256 of the raw PDF) are the provenance.
+/// Linked decisions are ACCEPTED review decisions only. This extends ExportPacket.
+model ExportPacketChapter {
+  id          String   @id @default(cuid())
+  projectId   String
+  role        String
+  title       String
+  sourceId    String
+  fetchedAt   DateTime
+  contentHash String
+  storageKey  String
+  filename    String
+  byteSize    Int
+  createdAt   DateTime @default(now())
+
+  project   Project                        @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  decisions ExportPacketChapterDecision[]
+
+  @@unique([projectId, contentHash, sourceId])
+  @@index([projectId, fetchedAt])
+}
+
+model ExportPacketChapterDecision {
+  chapterId        String
+  reviewDecisionId String
+  ordinal          Int
+
+  chapter        ExportPacketChapter @relation(fields: [chapterId], references: [id], onDelete: Restrict)
+  reviewDecision ReviewDecision       @relation(fields: [reviewDecisionId], references: [id], onDelete: Restrict)
+
+  @@id([chapterId, reviewDecisionId])
+  @@unique([chapterId, ordinal])
   @@index([reviewDecisionId])
 }
 

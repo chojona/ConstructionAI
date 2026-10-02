@@ -21,25 +21,21 @@ test.afterAll(async () => {
   await db.$disconnect();
 });
 
-test("PE attaches an ACC PDF in the approved pack flow and downloads the original chapter", async ({ page, request }) => {
+test("attaches a PDF on an approved pack", async ({ page, request }) => {
   await page.goto(`/projects/${projectId}?view=changes`);
-  await page.getByRole("button", { name: "Attach ACC PDF" }).click();
-  const form = page.getByRole("region", { name: "Attach ACC PDF chapter" });
-  await form.getByLabel("ACC source ID").fill("ACC:RFI:42");
   const bytes = Buffer.from("%PDF-1.4\nACC RFI fixture\n%%EOF");
-  await form.getByLabel("ACC PDF").setInputFiles({ name: "rfi-42.pdf", mimeType: "application/pdf", buffer: bytes });
-  await form.getByRole("button", { name: "Include in approved pack" }).click();
-  await expect(form.getByText("ACC PDF included in approved pack.")).toBeVisible();
-  const packUrl = await form.getByRole("link", { name: "Download pack with ACC PDFs" }).getAttribute("href");
-  const response = await request.get(packUrl!);
+  await page.getByLabel("PDF").setInputFiles({ name: "rfi-42.pdf", mimeType: "application/pdf", buffer: bytes });
+  await page.getByLabel("Source id").fill("ACC:RFI:42");
+  await page.getByRole("button", { name: "Add pack chapter" }).click();
+  await expect(page.getByText("Pack chapter added.")).toBeVisible();
+  const response = await request.get(`/api/projects/${projectId}/export`);
   expect(response.ok()).toBe(true);
   const packet = await response.json();
-  expect(packet.chapters).toEqual([expect.objectContaining({ source: "ACC", sourceId: "ACC:RFI:42", filename: "rfi-42.pdf" })]);
-  expect(packet.chapters[0].decisionId).toBe(packet.decisionIds[0]);
-  const pdfUrl = await form.getByRole("link", { name: "Download rfi-42.pdf" }).getAttribute("href");
-  const pdf = await request.get(pdfUrl!);
-  expect(pdf.headers()["content-type"]).toBe("application/pdf");
-  expect(await pdf.body()).toEqual(bytes);
-  const blocked = await request.get(pdfUrl!, { headers: { "x-organization-id": "another-organization" } });
+  expect(packet.chapters).toEqual([
+    expect.objectContaining({ sourceId: "ACC:RFI:42", filename: "rfi-42.pdf", title: "ACC export" }),
+  ]);
+  const blocked = await request.get(`/api/projects/${projectId}/export`, {
+    headers: { "x-organization-id": "another-organization" },
+  });
   expect(blocked.status()).toBe(404);
 });

@@ -10,6 +10,7 @@ import {
   buildApprovedChangePacket,
   canonicalPacketBytes,
   exportPacketStorageKey,
+  packetChapterFromStored,
   packetContentHash,
   packetFromStored,
 } from "./exportPacket";
@@ -197,6 +198,32 @@ const exportQuerySchema = z.object({
   subjectKey: z.string().trim().min(1).max(2000).optional(),
 });
 
+export async function currentApprovedChangePacket(
+  organizationId: string,
+  projectId: string,
+  repository: ConstructionRepository,
+  subjectKey?: string,
+) {
+  const { source, decisions } = await load(organizationId, projectId, repository);
+  const findings = listProjectFindings(source, decisions);
+  const base = buildApprovedChangePacket({
+    projectId,
+    findings,
+    revisions: source.revisions,
+    subjectKey,
+  });
+  const storedChapters = await repository.listExportPacketChapters(organizationId, projectId, base.decisionIds);
+  if (!storedChapters) throw new DomainError("NOT_FOUND", "Project not found.", 404);
+  if (storedChapters.length === 0) return base;
+  return buildApprovedChangePacket({
+    projectId,
+    findings,
+    revisions: source.revisions,
+    subjectKey,
+    chapters: storedChapters.map(packetChapterFromStored),
+  });
+}
+
 export async function exportApprovedChangePacket(
   organizationId: string,
   projectId: string,
@@ -207,13 +234,7 @@ export async function exportApprovedChangePacket(
   const subjectKey = exportQuerySchema.parse({
     subjectKey: rawQuery.subjectKey?.trim() || undefined,
   }).subjectKey;
-  const { source, decisions } = await load(organizationId, projectId, repository);
-  const built = buildApprovedChangePacket({
-    projectId,
-    findings: listProjectFindings(source, decisions),
-    revisions: source.revisions,
-    subjectKey,
-  });
+  const built = await currentApprovedChangePacket(organizationId, projectId, repository, subjectKey);
   const payload = canonicalPacketBytes(built);
   const contentHash = packetContentHash(built);
   const stored = await repository.saveExportPacket({

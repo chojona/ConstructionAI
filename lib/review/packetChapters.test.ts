@@ -1,15 +1,20 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
+import { StorageObjectMissingError, type ObjectStore } from "@/lib/storage/objectStore";
 import { MemoryRepository } from "@/tests/support/memoryRepository";
 import { approvedPacketFixture } from "@/tests/support/approvedPacketFixture";
-import type { ObjectStore } from "@/lib/storage/objectStore";
-import { canonicalPacketBytes, packetContentHash, packetFromStored } from "./exportPacket";
+import { canonicalPacketBytes, packetContentHash } from "./exportPacket";
 import { recordReviewDecision } from "./service";
-import { attachAccPdfChapter, readExportPacketChapter } from "./packetChapters";
+import { attachAccPdfChapter } from "./accChapter";
 
 const bytes = Buffer.from("%PDF-1.4\nACC RFI fixture\n%%EOF");
 const fetchedAt = new Date("2026-10-01T16:00:00.000Z");
-const upload = { sourceId: "urn:adsk.wipprod:dm.lineage:rfi-42", filename: "ACC RFI 42.pdf", mimeType: "application/pdf", bytes };
+const upload = {
+  sourceId: "urn:adsk.wipprod:dm.lineage:rfi-42",
+  filename: "ACC RFI 42.pdf",
+  mimeType: "application/pdf",
+  bytes,
+};
 
 async function scaffold() {
   const repository = new MemoryRepository();
@@ -19,44 +24,58 @@ async function scaffold() {
   const data = new Map<string, Buffer>();
   const objects: ObjectStore = {
     mode: "local",
-    put: vi.fn(async (key, value) => { data.set(key, Buffer.from(value)); }),
-    get: vi.fn(async (key) => Buffer.from(data.get(key)!)),
-    delete: vi.fn(async (key) => { data.delete(key); }),
-    exists: vi.fn(async (key) => data.has(key)),
+    put: vi.fn(async (key: string, value: Buffer) => { data.set(key, Buffer.from(value)); }),
+    get: vi.fn(async (key: string) => {
+      const found = data.get(key);
+      if (!found) throw new StorageObjectMissingError(key);
+      return Buffer.from(found);
+    }),
+    delete: vi.fn(async (key: string) => { data.delete(key); }),
+    exists: vi.fn(async (key: string) => data.has(key)),
   };
-  const input = { ...upload, contentHash: fixture.packet.contentHash, decisionId: fixture.decision.id };
-  return { ...fixture, repository, objects, input, data };
+  return { ...fixture, repository, objects, data };
 }
 
 describe("ACC PDF export chapters", () => {
-  it("attaches exact PDF bytes and provenance to an immutable approved packet", async () => {
-    const { project, packet, decision, repository, objects, input } = await scaffold();
-    const result = await attachAccPdfChapter("org_a", project.id, input, repository, objects, () => fetchedAt);
-    expect(result.chapter).toMatchObject({
-      source: "ACC", sourceId: upload.sourceId, fetchedAt: fetchedAt.toISOString(),
-      contentHash: createHash("sha256").update(bytes).digest("hex"),
-      filename: upload.filename, mimeType: "application/pdf", byteSize: bytes.length, decisionId: decision.id,
-    });
-    expect(result.packet.chapters).toEqual([result.chapter]);
-    expect(result.packet.changes).toEqual(packet.changes);
-    expect(result.stored.reviewDecisionIds).toEqual([decision.id]);
-    expect(result.packet.contentHash).not.toBe(packet.contentHash);
-    expect(result.packet.contentHash).toBe(packetContentHash(result.packet));
-    expect(packetFromStored(result.stored).chapters).toEqual([result.chapter]);
+  it("attaches exact PDF bytes and provenance to an approved packet", async () => {
+    const { project, packet, decision, repository, objects } = await scaffold();
+    const result = await attachAccPdfChapter("org_a", project.id, upload, repository, objects, () => fetchedAt);
+    const contentHash = createHash("sha256").update(bytes).digest("hex");
+    expect(result.chapters).toEqual([
+      expect.objectContaining({
+        role: "acc-docs",
+        title: "ACC export",
+        sourceId: upload.sourceId,
+        fetchedAt: fetchedAt.toISOString(),
+        contentHash,
+        filename: upload.filename,
+        byteSize: bytes.length,
+        storageKey: `export-packets/${project.id}/chapters/${contentHash}.pdf`,
+      }),
+    ]);
+    expect(result.changes).toEqual(packet.changes);
+    expect(result.decisionIds).toEqual([decision.id]);
+    expect(result.contentHash).not.toBe(packet.contentHash);
+    expect(result.contentHash).toBe(packetContentHash(result));
     expect(repository.exportPackets).toHaveLength(2);
-    expect(packetFromStored(repository.exportPackets[0]!).chapters).toBeUndefined();
-    const downloaded = await readExportPacketChapter("org_a", project.id, result.stored.id, result.chapter.id, repository, objects);
-    expect(downloaded.bytes).toEqual(bytes);
+    expect(repository.exportPackets[0]?.contentHash).toBe(packet.contentHash);
+    expect(await objects.get(result.chapters![0]!.storageKey)).toEqual(bytes);
+    expect(repository.exportPacketChapters[0]?.reviewDecisionIds).toEqual([decision.id]);
   });
 
   it("preserves earlier chapters when attaching another PDF", async () => {
-    const { project, repository, objects, input } = await scaffold();
-    const first = await attachAccPdfChapter("org_a", project.id, input, repository, objects, () => fetchedAt);
+    const { project, repository, objects } = await scaffold();
+    const first = await attachAccPdfChapter("org_a", project.id, upload, repository, objects, () => fetchedAt);
+    const secondBytes = Buffer.from("%PDF-1.4\nsecond\n%%EOF");
     const second = await attachAccPdfChapter("org_a", project.id, {
-      ...input, contentHash: first.packet.contentHash, sourceId: "ACC-document-43", bytes: Buffer.from("%PDF-1.4\nsecond\n%%EOF"),
+      ...upload,
+      sourceId: "acc-doc-43",
+      filename: "second.pdf",
+      bytes: secondBytes,
     }, repository, objects, () => fetchedAt);
-    expect(second.packet.chapters).toHaveLength(2);
-    expect(second.packet.chapters?.[0]).toEqual(first.chapter);
+    expect(second.chapters).toHaveLength(2);
+    expect(second.chapters).toEqual(expect.arrayContaining([first.chapters![0]]));
+    expect(second.chapters?.map((chapter) => chapter.sourceId)).toEqual(["acc-doc-43", upload.sourceId]);
   });
 
   it("keeps historical packet hashes compatible when there are no chapters", async () => {
@@ -67,44 +86,40 @@ describe("ACC PDF export chapters", () => {
   });
 
   it.each(["DISMISSED", "FLAGGED"] as const)("blocks attachment after approval is superseded by %s", async (decision) => {
-    const { project, fact, repository, objects, input } = await scaffold();
+    const { project, fact, repository, objects } = await scaffold();
     await recordReviewDecision("org_a", project.id, "Reviewer", {
-      decision, reason: "Needs correction", subject: { type: "proposed_fact", proposedFactId: fact.id },
+      decision,
+      reason: "Needs correction",
+      subject: { type: "proposed_fact", proposedFactId: fact.id },
     }, repository, () => fetchedAt);
-    await expect(attachAccPdfChapter("org_a", project.id, input, repository, objects)).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    await expect(attachAccPdfChapter("org_a", project.id, upload, repository, objects)).rejects.toMatchObject({ code: "INVALID_INPUT" });
     expect(objects.put).not.toHaveBeenCalled();
     expect(repository.exportPackets).toHaveLength(1);
   });
 
-  it("rejects a decision outside the approved pack and a nonexistent draft pack", async () => {
-    const { project, repository, objects, input } = await scaffold();
-    await expect(attachAccPdfChapter("org_a", project.id, { ...input, decisionId: "unapproved" }, repository, objects)).rejects.toMatchObject({ code: "INVALID_INPUT" });
-    await expect(attachAccPdfChapter("org_a", project.id, { ...input, contentHash: "d".repeat(64) }, repository, objects)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  it("rejects a missing change and a project outside the organization before storing bytes", async () => {
+    const { project, repository, objects } = await scaffold();
+    await expect(attachAccPdfChapter("org_a", project.id, {
+      ...upload,
+      subjectKey: "proposed-fact:missing",
+    }, repository, objects)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(attachAccPdfChapter("org_b", project.id, upload, repository, objects)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(attachAccPdfChapter("org_a", "other-project", upload, repository, objects)).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(objects.put).not.toHaveBeenCalled();
   });
 
-  it("scopes attachment and download to organization and project", async () => {
-    const { project, repository, objects, input } = await scaffold();
-    await expect(attachAccPdfChapter("org_b", project.id, input, repository, objects)).rejects.toMatchObject({ code: "NOT_FOUND" });
-    await expect(attachAccPdfChapter("org_a", "other-project", input, repository, objects)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  it("rejects an invalid PDF before storing bytes and keeps a blank source id as an upload marker", async () => {
+    const { project, repository, objects } = await scaffold();
+    await expect(attachAccPdfChapter("org_a", project.id, {
+      ...upload,
+      bytes: Buffer.from("not a PDF"),
+    }, repository, objects)).rejects.toMatchObject({ code: "NOT_PDF" });
     expect(objects.put).not.toHaveBeenCalled();
-    const result = await attachAccPdfChapter("org_a", project.id, input, repository, objects);
-    await expect(readExportPacketChapter("org_b", project.id, result.stored.id, result.chapter.id, repository, objects)).rejects.toMatchObject({ code: "NOT_FOUND" });
-    await expect(readExportPacketChapter("org_a", "other-project", result.stored.id, result.chapter.id, repository, objects)).rejects.toMatchObject({ code: "NOT_FOUND" });
-    await expect(readExportPacketChapter("org_a", project.id, result.stored.id, "missing", repository, objects)).rejects.toMatchObject({ code: "NOT_FOUND" });
-  });
-
-  it("rejects invalid PDFs and missing source ids before storing bytes", async () => {
-    const { project, repository, objects, input } = await scaffold();
-    await expect(attachAccPdfChapter("org_a", project.id, { ...input, bytes: Buffer.from("not a PDF") }, repository, objects)).rejects.toMatchObject({ code: "NOT_PDF" });
-    await expect(attachAccPdfChapter("org_a", project.id, { ...input, sourceId: " " }, repository, objects)).rejects.toThrow();
-    expect(objects.put).not.toHaveBeenCalled();
-  });
-
-  it("rejects corrupted PDF bytes on download", async () => {
-    const { project, repository, objects, input, data } = await scaffold();
-    const result = await attachAccPdfChapter("org_a", project.id, input, repository, objects);
-    data.set(result.chapter.storageKey, Buffer.from("corrupt"));
-    await expect(readExportPacketChapter("org_a", project.id, result.stored.id, result.chapter.id, repository, objects)).rejects.toMatchObject({ code: "STORAGE_ERROR" });
+    const stored = await attachAccPdfChapter("org_a", project.id, {
+      ...upload,
+      sourceId: " ",
+    }, repository, objects, () => fetchedAt);
+    expect(stored.chapters?.[0]?.sourceId).toBe(`upload:${createHash("sha256").update(bytes).digest("hex")}`);
+    expect(objects.put).toHaveBeenCalledTimes(1);
   });
 });
