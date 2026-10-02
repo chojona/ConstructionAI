@@ -9,8 +9,10 @@ import type {
   FailOpenExtractionInput,
   CreateEmailSendInput,
   EmailSendRecord,
+  SaveExportPacketChapterInput,
   SaveExportPacketInput,
   StoredExportPacket,
+  StoredExportPacketChapter,
   UpdateEmailDraftInput,
 } from "@/lib/domain/repository";
 import { PACK_MISSING_MESSAGE } from "@/lib/email/emailSendView";
@@ -40,6 +42,7 @@ export class MemoryRepository implements ConstructionRepository {
   readonly proposedFacts: ProposedFactRecord[] = [];
   readonly reviewDecisions: ReviewDecisionRecord[] = [];
   readonly exportPackets: StoredExportPacket[] = [];
+  readonly exportPacketChapters: StoredExportPacketChapter[] = [];
   readonly emailSends: EmailSendRecord[] = [];
   private sequence = 0;
 
@@ -368,6 +371,62 @@ export class MemoryRepository implements ConstructionRepository {
     return packet ? copyExportPacket(packet) : null;
   }
 
+  async saveExportPacketChapter(input: SaveExportPacketChapterInput): Promise<StoredExportPacketChapter | null> {
+    const project = this.projects.find((item) => item.id === input.projectId && item.organizationId === input.organizationId);
+    if (!project) return null;
+    if (input.reviewDecisionIds.length === 0) {
+      throw new DomainError("INVALID_INPUT", EXPORT_BLOCKED_MESSAGE, 400);
+    }
+    const linked = input.reviewDecisionIds.map((id) => this.reviewDecisions.find((decision) => decision.id === id && decision.projectId === input.projectId));
+    if (linked.some((decision) => decision?.decision !== "ACCEPTED")) {
+      throw new DomainError("INVALID_INPUT", "Only an approved change can be exported.", 400);
+    }
+    const existing = this.exportPacketChapters.find((chapter) => (
+      chapter.projectId === input.projectId
+      && chapter.contentHash === input.contentHash
+      && chapter.sourceId === input.sourceId
+    ));
+    if (existing) {
+      const sameLinks = existing.reviewDecisionIds.length === input.reviewDecisionIds.length
+        && existing.reviewDecisionIds.every((id, index) => id === input.reviewDecisionIds[index]);
+      if (!sameLinks) existing.reviewDecisionIds = [...input.reviewDecisionIds];
+      return copyExportPacketChapter(existing);
+    }
+    const stored: StoredExportPacketChapter = {
+      id: this.id("chapter"),
+      projectId: input.projectId,
+      role: input.role,
+      title: input.title,
+      sourceId: input.sourceId,
+      fetchedAt: new Date(input.fetchedAt),
+      contentHash: input.contentHash,
+      storageKey: input.storageKey,
+      filename: input.filename,
+      byteSize: input.byteSize,
+      reviewDecisionIds: [...input.reviewDecisionIds],
+    };
+    this.exportPacketChapters.push(stored);
+    return copyExportPacketChapter(stored);
+  }
+
+  async listExportPacketChapters(organizationId: string, projectId: string, reviewDecisionIds: string[]) {
+    const project = this.projects.find((item) => item.id === projectId && item.organizationId === organizationId);
+    if (!project) return null;
+    const accepted = new Set(reviewDecisionIds);
+    return this.exportPacketChapters
+      .filter((chapter) => (
+        chapter.projectId === projectId
+        && chapter.reviewDecisionIds.length > 0
+        && chapter.reviewDecisionIds.every((id) => accepted.has(id))
+      ))
+      .sort((left, right) => (
+        left.role.localeCompare(right.role)
+        || left.sourceId.localeCompare(right.sourceId)
+        || left.contentHash.localeCompare(right.contentHash)
+      ))
+      .map(copyExportPacketChapter);
+  }
+
   async createEmailSend(input: CreateEmailSendInput): Promise<EmailSendRecord | null> {
     const project = this.projects.find((item) => item.id === input.projectId && item.organizationId === input.organizationId);
     if (!project) return null;
@@ -462,6 +521,10 @@ export class MemoryRepository implements ConstructionRepository {
 
 function copyExportPacket(packet: StoredExportPacket): StoredExportPacket {
   return { ...packet, payload: Buffer.from(packet.payload), reviewDecisionIds: [...packet.reviewDecisionIds] };
+}
+
+function copyExportPacketChapter(chapter: StoredExportPacketChapter): StoredExportPacketChapter {
+  return { ...chapter, fetchedAt: new Date(chapter.fetchedAt), reviewDecisionIds: [...chapter.reviewDecisionIds] };
 }
 
 function copyEmailSend(email: EmailSendRecord): EmailSendRecord {

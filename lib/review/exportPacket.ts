@@ -2,14 +2,29 @@ import { createHash } from "node:crypto";
 import { DomainError } from "@/lib/domain/errors";
 import type { ProjectRevisionContext, ReviewDecisionRecord, RevisionChangeType } from "@/lib/domain/types";
 import type { FindingEvidence, ProjectFinding } from "./findings";
-import { EXPORT_BLOCKED_MESSAGE, type ApprovedChangePreview } from "./exportPacketView";
+import {
+  ACC_EXPORT_CHAPTER_TITLE,
+  EXPORT_BLOCKED_MESSAGE,
+  RFI_PDF_CHAPTER_TITLE,
+  type AccChapterRole,
+  type ApprovedChangePreview,
+} from "./exportPacketView";
 
 export {
+  ACC_CHAPTER_ADDED_MESSAGE,
+  ACC_CHAPTER_FILE_LABEL,
+  ACC_CHAPTER_KIND_LABEL,
+  ACC_CHAPTER_SOURCE_LABEL,
+  ACC_EXPORT_CHAPTER_TITLE,
+  ADD_ACC_EXPORT_LABEL,
   EXPORT_BLOCKED_MESSAGE,
+  RFI_PDF_CHAPTER_TITLE,
+  accChapterAttachVisible,
   approvedChangeExportPath,
   exportPacketAction,
   subjectExportVisible,
   visiblePacketChanges,
+  type AccChapterRole,
   type ApprovedChangePreview,
   type ExportPacketAction,
 } from "./exportPacketView";
@@ -42,6 +57,18 @@ export interface ApprovedChangePacketItem {
   }>;
 }
 
+/** Supporting ACC Docs or RFI PDF on an approved pack. Raw bytes stay in object storage. */
+export interface ExportPacketChapter {
+  role: AccChapterRole;
+  title: typeof ACC_EXPORT_CHAPTER_TITLE | typeof RFI_PDF_CHAPTER_TITLE;
+  sourceId: string;
+  fetchedAt: string;
+  contentHash: string;
+  storageKey: string;
+  filename: string;
+  byteSize: number;
+}
+
 export interface ExportPacketCanonical {
   kind: typeof APPROVED_CHANGE_PACKET_KIND;
   version: typeof APPROVED_CHANGE_PACKET_VERSION;
@@ -49,6 +76,7 @@ export interface ExportPacketCanonical {
   note: typeof APPROVED_CHANGE_PACKET_NOTE;
   decisionIds: string[];
   changes: ApprovedChangePacketItem[];
+  chapters?: ExportPacketChapter[];
 }
 
 export interface ApprovedChangePacket extends ExportPacketCanonical {
@@ -69,14 +97,24 @@ export function approvedChangePreview(findings: readonly ProjectFinding[]): Appr
 }
 
 export function canonicalPacketBytes(packet: ExportPacketCanonical) {
-  return Buffer.from(JSON.stringify({
+  const body: {
+    kind: ExportPacketCanonical["kind"];
+    version: ExportPacketCanonical["version"];
+    projectId: string;
+    note: ExportPacketCanonical["note"];
+    decisionIds: string[];
+    changes: ApprovedChangePacketItem[];
+    chapters?: ExportPacketChapter[];
+  } = {
     kind: packet.kind,
     version: packet.version,
     projectId: packet.projectId,
     note: packet.note,
     decisionIds: packet.decisionIds,
     changes: packet.changes,
-  }));
+  };
+  if (packet.chapters && packet.chapters.length > 0) body.chapters = packet.chapters.map(canonicalChapter);
+  return Buffer.from(JSON.stringify(body));
 }
 
 export function packetContentHash(packet: ExportPacketCanonical) {
@@ -85,6 +123,10 @@ export function packetContentHash(packet: ExportPacketCanonical) {
 
 export function exportPacketStorageKey(projectId: string, contentHash: string) {
   return `export-packets/${projectId}/${contentHash}.json`;
+}
+
+export function accChapterStorageKey(projectId: string, contentHash: string) {
+  return `export-packets/${projectId}/chapters/${contentHash}.pdf`;
 }
 
 export function packetFromStored(stored: { contentHash: string; payload: Uint8Array; createdAt: Date }): ApprovedChangePacket {
@@ -108,7 +150,41 @@ function isCanonicalPacket(value: unknown): value is ExportPacketCanonical {
     && typeof packet.projectId === "string"
     && packet.note === APPROVED_CHANGE_PACKET_NOTE
     && Array.isArray(packet.decisionIds)
-    && Array.isArray(packet.changes);
+    && Array.isArray(packet.changes)
+    && (packet.chapters === undefined || (Array.isArray(packet.chapters) && packet.chapters.every(isChapter)));
+}
+
+function isChapter(value: unknown): value is ExportPacketChapter {
+  if (!value || typeof value !== "object") return false;
+  const chapter = value as Partial<ExportPacketChapter>;
+  const title = chapter.role === "rfi" ? RFI_PDF_CHAPTER_TITLE : chapter.role === "acc-docs" ? ACC_EXPORT_CHAPTER_TITLE : null;
+  return title !== null
+    && chapter.title === title
+    && typeof chapter.sourceId === "string"
+    && chapter.sourceId.length > 0
+    && typeof chapter.fetchedAt === "string"
+    && typeof chapter.contentHash === "string"
+    && /^[a-f0-9]{64}$/.test(chapter.contentHash)
+    && typeof chapter.storageKey === "string"
+    && chapter.storageKey.length > 0
+    && typeof chapter.filename === "string"
+    && chapter.filename.length > 0
+    && typeof chapter.byteSize === "number"
+    && Number.isInteger(chapter.byteSize)
+    && chapter.byteSize >= 0;
+}
+
+function canonicalChapter(chapter: ExportPacketChapter): ExportPacketChapter {
+  return {
+    role: chapter.role,
+    title: chapter.title,
+    sourceId: chapter.sourceId,
+    fetchedAt: chapter.fetchedAt,
+    contentHash: chapter.contentHash,
+    storageKey: chapter.storageKey,
+    filename: chapter.filename,
+    byteSize: chapter.byteSize,
+  };
 }
 
 export function buildApprovedChangePacket(input: {
@@ -116,8 +192,10 @@ export function buildApprovedChangePacket(input: {
   findings: readonly ProjectFinding[];
   revisions: readonly ProjectRevisionContext[];
   subjectKey?: string;
+  chapters?: readonly ExportPacketChapter[];
 }): ExportPacketCanonical {
   const changes = selectApprovedFindings(input.findings, input.subjectKey).map((finding) => toPacketItem(finding, input.revisions));
+  const chapters = canonicalChapters(input.chapters ?? []);
   return {
     kind: APPROVED_CHANGE_PACKET_KIND,
     version: APPROVED_CHANGE_PACKET_VERSION,
@@ -125,7 +203,45 @@ export function buildApprovedChangePacket(input: {
     note: APPROVED_CHANGE_PACKET_NOTE,
     decisionIds: changes.map((change) => change.decisionId),
     changes,
+    ...(chapters.length > 0 ? { chapters } : {}),
   };
+}
+
+export function packetChapterFromStored(row: {
+  role: AccChapterRole;
+  title: string;
+  sourceId: string;
+  fetchedAt: Date;
+  contentHash: string;
+  storageKey: string;
+  filename: string;
+  byteSize: number;
+}): ExportPacketChapter {
+  const title = row.role === "rfi" ? RFI_PDF_CHAPTER_TITLE : ACC_EXPORT_CHAPTER_TITLE;
+  if (row.title !== title || !/^[a-f0-9]{64}$/.test(row.contentHash) || !row.sourceId) {
+    throw new DomainError("MALFORMED_OUTPUT", "Stored pack chapter could not be read.", 500);
+  }
+  return canonicalChapter({
+    role: row.role,
+    title,
+    sourceId: row.sourceId,
+    fetchedAt: row.fetchedAt.toISOString(),
+    contentHash: row.contentHash,
+    storageKey: row.storageKey,
+    filename: row.filename,
+    byteSize: row.byteSize,
+  });
+}
+
+function canonicalChapters(chapters: readonly ExportPacketChapter[]) {
+  return [...chapters]
+    .map(canonicalChapter)
+    .sort((left, right) => (
+      left.role.localeCompare(right.role)
+      || left.sourceId.localeCompare(right.sourceId)
+      || left.contentHash.localeCompare(right.contentHash)
+      || left.fetchedAt.localeCompare(right.fetchedAt)
+    ));
 }
 
 export function selectApprovedFindings(findings: readonly ProjectFinding[], subjectKey?: string) {

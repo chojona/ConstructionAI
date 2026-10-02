@@ -17,13 +17,12 @@ import {
   type EmailSendView,
 } from "./emailSendView";
 import {
-  buildApprovedChangePacket,
   packetContentHash,
   packetFromStored,
   type ApprovedChangePacket,
 } from "@/lib/review/exportPacket";
 import { EXPORT_BLOCKED_MESSAGE } from "@/lib/review/exportPacketView";
-import { listProjectFindings } from "@/lib/review/findings";
+import { currentApprovedChangePacket } from "@/lib/review/service";
 
 const MAX_RECIPIENTS = 20;
 
@@ -170,16 +169,9 @@ async function loadCurrentPack(
 ) {
   const project = await repository.getProject(organizationId, projectId);
   if (!project) throw new DomainError("NOT_FOUND", "Project not found.", 404);
-  const source = await repository.getProjectReviewSource(organizationId, projectId);
-  const decisions = await repository.listReviewDecisions(organizationId, projectId);
-  if (!source || !decisions) throw new DomainError("NOT_FOUND", "Project not found.", 404);
   let packet;
   try {
-    packet = buildApprovedChangePacket({
-      projectId,
-      findings: listProjectFindings(source, decisions),
-      revisions: source.revisions,
-    });
+    packet = await currentApprovedChangePacket(organizationId, projectId, repository);
   } catch (error) {
     if (error instanceof DomainError && error.message === EXPORT_BLOCKED_MESSAGE) {
       return { ready: false as const, message: EXPORT_BLOCKED_MESSAGE };

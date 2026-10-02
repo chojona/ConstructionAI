@@ -16,8 +16,10 @@ import type {
   FailOpenExtractionInput,
   CreateEmailSendInput,
   EmailSendRecord,
+  SaveExportPacketChapterInput,
   SaveExportPacketInput,
   StoredExportPacket,
+  StoredExportPacketChapter,
   UpdateEmailDraftInput,
 } from "./repository";
 import type {
@@ -569,6 +571,103 @@ export class PrismaConstructionRepository implements ConstructionRepository {
     return packet ? this.hydrateExportPacket(packet) : null;
   }
 
+  async saveExportPacketChapter(input: SaveExportPacketChapterInput): Promise<StoredExportPacketChapter | null> {
+    const project = await this.db.project.findFirst({
+      where: { id: input.projectId, organizationId: input.organizationId },
+      select: { id: true },
+    });
+    if (!project) return null;
+    if (input.reviewDecisionIds.length === 0) {
+      throw new DomainError("INVALID_INPUT", EXPORT_BLOCKED_MESSAGE, 400);
+    }
+    await this.assertAcceptedDecisions(input.projectId, input.reviewDecisionIds);
+    const existing = await this.db.exportPacketChapter.findUnique({
+      where: {
+        projectId_contentHash_sourceId: {
+          projectId: input.projectId,
+          contentHash: input.contentHash,
+          sourceId: input.sourceId,
+        },
+      },
+      include: exportPacketChapterInclude,
+    });
+    if (existing) {
+      const linked = existing.decisions.map((decision) => decision.reviewDecisionId);
+      const sameLinks = linked.length === input.reviewDecisionIds.length
+        && linked.every((id, index) => id === input.reviewDecisionIds[index]);
+      if (sameLinks) return toStoredChapter(existing);
+      await this.db.$transaction(async (tx) => {
+        await tx.exportPacketChapterDecision.deleteMany({ where: { chapterId: existing.id } });
+        await tx.exportPacketChapterDecision.createMany({
+          data: input.reviewDecisionIds.map((reviewDecisionId, ordinal) => ({
+            chapterId: existing.id,
+            reviewDecisionId,
+            ordinal,
+          })),
+        });
+      });
+      const updated = await this.db.exportPacketChapter.findUniqueOrThrow({
+        where: { id: existing.id },
+        include: exportPacketChapterInclude,
+      });
+      return toStoredChapter(updated);
+    }
+
+    try {
+      const created = await this.db.exportPacketChapter.create({
+        data: {
+          projectId: input.projectId,
+          role: input.role,
+          title: input.title,
+          sourceId: input.sourceId,
+          fetchedAt: input.fetchedAt,
+          contentHash: input.contentHash,
+          storageKey: input.storageKey,
+          filename: input.filename,
+          byteSize: input.byteSize,
+          decisions: {
+            create: input.reviewDecisionIds.map((reviewDecisionId, ordinal) => ({ reviewDecisionId, ordinal })),
+          },
+        },
+        include: exportPacketChapterInclude,
+      });
+      return toStoredChapter(created);
+    } catch (error) {
+      if (uniqueConstraintTargets(error)) {
+        const raced = await this.db.exportPacketChapter.findUnique({
+          where: {
+            projectId_contentHash_sourceId: {
+              projectId: input.projectId,
+              contentHash: input.contentHash,
+              sourceId: input.sourceId,
+            },
+          },
+          include: exportPacketChapterInclude,
+        });
+        if (raced) return toStoredChapter(raced);
+      }
+      throw error;
+    }
+  }
+
+  async listExportPacketChapters(organizationId: string, projectId: string, reviewDecisionIds: string[]) {
+    const project = await this.db.project.findFirst({
+      where: { id: projectId, organizationId },
+      select: { id: true },
+    });
+    if (!project) return null;
+    if (reviewDecisionIds.length === 0) return [];
+    const rows = await this.db.exportPacketChapter.findMany({
+      where: {
+        projectId,
+        decisions: { every: { reviewDecisionId: { in: reviewDecisionIds } } },
+      },
+      include: exportPacketChapterInclude,
+      orderBy: [{ role: "asc" }, { sourceId: "asc" }, { contentHash: "asc" }, { id: "asc" }],
+    });
+    return rows.filter((row) => row.decisions.length > 0).map(toStoredChapter);
+  }
+
   async createEmailSend(input: CreateEmailSendInput): Promise<EmailSendRecord | null> {
     const project = await this.db.project.findFirst({
       where: { id: input.projectId, organizationId: input.organizationId },
@@ -642,6 +741,17 @@ export class PrismaConstructionRepository implements ConstructionRepository {
       include: emailSendInclude,
     });
     return email ? toEmailSendRecord(email) : null;
+  }
+
+  private async assertAcceptedDecisions(projectId: string, reviewDecisionIds: string[]) {
+    const decisions = await this.db.reviewDecision.findMany({
+      where: { projectId, id: { in: reviewDecisionIds } },
+      select: { id: true, decision: true },
+    });
+    const byId = new Map(decisions.map((decision) => [decision.id, decision.decision]));
+    if (reviewDecisionIds.some((id) => byId.get(id) !== "ACCEPTED")) {
+      throw new DomainError("INVALID_INPUT", "Only an approved change can be exported.", 400);
+    }
   }
 
   private async assertEmailLinks(projectId: string, exportPacketId: string, documentIds: string[], reviewDecisionIds: string[]) {
@@ -727,6 +837,41 @@ const proposedFactSelect = {
 const exportPacketInclude = {
   decisions: { orderBy: { ordinal: "asc" as const }, select: { reviewDecisionId: true } },
 } as const;
+
+const exportPacketChapterInclude = {
+  decisions: { orderBy: { ordinal: "asc" as const }, select: { reviewDecisionId: true } },
+} as const;
+
+function toStoredChapter(chapter: {
+  id: string;
+  projectId: string;
+  role: string;
+  title: string;
+  sourceId: string;
+  fetchedAt: Date;
+  contentHash: string;
+  storageKey: string;
+  filename: string;
+  byteSize: number;
+  decisions: Array<{ reviewDecisionId: string }>;
+}): StoredExportPacketChapter {
+  if (chapter.role !== "acc-docs" && chapter.role !== "rfi") {
+    throw new DomainError("MALFORMED_OUTPUT", "Stored pack chapter could not be read.", 500);
+  }
+  return {
+    id: chapter.id,
+    projectId: chapter.projectId,
+    role: chapter.role,
+    title: chapter.title,
+    sourceId: chapter.sourceId,
+    fetchedAt: chapter.fetchedAt,
+    contentHash: chapter.contentHash,
+    storageKey: chapter.storageKey,
+    filename: chapter.filename,
+    byteSize: chapter.byteSize,
+    reviewDecisionIds: chapter.decisions.map((decision) => decision.reviewDecisionId),
+  };
+}
 
 type ExportPacketRow = {
   id: string;

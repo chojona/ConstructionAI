@@ -105,6 +105,36 @@ export interface SaveExportPacketInput {
   createdAt: Date;
 }
 
+export type ExportPacketChapterRole = "acc-docs" | "rfi";
+
+export interface SaveExportPacketChapterInput {
+  organizationId: string;
+  projectId: string;
+  role: ExportPacketChapterRole;
+  title: string;
+  sourceId: string;
+  fetchedAt: Date;
+  contentHash: string;
+  storageKey: string;
+  filename: string;
+  byteSize: number;
+  reviewDecisionIds: string[];
+}
+
+export interface StoredExportPacketChapter {
+  id: string;
+  projectId: string;
+  role: ExportPacketChapterRole;
+  title: string;
+  sourceId: string;
+  fetchedAt: Date;
+  contentHash: string;
+  storageKey: string;
+  filename: string;
+  byteSize: number;
+  reviewDecisionIds: string[];
+}
+
 export interface StoredExportPacket {
   id: string;
   projectId: string;
@@ -198,6 +228,8 @@ export interface ConstructionRepository {
   saveExportPacket(input: SaveExportPacketInput): Promise<StoredExportPacket | null>;
   getExportPacketByContentHash(organizationId: string, projectId: string, contentHash: string): Promise<StoredExportPacket | null>;
   getExportPacketById(organizationId: string, projectId: string, exportPacketId: string): Promise<StoredExportPacket | null>;
+  saveExportPacketChapter(input: SaveExportPacketChapterInput): Promise<StoredExportPacketChapter | null>;
+  listExportPacketChapters(organizationId: string, projectId: string, reviewDecisionIds: string[]): Promise<StoredExportPacketChapter[] | null>;
   createEmailSend(input: CreateEmailSendInput): Promise<EmailSendRecord | null>;
   updateEmailDraft(input: UpdateEmailDraftInput): Promise<EmailSendRecord | null>;
   getEmailSend(organizationId: string, projectId: string, emailSendId: string): Promise<EmailSendRecord | null>;
