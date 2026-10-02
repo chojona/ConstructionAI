@@ -65,6 +65,7 @@ export function describeReading(
 
 export function describeAnalysis(
   runs: readonly { attemptNumber: number; status: ExtractionRunStatus; failureMessage: string | null }[],
+  listedCount?: number,
 ): ExperienceCopy {
   const latest = [...runs].sort((left, right) => right.attemptNumber - left.attemptNumber)[0];
   if (!latest) {
@@ -76,6 +77,14 @@ export function describeAnalysis(
     };
   }
   if (latest.status === "SUCCEEDED") {
+    if (listedCount === 0) {
+      return {
+        label: "No extracts",
+        tone: "idle",
+        summary: "",
+        action: null,
+      };
+    }
     return {
       label: "Analyzed",
       tone: "ready",
@@ -159,6 +168,12 @@ export function changeSummary(signals: Pick<RevisionSignals, "changeCount" | "ma
     return `${count} extracted ${count === 1 ? "item" : "items"}`;
   }
   return null;
+}
+
+export function emptyExtractCopy(readingTone: ExperienceTone): string {
+  if (readingTone === "ready") return "No proposed facts from this revision yet.";
+  if (readingTone === "waiting") return "Proposed facts show up after this revision is read.";
+  return "No proposed facts from this revision.";
 }
 
 export function changeKind(finding: RevisionFindingView): string {

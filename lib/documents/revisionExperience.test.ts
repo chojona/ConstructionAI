@@ -5,6 +5,7 @@ import {
   changeSummary,
   describeAnalysis,
   describeReading,
+  emptyExtractCopy,
   formatBytes,
   revisionSignals,
   type RevisionFindingView,
@@ -59,6 +60,31 @@ describe("describeAnalysis", () => {
 
   it("describes an empty analysis history", () => {
     expect(describeAnalysis([])).toMatchObject({ label: "Not analyzed", tone: "idle" });
+  });
+
+  it("does not call a finished run with nothing listed analyzed", () => {
+    const copy = describeAnalysis([{ attemptNumber: 1, status: "SUCCEEDED", failureMessage: null }], 0);
+    expect(copy).toMatchObject({ label: "No extracts", tone: "idle", summary: "" });
+    expect(copy.tone).not.toBe("ready");
+  });
+
+  it("keeps analyzed when the run listed facts", () => {
+    expect(describeAnalysis([{ attemptNumber: 1, status: "SUCCEEDED", failureMessage: null }], 2)).toMatchObject({
+      label: "Analyzed",
+      tone: "ready",
+    });
+  });
+});
+
+describe("emptyExtractCopy", () => {
+  it("stays honest after the PDF is already read", () => {
+    expect(emptyExtractCopy("ready")).toBe("No proposed facts from this revision yet.");
+    expect(emptyExtractCopy("ready")).not.toMatch(/nothing to review|after this revision is read/i);
+  });
+
+  it("explains a revision that is still being read", () => {
+    expect(emptyExtractCopy("waiting")).toMatch(/after this revision is read/i);
+    expect(emptyExtractCopy("failed")).toBe("No proposed facts from this revision.");
   });
 });
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AddDocumentDeskButton } from "@/components/workspace/add-document-button";
 import { EmptySolidCard } from "@/components/workspace/empty-solid-card";
+import { documentRowMeta } from "@/lib/documents/documentDesk";
 
 export function DocumentsDesk({
   documents,
@@ -15,30 +16,24 @@ export function DocumentsDesk({
     );
   }
 
-  const lead = documents[0]!;
   return (
     <div className="document-desk">
       <div className="list document-list">
-        {documents.map((document) => (
-          <Link className="list-row" href={`/documents/${document.id}`} key={document.id}>
-            <div>
-              <p className="row-title">{document.title}</p>
-              <p className="row-meta">{document.documentType || "Unclassified document"}</p>
-            </div>
-            <div className="row-side">
-              <span>{document.revisionCount} {document.revisionCount === 1 ? "revision" : "revisions"}</span>
-            </div>
-          </Link>
-        ))}
+        {documents.map((document) => {
+          const type = documentRowMeta(document.documentType);
+          return (
+            <Link className="list-row" href={`/documents/${document.id}`} key={document.id}>
+              <div>
+                <p className="row-title">{document.title}</p>
+                {type ? <p className="row-meta">{type}</p> : null}
+              </div>
+              <div className="row-side">
+                <span>{document.revisionCount} {document.revisionCount === 1 ? "revision" : "revisions"}</span>
+              </div>
+            </Link>
+          );
+        })}
       </div>
-      <aside className="document-rail" aria-label="Document preview">
-        <div className="document-rail-copy">
-          <p className="row-meta">Latest document</p>
-          <p className="row-title">{lead.title}</p>
-          <p className="row-meta">{lead.documentType || "Unclassified document"}</p>
-          <p className="row-meta">{lead.revisionCount} {lead.revisionCount === 1 ? "revision" : "revisions"}</p>
-        </div>
-      </aside>
     </div>
   );
 }

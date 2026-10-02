@@ -37,7 +37,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     ? (await listHeavyJobSourceObjects(organizationId, projectId)).map(toHeavyJobSourceObjectDto)
     : [];
   return (
-    <main className="page">
+    <main className={view === "documents" ? "page page-documents" : "page"}>
       <ScrollToFinding />
       <ProjectContext projectId={project.id}><Link href="/projects">Projects</Link><span>/</span><span>{project.name}</span></ProjectContext>
       <div className="page-heading">

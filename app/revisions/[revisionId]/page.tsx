@@ -4,6 +4,7 @@ import { RevisionInspection } from "@/components/documents/revision-inspection";
 import { SourceDocument } from "@/components/review/source-document";
 import { ProjectContext } from "@/components/workspace/project-context";
 import { ProjectNavigation } from "@/components/workspace/project-navigation";
+import { documentIdentity } from "@/lib/documents/documentDesk";
 import { getDocument, getRevision, listRevisionAnalysis } from "@/lib/documents/service";
 import { DomainError } from "@/lib/domain/errors";
 import { parseEvidenceTarget, safeReturnPath } from "@/lib/review/evidenceLocation";
@@ -65,7 +66,7 @@ export default async function RevisionPage({
         <span>/</span>
         <span>{revision.revisionLabel}</span>
       </ProjectContext>
-      <p className="eyebrow">{revision.document.documentType || "Document"} · {revision.document.title}</p>
+      <p className="eyebrow">{documentIdentity(revision.document.documentType, revision.document.title)}</p>
       <RevisionInspection
         revision={{ ...revision, pageCount: revision.pages.length }}
         siblings={document.revisions}
@@ -77,7 +78,10 @@ export default async function RevisionPage({
       />
       <div className="source-heading-row">
         <h2 className="source-heading" id="source-heading">Source pages</h2>
-        {returnTo ? <Link className="return-link" href={returnTo}>Back to decision</Link> : null}
+        <div className="source-heading-actions">
+          <Link className="return-link" href={`/documents/${revision.document.id}`}>Full document</Link>
+          {returnTo ? <Link className="return-link" href={returnTo}>Back to decision</Link> : null}
+        </div>
       </div>
       {target ? (
         <p className="evidence-banner" role="status">This view is open at the cited passage.</p>

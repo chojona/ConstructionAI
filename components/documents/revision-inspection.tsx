@@ -6,6 +6,7 @@ import {
   changeSummary,
   describeAnalysis,
   describeReading,
+  emptyExtractCopy,
   formatBytes,
   revisionSignals,
   type RevisionFindingView,
@@ -16,7 +17,7 @@ const toneClass = {
   ready: "status-processed",
   waiting: "status-pending",
   failed: "status-failed",
-  idle: "status-pending",
+  idle: "status-muted",
 } as const;
 
 function evidenceHref(evidence: EvidenceLocation, returnTo: string | null) {
@@ -51,7 +52,6 @@ export function RevisionInspection({
   navigation?: ReactNode;
 }) {
   const reading = describeReading(revision.status, revision.failureCode, revision.failureMessage);
-  const analysis = describeAnalysis(runs);
   const signals = revisionSignals(revision.id, findings);
   const ordered = [...siblings].sort((left, right) => left.revisionOrder - right.revisionOrder || left.id.localeCompare(right.id));
   const index = ordered.findIndex((item) => item.id === revision.id);
@@ -60,6 +60,8 @@ export function RevisionInspection({
   const shown = signals.changes.length > 0 ? signals.changes : signals.extracted;
   const shownTitle = signals.changes.length > 0 ? "What changed" : "What was extracted";
   const summary = changeSummary(signals);
+  const analysis = describeAnalysis(runs, shown.length);
+  const analysisLine = [analysis.summary, summary ? `${summary}.` : ""].filter(Boolean).join(" ");
 
   return (
     <>
@@ -108,7 +110,7 @@ export function RevisionInspection({
           <h2 id="analysis-status">Analysis</h2>
           <span className={`status-label ${toneClass[analysis.tone]}`}>{analysis.label}</span>
         </div>
-        <p>{analysis.summary}{summary ? ` ${summary}.` : ""}</p>
+        {analysisLine ? <p>{analysisLine}</p> : null}
       </section>
 
       <section className="review-block" aria-labelledby="found-heading">
@@ -127,7 +129,7 @@ export function RevisionInspection({
             ))}
           </ul>
         ) : (
-          <p className="empty"><strong>Nothing to review yet</strong><span>Extracted items and comparisons will show up after this revision is read.</span></p>
+          <p className="empty-compact">{emptyExtractCopy(reading.tone)}</p>
         )}
       </section>
     </>
