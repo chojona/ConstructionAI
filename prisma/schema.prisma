@@ -256,9 +256,11 @@ model ExportPacketDecision {
   @@index([reviewDecisionId])
 }
 
-/// ACC Docs or RFI PDF chapter on an approved pack.
+/// Supporting file on an approved pack.
+/// role is an ACC Docs chapter, an RFI PDF chapter, or a Bluebeam Markup Summary appendix.
 /// Raw bytes live in the private object store at storageKey.
-/// sourceId, fetchedAt, and contentHash (sha256 of the raw PDF) are the provenance.
+/// sourceId, fetchedAt, and contentHash (sha256 of the raw bytes) are the provenance.
+/// pageCites is the page inventory for a markup summary appendix. Other roles leave it empty.
 /// Linked decisions are ACCEPTED review decisions only. This extends ExportPacket.
 model ExportPacketChapter {
   id          String   @id @default(cuid())
@@ -271,12 +273,13 @@ model ExportPacketChapter {
   storageKey  String
   filename    String
   byteSize    Int
+  pageCites   String[] @default([])
   createdAt   DateTime @default(now())
 
   project   Project                        @relation(fields: [projectId], references: [id], onDelete: Restrict)
   decisions ExportPacketChapterDecision[]
 
-  @@unique([projectId, contentHash, sourceId])
+  @@unique([projectId, contentHash, sourceId, role])
   @@index([projectId, fetchedAt])
 }
 

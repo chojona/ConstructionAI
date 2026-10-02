@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useId, useState } from "react";
 import Link from "next/link";
+import { PackProofList } from "@/components/review/pack-proof";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import type { DeskPackFile } from "@/lib/review/exportPacketView";
 import {
   ACTOR_REQUIRED,
   APPROVED_CHIP,
@@ -19,6 +21,7 @@ import {
   SEND_RECORDED_MESSAGE,
   SUBJECT_REQUIRED,
   type EmailDraftSource,
+  type EmailPackFilePreview,
   type EmailSendView,
 } from "@/lib/email/emailSendView";
 
@@ -190,6 +193,7 @@ function DraftEmailPanel({
                   </li>
                 ))}
               </ul>
+              <PackProofList files={[...source.chapters, ...source.appendices].map(deskPackFile)} />
             </div>
             <div className="packet-actions">
               <Button type="submit" disabled={pending}>Send</Button>
@@ -201,6 +205,16 @@ function DraftEmailPanel({
       </div>
     </aside>
   );
+}
+
+function deskPackFile(file: EmailPackFilePreview): DeskPackFile {
+  return {
+    title: file.title,
+    sourceId: file.sourceId,
+    fetchedAt: file.fetchedAt,
+    contentHash: file.contentHash,
+    pageCites: file.pageCites,
+  };
 }
 
 async function loadDraft(projectId: string): Promise<{ ok: true; source: EmailDraftSource } | { ok: false; message: string }> {

@@ -105,7 +105,7 @@ export interface SaveExportPacketInput {
   createdAt: Date;
 }
 
-export type ExportPacketChapterRole = "acc-docs" | "rfi";
+export type ExportPacketChapterRole = "acc-docs" | "rfi" | "bluebeam-markup";
 
 export interface SaveExportPacketChapterInput {
   organizationId: string;
@@ -118,6 +118,7 @@ export interface SaveExportPacketChapterInput {
   storageKey: string;
   filename: string;
   byteSize: number;
+  pageCites?: readonly string[];
   reviewDecisionIds: string[];
 }
 
@@ -132,6 +133,7 @@ export interface StoredExportPacketChapter {
   storageKey: string;
   filename: string;
   byteSize: number;
+  pageCites: string[];
   reviewDecisionIds: string[];
 }
 

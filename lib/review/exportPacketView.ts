@@ -8,6 +8,18 @@ export const ACC_EXPORT_CHAPTER_TITLE = "ACC export";
 export const RFI_PDF_CHAPTER_TITLE = "RFI PDF";
 export const ACC_CHAPTER_ADDED_MESSAGE = "Pack chapter added.";
 
+export const ADD_PACK_APPENDIX_LABEL = "Add pack appendix";
+export const PACK_APPENDIX_FILE_LABEL = "PDF";
+export const PACK_APPENDIX_SOURCE_LABEL = "Source id";
+export const PACK_APPENDIX_KIND_LABEL = "Pack appendix";
+export const BLUEBEAM_MARKUP_APPENDIX_TITLE = "Markup Summary";
+export const PACK_APPENDIX_ADDED_MESSAGE = "Pack appendix added.";
+export const BLUEBEAM_APPENDIX_ROLE = "bluebeam-markup";
+export const CONTENT_SHA256_LABEL = "sha256";
+export const PACK_PROOF_SOURCE_LABEL = "Source id";
+export const PACK_PROOF_FETCHED_LABEL = "Fetched";
+export const APPENDIX_PAGE_MISSING_MESSAGE = "This accepted fact has no page cite.";
+
 export const ACC_CHAPTER_ROLES = ["acc-docs", "rfi"] as const;
 export type AccChapterRole = (typeof ACC_CHAPTER_ROLES)[number];
 
@@ -48,4 +60,85 @@ export function accChapterAttachVisible(approvedCount: number) {
 
 export function visiblePacketChanges<T extends { decision: string }>(changes: readonly T[]) {
   return changes.filter((change) => change.decision === "ACCEPTED");
+}
+
+export interface DeskPackFile {
+  title: string;
+  sourceId: string;
+  fetchedAt: string;
+  contentHash: string;
+  pageCites: string[];
+}
+
+const CONTENT_SHA256_SHORT_LENGTH = 12;
+
+export function appendixFactBinding(
+  changes: readonly ApprovedChangePreview[],
+  selected: { key: string; decision: string } | null,
+) {
+  const accepted = selected?.decision === "ACCEPTED"
+    ? changes.find((change) => change.subjectKey === selected.key)
+    : undefined;
+  if (selected?.decision === "ACCEPTED") {
+    return { subjectKey: accepted?.subjectKey ?? "", pageCites: factPageCites(accepted?.evidence ?? []) };
+  }
+  if (selected) return { subjectKey: "", pageCites: [] as string[] };
+  if (changes.length === 1) {
+    const change = changes[0]!;
+    return { subjectKey: change.subjectKey, pageCites: factPageCites(change.evidence) };
+  }
+  return { subjectKey: "", pageCites: factPageCites(changes.flatMap((change) => change.evidence)) };
+}
+
+export function factPageCites(evidence: readonly { pageNumber: number }[]) {
+  const cites: string[] = [];
+  const seen = new Set<string>();
+  for (const item of evidence) {
+    if (!Number.isInteger(item.pageNumber) || item.pageNumber < 1) continue;
+    const cite = String(item.pageNumber);
+    if (seen.has(cite)) continue;
+    seen.add(cite);
+    cites.push(cite);
+  }
+  return cites;
+}
+
+export function shortContentSha256(contentHash: string) {
+  return contentHash.slice(0, CONTENT_SHA256_SHORT_LENGTH);
+}
+
+export function deskPackFiles(files: readonly {
+  title: string;
+  sourceId: string;
+  fetchedAt: string;
+  contentHash: string;
+  pageCites?: readonly string[];
+}[] | undefined): DeskPackFile[] {
+  return (files ?? []).map((file) => ({
+    title: file.title,
+    sourceId: file.sourceId,
+    fetchedAt: file.fetchedAt,
+    contentHash: file.contentHash,
+    pageCites: [...(file.pageCites ?? [])],
+  }));
+}
+
+export function visiblePackProof(files: readonly DeskPackFile[]) {
+  return files.filter((file) => (
+    file.title.trim().length > 0
+    && file.sourceId.trim().length > 0
+    && Number.isNaN(Date.parse(file.fetchedAt)) === false
+    && /^[a-f0-9]{64}$/.test(file.contentHash)
+  ));
+}
+
+/** Visible chapter/appendix chrome. A blank source id is already stored as `upload:{sha256}`. */
+export function packProofChrome(file: DeskPackFile) {
+  return {
+    title: file.title.trim(),
+    sourceId: file.sourceId.trim(),
+    fetchedAt: file.fetchedAt,
+    sha256: shortContentSha256(file.contentHash),
+    pageCites: file.pageCites,
+  };
 }

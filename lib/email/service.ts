@@ -12,7 +12,9 @@ import {
   SUBJECT_REQUIRED,
   defaultEmailBody,
   defaultEmailSubject,
+  type EmailAppendixPreview,
   type EmailAttachmentPreview,
+  type EmailPackFilePreview,
   type EmailDraftSource,
   type EmailSendView,
 } from "./emailSendView";
@@ -63,6 +65,8 @@ export async function getEmailDraftSource(
     subject: draft?.subject ?? defaultEmailSubject(loaded.projectName),
     body: draft?.body ?? defaultEmailBody(loaded.projectName),
     attachments: attachmentsFromPacket(loaded.packet),
+    chapters: chaptersFromPacket(loaded.packet),
+    appendices: appendicesFromPacket(loaded.packet),
     draft: draft ? toEmailSendView(draft) : null,
   };
 }
@@ -195,6 +199,28 @@ function attachmentsFromPacket(packet: ApprovedChangePacket): EmailAttachmentPre
     documentTitle: change.document.title,
     decisionId: change.decisionId,
     evidence: change.evidence.map((item) => ({ pageNumber: item.pageNumber, excerpt: item.excerpt })),
+  }));
+}
+
+function chaptersFromPacket(packet: ApprovedChangePacket): EmailPackFilePreview[] {
+  return (packet.chapters ?? []).map((chapter) => ({
+    title: chapter.title,
+    filename: chapter.filename,
+    sourceId: chapter.sourceId,
+    fetchedAt: chapter.fetchedAt,
+    contentHash: chapter.contentHash,
+    pageCites: [],
+  }));
+}
+
+function appendicesFromPacket(packet: ApprovedChangePacket): EmailAppendixPreview[] {
+  return (packet.appendices ?? []).map((appendix) => ({
+    title: appendix.title,
+    filename: appendix.filename,
+    sourceId: appendix.sourceId,
+    fetchedAt: appendix.fetchedAt,
+    contentHash: appendix.contentHash,
+    pageCites: [...appendix.pageCites],
   }));
 }
 
