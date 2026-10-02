@@ -79,6 +79,8 @@ test("workspace navigation, evidence, decisions, and responsive layout", async (
   const findingTitle = await page.locator("#finding-title").innerText();
   await page.locator(".evidence-panel .evidence-note a").last().click();
   await expect(page.locator("mark.source-hit")).toHaveText("Excavation quantity is 1500 CY.");
+  await expect(page.getByText("Analyzed")).toBeVisible();
+  await expect(page.getByText("No extracts")).toHaveCount(0);
   const sourcePath = page.url();
   await page.screenshot({ path: "test-results/con35-revision.png", fullPage: true });
   await page.getByRole("link", { name: "Back to decision" }).click();
@@ -134,6 +136,9 @@ test("empty changes view explains the gap and opens the first upload", async ({ 
     await expect(page.getByText("No open changes")).toBeVisible();
     await page.getByRole("link", { name: "Upload first revision" }).click();
     await expect(page).toHaveURL(new RegExp(`/projects/${project.id}\\?view=documents`));
+    await expect(page.getByText("No documents yet")).toBeVisible();
+    await expect(page.getByLabel("Document title")).toBeHidden();
+    await page.locator(".empty-solid").getByRole("button", { name: "Add document", exact: true }).click();
     await expect(page.getByLabel("Document title")).toBeVisible();
   } finally {
     await db.project.delete({ where: { id: project.id } });
