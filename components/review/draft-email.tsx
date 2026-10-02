@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { PackProofList } from "@/components/review/pack-proof";
+import { packPageCiteLabel } from "@/lib/review/exportPacketView";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { DeskPackFile } from "@/lib/review/exportPacketView";
@@ -187,7 +188,11 @@ function DraftEmailPanel({
                     <span className="packet-chips">
                       <span className="page-chip">{APPROVED_CHIP}</span>
                       {item.evidence.map((evidence) => (
-                        <span className="page-chip" key={`${item.decisionId}:${evidence.pageNumber}:${evidence.excerpt}`} title={evidence.excerpt}>p. {evidence.pageNumber}</span>
+                        evidence.revisionLabel ? (
+                          <span className="page-chip" key={`${item.decisionId}:${evidence.revisionId}:${evidence.pageNumber}:${evidence.excerpt}`} title={evidence.excerpt}>
+                            {packPageCiteLabel({ revisionLabel: evidence.revisionLabel, page: String(evidence.pageNumber) })}
+                          </span>
+                        ) : null
                       ))}
                     </span>
                   </li>

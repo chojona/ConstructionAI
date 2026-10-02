@@ -17,7 +17,7 @@ import {
   ADD_PACK_APPENDIX_LABEL,
   BLUEBEAM_MARKUP_APPENDIX_LABEL,
   BLUEBEAM_MARKUP_APPENDIX_TITLE,
-  APPENDIX_PAGE_MISSING_MESSAGE,
+  PACK_CITE_UNPINNED_MESSAGE,
   appendixFactBinding,
   EXPORT_BLOCKED_MESSAGE,
   PACK_APPENDIX_ADDED_MESSAGE,
@@ -54,7 +54,7 @@ describe("Bluebeam markup summary appendix", () => {
       sourceId: "upload:abc",
       fetchedAt: "2026-10-02T04:00:00.000Z",
       contentHash: "ab".repeat(32),
-      pageCites: ["2"],
+      pageCites: [{ revisionId: "rev", revisionLabel: "A", page: "2", documentPageId: null, contentHash: null }],
     }]);
     expect(proved).toHaveLength(1);
     expect(visiblePackProof([{ ...proved[0]!, contentHash: "short" }])).toEqual([]);
@@ -87,12 +87,13 @@ describe("Bluebeam markup summary appendix", () => {
   });
 
   it("binds the appendix to the selected accepted fact page", () => {
-    const fact = { subjectKey: "proposed-fact:excavation", decision: "ACCEPTED" as const, summary: "excavation", evidence: [{ revisionId: "rev", pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY." }] };
+    const fact = { subjectKey: "proposed-fact:excavation", decision: "ACCEPTED" as const, summary: "excavation", evidence: [{ revisionId: "rev", revisionLabel: "A", pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY." }] };
+    const pinned = { revisionId: "rev", revisionLabel: "A", page: "1", documentPageId: null, contentHash: null };
     expect(appendixFactBinding([fact], { key: fact.subjectKey, decision: "ACCEPTED" })).toEqual({
       subjectKey: fact.subjectKey,
-      pageCites: ["1"],
+      pageCites: [pinned],
     });
-    expect(appendixFactBinding([fact], null)).toEqual({ subjectKey: fact.subjectKey, pageCites: ["1"] });
+    expect(appendixFactBinding([fact], null)).toEqual({ subjectKey: fact.subjectKey, pageCites: [pinned] });
     expect(appendixFactBinding([{ ...fact, evidence: [] }], { key: fact.subjectKey, decision: "ACCEPTED" }).pageCites).toEqual([]);
     expect(appendixFactBinding([fact], { key: "other", decision: "DISMISSED" })).toEqual({ subjectKey: "", pageCites: [] });
   });
@@ -142,7 +143,7 @@ describe("Bluebeam markup summary appendix", () => {
       storageKey: `export-packets/${project.id}/appendices/${contentHash}.pdf`,
       filename: "markup-summary.pdf",
       byteSize: pdf.length,
-      pageCites: ["2", "14"],
+      pageCites: [pinnedPage(project.revisionId, "2"), pinnedPage(project.revisionId, "14")],
     }]);
     expect(packet.contentHash).not.toBe(before.contentHash);
     expect(packet.contentHash).toBe(packetContentHash(packet));
@@ -152,7 +153,7 @@ describe("Bluebeam markup summary appendix", () => {
       sourceId: "bb-summary-17",
       fetchedAt,
       contentHash,
-      pageCites: ["2", "14"],
+      pageCites: [pinnedPage(project.revisionId, "2"), pinnedPage(project.revisionId, "14")],
       reviewDecisionIds: [accepted.id],
     });
     expect(repository.emailSends).toHaveLength(0);
@@ -166,7 +167,7 @@ describe("Bluebeam markup summary appendix", () => {
       sourceId: "bb-summary-17",
       fetchedAt: fetchedAt.toISOString(),
       contentHash,
-      pageCites: ["2", "14"],
+      pageCites: [pinnedPage(project.revisionId, "2"), pinnedPage(project.revisionId, "14")],
     }]);
     expect(source.exportPacketId).toBe(repository.exportPackets.at(-1)?.id);
     const draft = await recordEmailSend("org_a", project.id, {
@@ -180,8 +181,9 @@ describe("Bluebeam markup summary appendix", () => {
     expect(draft.status).toBe("DRAFT");
     expect(draft.exportPacketId).toBe(source.exportPacketId);
     expect(repository.emailSends).toHaveLength(1);
-    const stored = JSON.parse(repository.exportPackets.at(-1)!.payload.toString("utf8")) as { appendices: Array<{ pageCites: string[] }> };
-    expect(stored.appendices[0]?.pageCites).toEqual(["2", "14"]);
+    const stored = JSON.parse(repository.exportPackets.at(-1)!.payload.toString("utf8")) as { appendices: Array<{ pageCites: Array<{ revisionId: string; page: string }> }> };
+    expect(stored.appendices[0]?.pageCites).toEqual([pinnedPage(project.revisionId, "2"), pinnedPage(project.revisionId, "14")]);
+    expect(stored.appendices[0]?.pageCites.every((cite) => typeof cite !== "string")).toBe(true);
   });
 
   it("keeps a pack without an appendix on the previous content hash", async () => {
@@ -227,7 +229,7 @@ describe("Bluebeam markup summary appendix", () => {
       sourceId: `upload:${contentHash}`,
       filename: "summary.csv",
       storageKey: `export-packets/${project.id}/appendices/${contentHash}.csv`,
-      pageCites: ["C-101", "3"],
+      pageCites: [pinnedPage(project.revisionId, "C-101"), pinnedPage(project.revisionId, "3")],
     });
     const appendix = packet.appendices![0]!;
     expect(packProofChrome({
@@ -241,7 +243,7 @@ describe("Bluebeam markup summary appendix", () => {
       sourceId: `upload:${contentHash}`,
       fetchedAt: "2026-10-02T04:30:00.000Z",
       sha256: contentHash.slice(0, 12),
-      pageCites: ["C-101", "3"],
+      pageCites: [pinnedPage(project.revisionId, "C-101"), pinnedPage(project.revisionId, "3")],
     });
     expect(await objects.get(appendix.storageKey)).toEqual(csv);
   });
@@ -298,7 +300,13 @@ describe("Bluebeam markup summary appendix", () => {
       filename: "markup.pdf",
       mimeType: "application/pdf",
     }, repository, objects, clock);
-    expect(bound.appendices?.[0]?.pageCites).toEqual(["1"]);
+    expect(bound.appendices?.[0]?.pageCites).toEqual([expect.objectContaining({
+      revisionId: project.revisionId,
+      revisionLabel: "A",
+      page: "1",
+      contentHash: "a".repeat(64),
+    })]);
+    expect(typeof bound.appendices?.[0]?.pageCites[0]).toBe("object");
     expect(repository.emailSends).toHaveLength(0);
     for (const item of facts.trench.evidence) item.pageNumber = 0;
     const stillBare = buildTextPdf(["Markup Summary", "No page on the fact"]);
@@ -307,7 +315,7 @@ describe("Bluebeam markup summary appendix", () => {
       filename: "markup.pdf",
       mimeType: "application/pdf",
     }, repository, objects, clock)).rejects.toMatchObject({
-      message: APPENDIX_PAGE_MISSING_MESSAGE,
+      message: PACK_CITE_UNPINNED_MESSAGE,
     });
     expect(await objects.exists(`export-packets/${project.id}/appendices/${createHash("sha256").update(stillBare).digest("hex")}.pdf`)).toBe(false);
     await expect(attachBluebeamMarkupAppendix("org_a", project.id, {
@@ -358,7 +366,7 @@ describe("Bluebeam markup summary appendix", () => {
     expect(again.appendices?.[0]).toMatchObject({
       sourceId: "bb-both",
       fetchedAt: "2026-10-02T05:00:00.000Z",
-      pageCites: ["2", "14"],
+      pageCites: [pinnedPage(project.revisionId, "2"), pinnedPage(project.revisionId, "14")],
     });
     expect(repository.exportPacketChapters).toHaveLength(1);
     expect(repository.exportPacketChapters[0]?.reviewDecisionIds).toEqual([pumpDecision.id]);
@@ -464,6 +472,16 @@ function equipmentFact(excerpt: string, equipment: string) {
     factType: "equipment_requirement" as const,
     excerpt,
     payload: { equipment, statement: excerpt, modality: "asserted" },
+  };
+}
+
+function pinnedPage(revisionId: string, page: string) {
+  return {
+    revisionId,
+    revisionLabel: "A",
+    page,
+    documentPageId: null as string | null,
+    contentHash: "a".repeat(64),
   };
 }
 

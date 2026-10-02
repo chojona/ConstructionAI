@@ -198,7 +198,14 @@ function attachmentsFromPacket(packet: ApprovedChangePacket): EmailAttachmentPre
     documentId: change.document.id,
     documentTitle: change.document.title,
     decisionId: change.decisionId,
-    evidence: change.evidence.map((item) => ({ pageNumber: item.pageNumber, excerpt: item.excerpt })),
+    evidence: change.evidence.map((item) => ({
+      revisionId: item.revisionId,
+      revisionLabel: item.revisionLabel
+        || change.revisions.find((revision) => revision.id === item.revisionId)?.label
+        || "",
+      pageNumber: item.pageNumber,
+      excerpt: item.excerpt,
+    })),
   }));
 }
 

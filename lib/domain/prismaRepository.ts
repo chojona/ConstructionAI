@@ -4,7 +4,7 @@ import { DomainError } from "./errors";
 import { isSerializationConflict, serializationAttempts, uniqueConstraintTargets } from "./transactionConflict";
 import { PACK_MISSING_MESSAGE } from "@/lib/email/emailSendView";
 import { EXPORT_BLOCKED_MESSAGE } from "@/lib/review/exportPacket";
-import { APPENDIX_PAGE_MISSING_MESSAGE } from "@/lib/review/exportPacketView";
+import { PACK_CITE_UNPINNED_MESSAGE, readStoredPageCites, storedPageCiteStrings } from "@/lib/review/exportPacketView";
 import { packetBytesToStore, readPacketBytes, writePacketBytes } from "@/lib/storage/packetBytes";
 import { requireObjectStore, type ObjectStore } from "@/lib/storage/objectStore";
 import type {
@@ -428,6 +428,7 @@ export class PrismaConstructionRepository implements ConstructionRepository {
           documentTitle: document.title,
           revisionLabel: revision.revisionLabel,
           revisionOrder: revision.revisionOrder,
+          sha256: revision.sha256,
         });
         for (const run of revision.extractionRuns) {
           source.runs.push({
@@ -845,11 +846,9 @@ function chapterIdentity(input: { projectId: string; contentHash: string; source
 }
 
 function pageCitesFor(input: SaveExportPacketChapterInput) {
-  const cites = [...(input.pageCites ?? [])];
   if (input.role !== "bluebeam-markup") return [];
-  if (cites.length === 0 || cites.some((cite) => cite.length === 0 || cite.length > 80 || cite.trim() !== cite)) {
-    throw new DomainError("INVALID_INPUT", APPENDIX_PAGE_MISSING_MESSAGE, 400);
-  }
+  const cites = storedPageCiteStrings([...(input.pageCites ?? [])]);
+  if (!cites) throw new DomainError("INVALID_INPUT", PACK_CITE_UNPINNED_MESSAGE, 400);
   return cites;
 }
 
@@ -870,7 +869,8 @@ function toStoredChapter(chapter: {
   if (chapter.role !== "acc-docs" && chapter.role !== "rfi" && chapter.role !== "bluebeam-markup") {
     throw new DomainError("MALFORMED_OUTPUT", "Stored pack chapter could not be read.", 500);
   }
-  if (chapter.role === "bluebeam-markup" && chapter.pageCites.length === 0) {
+  const pageCites = chapter.role === "bluebeam-markup" ? readStoredPageCites(chapter.pageCites) : [];
+  if (chapter.role === "bluebeam-markup" && (!pageCites || pageCites.length === 0)) {
     throw new DomainError("MALFORMED_OUTPUT", "Stored pack appendix could not be read.", 500);
   }
   return {
@@ -884,7 +884,7 @@ function toStoredChapter(chapter: {
     storageKey: chapter.storageKey,
     filename: chapter.filename,
     byteSize: chapter.byteSize,
-    pageCites: chapter.role === "bluebeam-markup" ? [...chapter.pageCites] : [],
+    pageCites: pageCites ?? [],
     reviewDecisionIds: chapter.decisions.map((decision) => decision.reviewDecisionId),
   };
 }

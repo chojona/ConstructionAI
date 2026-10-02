@@ -260,7 +260,9 @@ model ExportPacketDecision {
 /// role is an ACC Docs chapter, an RFI PDF chapter, or a Bluebeam Markup Summary appendix.
 /// Raw bytes live in the private object store at storageKey.
 /// sourceId, fetchedAt, and contentHash (sha256 of the raw bytes) are the provenance.
-/// pageCites is the page inventory for a markup summary appendix. Other roles leave it empty.
+/// pageCites is the markup-summary page inventory. Each entry is a JSON pin of
+/// DocumentRevision id, revision label, page, and content hash when bytes are stored.
+/// A bare page number is not a cite. Other roles leave it empty.
 /// Linked decisions are ACCEPTED review decisions only. This extends ExportPacket.
 model ExportPacketChapter {
   id          String   @id @default(cuid())

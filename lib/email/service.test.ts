@@ -81,7 +81,12 @@ describe("draft email gate", () => {
         decisionId: accepted.id,
         documentId: project.documentId,
         documentTitle: "Drainage Plan",
-        evidence: [expect.objectContaining({ pageNumber: 1, excerpt: trench })],
+        evidence: [expect.objectContaining({
+          revisionId: project.revisionId,
+          revisionLabel: "A",
+          pageNumber: 1,
+          excerpt: trench,
+        })],
       }),
     ]);
     expect(source.attachments.map((item) => item.summary).join(" ")).not.toMatch(/dozer/i);

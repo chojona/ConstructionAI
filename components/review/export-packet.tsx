@@ -25,10 +25,12 @@ import {
   deskPackFiles,
   exportPacketAction,
   subjectExportVisible,
+  packPageCiteLabel,
   visiblePackProof,
   visiblePacketChanges,
   type ApprovedChangePreview,
   type DeskPackFile,
+  type PackPageCite,
 } from "@/lib/review/exportPacketView";
 
 export function ExportPacketControl({
@@ -48,7 +50,7 @@ export function ExportPacketControl({
   chapters?: readonly DeskPackFile[];
   appendices?: readonly DeskPackFile[];
   appendixSubjectKey?: string;
-  appendixPageCites?: readonly string[];
+  appendixPageCites?: readonly PackPageCite[];
 }) {
   const approved = visiblePacketChanges(changes).filter((change) => subjectExportVisible(change.decision));
   const action = exportPacketAction(approved.length, projectId, openCount);
@@ -133,7 +135,7 @@ function MarkupAppendixForm({
   projectId: string;
   initialFiles: readonly DeskPackFile[];
   subjectKey: string;
-  pageCites: readonly string[];
+  pageCites: readonly PackPageCite[];
 }) {
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
@@ -186,7 +188,7 @@ function MarkupAppendixForm({
       {subjectKey && pageCites.length > 0 ? <input type="hidden" name="subjectKey" value={subjectKey} /> : null}
       {pageCites.length > 0 ? (
         <p className="packet-chips" aria-label="Page">
-          {pageCites.map((page) => <span className="page-chip" key={page}>p. {page}</span>)}
+          {pageCites.map((cite) => <span className="page-chip" key={`${cite.revisionId}:${cite.page}`}>{packPageCiteLabel(cite)}</span>)}
         </p>
       ) : <p className="packet-blocked">{APPENDIX_PAGE_MISSING_MESSAGE}</p>}
       <Button type="submit" variant="outline" disabled={pending || pageCites.length === 0}>{ADD_PACK_APPENDIX_LABEL}</Button>

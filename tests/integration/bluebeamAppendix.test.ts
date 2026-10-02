@@ -118,7 +118,10 @@ describe("Prisma Bluebeam markup appendix", () => {
       fetchedAt: fetchedAt.toISOString(),
       contentHash,
       storageKey,
-      pageCites: ["2", "C-101"],
+      pageCites: [
+        expect.objectContaining({ revisionId: revision.id, revisionLabel: "A", page: "2", contentHash: revision.sha256, documentPageId: null }),
+        expect.objectContaining({ revisionId: revision.id, revisionLabel: "A", page: "C-101", contentHash: revision.sha256, documentPageId: null }),
+      ],
     });
     expect(await new LocalObjectStore(storageRoot).get(storageKey)).toEqual(pdf);
     const row = await db.exportPacketChapter.findFirstOrThrow({
@@ -130,13 +133,21 @@ describe("Prisma Bluebeam markup appendix", () => {
       fetchedAt,
       contentHash,
       storageKey,
-      pageCites: ["2", "C-101"],
       title: "Markup Summary",
     });
+    expect(row.pageCites).toHaveLength(2);
+    expect(row.pageCites.every((cite) => cite !== "2" && cite !== "C-101" && cite.includes(revision.id))).toBe(true);
+    expect(row.pageCites.map((cite) => JSON.parse(cite))).toEqual([
+      expect.objectContaining({ revisionId: revision.id, revisionLabel: "A", page: "2" }),
+      expect.objectContaining({ revisionId: revision.id, revisionLabel: "A", page: "C-101" }),
+    ]);
     expect(row.decisions.map((link) => link.reviewDecisionId)).toEqual([accepted.id]);
     const storedPack = await objects.get(`export-packets/${project.id}/${packet.contentHash}.json`);
     expect(createHash("sha256").update(storedPack).digest("hex")).toBe(packet.contentHash);
-    expect(JSON.parse(storedPack.toString("utf8")).appendices[0].pageCites).toEqual(["2", "C-101"]);
+    expect(JSON.parse(storedPack.toString("utf8")).appendices[0].pageCites).toEqual([
+      expect.objectContaining({ revisionId: revision.id, page: "2", revisionLabel: "A" }),
+      expect.objectContaining({ revisionId: revision.id, page: "C-101", revisionLabel: "A" }),
+    ]);
 
     await expect(repository.saveExportPacketChapter({
       organizationId,
@@ -149,7 +160,7 @@ describe("Prisma Bluebeam markup appendix", () => {
       storageKey: `export-packets/${project.id}/appendices/${"c".repeat(64)}.pdf`,
       filename: "rejected.pdf",
       byteSize: 4,
-      pageCites: ["9"],
+      pageCites: [{ revisionId: revision.id, revisionLabel: "A", page: "9", documentPageId: null, contentHash: null }],
       reviewDecisionIds: [dismissed.id],
     })).rejects.toMatchObject({ message: "Only an approved change can be exported." });
     expect(await db.exportPacketChapter.count({ where: { projectId: project.id } })).toBe(1);

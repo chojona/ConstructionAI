@@ -90,7 +90,7 @@ describe("changes desk chrome", () => {
         subjectKey: acceptedFinding.subjectKey,
         decision: "ACCEPTED",
         summary: acceptedFinding.label,
-        evidence: [{ revisionId: "rev", pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY." }],
+        evidence: [{ revisionId: "rev", revisionLabel: "A", pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY." }],
       }],
       decided: decidedRowChrome([acceptedFinding]),
     }));
@@ -109,7 +109,7 @@ describe("changes desk chrome", () => {
         subjectKey: acceptedFinding.subjectKey,
         decision: "ACCEPTED",
         summary: acceptedFinding.label,
-        evidence: [{ revisionId: "rev", pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY." }],
+        evidence: [{ revisionId: "rev", revisionLabel: "A", pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY." }],
       }],
       decided: decidedRowChrome([acceptedFinding]),
     }));
@@ -117,7 +117,7 @@ describe("changes desk chrome", () => {
     expect(open).toContain("Appendix on accepted pack only");
     expect(open).toContain("Earthworks specification · Rev 04");
     expect(open).toContain("name=\"subjectKey\" value=\"proposed-fact:excavation\"");
-    expect(open).toContain(">p. 1<");
+    expect(open).toContain(">Rev A · p. 1<");
     expect(open).not.toContain("This accepted fact has no page cite.");
     expect(open).not.toContain("name=\"page");
   });

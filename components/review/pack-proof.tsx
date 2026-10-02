@@ -2,6 +2,7 @@ import {
   CONTENT_SHA256_LABEL,
   PACK_PROOF_FETCHED_LABEL,
   PACK_PROOF_SOURCE_LABEL,
+  packPageCiteLabel,
   packProofChrome,
   visiblePackProof,
   type DeskPackFile,
@@ -33,8 +34,8 @@ export function PackProofList({ files }: { files: readonly DeskPackFile[] }) {
             </dl>
             {chrome.pageCites.length > 0 && (
               <span className="packet-chips">
-                {chrome.pageCites.map((page) => (
-                  <span className="page-chip" key={`${file.contentHash}:${page}`}>p. {page}</span>
+                {chrome.pageCites.map((cite) => (
+                  <span className="page-chip" key={`${file.contentHash}:${cite.revisionId}:${cite.page}`}>{packPageCiteLabel(cite)}</span>
                 ))}
               </span>
             )}
