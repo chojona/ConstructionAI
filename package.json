@@ -2,6 +2,9 @@
   "name": "construction-ai",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "type": "module",
   "scripts": {
     "postinstall": "prisma generate && node scripts/link-typescript-for-eslint.mjs",
