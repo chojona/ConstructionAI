@@ -21,12 +21,56 @@ enum ExtractionRunStatus {
   SUPERSEDED
 }
 
+/// V0 company roles. There is no entitlement, DSC, or change-order claimant role.
+enum OrgRole {
+  ORG_ADMIN
+  REVIEWER
+  CONTRIBUTOR
+  VIEWER
+}
+
+enum MembershipStatus {
+  INVITED
+  ACTIVE
+  DISABLED
+}
+
 model Organization {
-  id        String    @id @default(cuid())
-  name      String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  projects  Project[]
+  id           String          @id @default(cuid())
+  name         String
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  projects     Project[]
+  memberships  OrgMembership[]
+}
+
+/// A person. Credentials are per user later; there is no shared password column.
+model User {
+  id           String          @id @default(cuid())
+  email        String          @unique
+  name         String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  memberships  OrgMembership[]
+}
+
+/// Membership of one person in one organization.
+/// The unique pair allows a later multi-org consultant; invite still rejects a second org.
+model OrgMembership {
+  id             String           @id @default(cuid())
+  organizationId String
+  userId         String
+  role           OrgRole
+  status         MembershipStatus @default(INVITED)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, userId])
+  @@index([userId, status])
+  @@index([organizationId, status])
 }
 
 model Project {
@@ -306,7 +350,8 @@ enum EmailSendStatus {
 }
 
 /// Human email ledger for one approved pack. Send records intent only.
-/// actorId is free text until a User model exists. No mail transport is attached.
+/// actorId is the User id when the request names a person, otherwise the demo desk's free-text name.
+/// No mail transport is attached.
 model EmailSend {
   id             String          @id @default(cuid())
   projectId      String

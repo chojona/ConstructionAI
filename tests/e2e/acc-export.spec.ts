@@ -46,7 +46,7 @@ test("attaches a PDF on an approved pack", async ({ page, request }) => {
   const blocked = await request.get(`/api/projects/${projectId}/export`, {
     headers: { "x-organization-id": "another-organization" },
   });
-  expect(blocked.status()).toBe(404);
+  expect(blocked.status()).toBe(403);
 });
 
 test("attaches a markup summary on an approved pack", async ({ page, request }) => {
