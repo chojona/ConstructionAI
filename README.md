@@ -51,6 +51,8 @@ After seeding, open:
 
 Approved pack JSON is stored at `export-packets/{projectId}/{contentHash}.json`. Postgres keeps the packet row, the content hash, the byte size, and the links to accepted review decisions. New exports write the bytes to object storage and leave `ExportPacket.payload` empty. A hosted deploy without the bucket variables refuses to write those bytes, because the Vercel filesystem is temporary.
 
+The content hash is the sha256 of that canonical JSON. It covers the approved changes, their decision ids, and any chapters and appendices. Each chapter or appendix is included by the sha256 of its file bytes. Exporting or downloading again returns that frozen snapshot. Attaching a chapter or appendix after export stores a new pack and leaves the earlier snapshot unchanged.
+
 Packs created before this change may still have bytes in `ExportPacket.payload`. After the bucket variables are set, run the copy once:
 
 ```bash

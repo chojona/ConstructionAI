@@ -223,9 +223,12 @@ model ProposedFactEvidence {
 }
 
 /// Frozen approved-change packet.
+/// contentHash is the sha256 of the canonical JSON: approved changes, decision ids,
+/// chapters, and appendices. Each chapter or appendix file is included by its own sha256.
 /// Bytes live in object storage at storageKey. payload is only the legacy
 /// database copy until `npm run storage:migrate-packets` clears it.
 /// Decisions linked here are ACCEPTED review decisions only.
+/// A later chapter or appendix attach stores a new packet. It does not rewrite this hash.
 model ExportPacket {
   id          String   @id @default(cuid())
   projectId   String

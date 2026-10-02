@@ -11,8 +11,8 @@ import {
   RFI_PDF_CHAPTER_TITLE,
   type AccChapterRole,
 } from "./exportPacketView";
-import { accChapterStorageKey } from "./exportPacket";
-import { currentApprovedChangePacket, exportApprovedChangePacket, type Clock } from "./service";
+import { accChapterStorageKey, packetChapterFromStored, packetWithChapter } from "./exportPacket";
+import { currentApprovedChangePacket, publishApprovedChangePacket, type Clock } from "./service";
 
 const SOURCE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/;
 
@@ -58,7 +58,13 @@ export async function attachAccPdfChapter(
     reviewDecisionIds: approved.decisionIds,
   });
   if (!saved) throw new DomainError("NOT_FOUND", "Project not found.", 404);
-  return exportApprovedChangePacket(organizationId, projectId, { subjectKey }, repository, () => fetchedAt);
+  return publishApprovedChangePacket(
+    organizationId,
+    projectId,
+    packetWithChapter(approved, packetChapterFromStored(saved)),
+    repository,
+    fetchedAt,
+  );
 }
 
 function parseRole(raw: string | null | undefined): AccChapterRole {

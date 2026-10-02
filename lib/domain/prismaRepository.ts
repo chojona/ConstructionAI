@@ -7,6 +7,7 @@ import { EXPORT_BLOCKED_MESSAGE } from "@/lib/review/exportPacket";
 import { APPENDIX_PAGE_MISSING_MESSAGE } from "@/lib/review/exportPacketView";
 import { packetBytesToStore, readPacketBytes, writePacketBytes } from "@/lib/storage/packetBytes";
 import { requireObjectStore, type ObjectStore } from "@/lib/storage/objectStore";
+import { sameIdSet } from "./repository";
 import type {
   AppendReviewDecisionInput,
   CommitProposedFactsInput,
@@ -570,6 +571,31 @@ export class PrismaConstructionRepository implements ConstructionRepository {
       include: exportPacketInclude,
     });
     return packet ? this.hydrateExportPacket(packet) : null;
+  }
+
+  async findLatestExportPacketForDecisions(organizationId: string, projectId: string, reviewDecisionIds: string[]) {
+    if (reviewDecisionIds.length === 0) return null;
+    const project = await this.db.project.findFirst({
+      where: { id: projectId, organizationId },
+      select: { id: true },
+    });
+    if (!project) return null;
+    const packets = await this.db.exportPacket.findMany({
+      where: {
+        projectId,
+        AND: reviewDecisionIds.map((reviewDecisionId) => ({
+          decisions: { some: { reviewDecisionId } },
+        })),
+        decisions: { every: { reviewDecisionId: { in: reviewDecisionIds } } },
+      },
+      include: exportPacketInclude,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
+    const match = packets.find((packet) => sameIdSet(
+      packet.decisions.map((decision) => decision.reviewDecisionId),
+      reviewDecisionIds,
+    ));
+    return match ? this.hydrateExportPacket(match) : null;
   }
 
   async saveExportPacketChapter(input: SaveExportPacketChapterInput): Promise<StoredExportPacketChapter | null> {
