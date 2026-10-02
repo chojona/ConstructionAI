@@ -3,8 +3,10 @@ export function projectNumberLabel(projectNumber: string | null | undefined) {
   return value || "No project number";
 }
 
-export function projectCardMeta(documentCount: number, openCount: number) {
-  const docs = documentCount === 1 ? "1 doc" : `${documentCount} docs`;
-  const status = openCount === 0 ? "All clear" : `${openCount} open`;
-  return `${docs} · ${status}`;
+export function projectDocumentsLabel(documentCount: number) {
+  return documentCount === 1 ? "1 doc" : `${documentCount} docs`;
+}
+
+export function projectStatusLabel(openCount: number) {
+  return openCount === 0 ? "All clear" : `${openCount} open`;
 }
