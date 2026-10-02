@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
+import { buildTextPdf } from "@/lib/documents/minimalPdf";
 import { CONSTRUCTION_FACTS_FIXTURES } from "@/lib/extractions/eval/fixtures";
 import { deterministicConstructionFactsModel } from "@/lib/extractions/deterministicExtractor";
 import { runConstructionFactsExtraction } from "@/lib/extractions/constructionFacts";
 import { recordReviewDecision } from "@/lib/review/service";
 import { proposedFactSubjectKey } from "@/lib/review/subjects";
+import { requireObjectStore, StorageImmutableError, type ObjectStore } from "@/lib/storage/objectStore";
 
 export const DEMO_REVIEW_ORGANIZATION_ID = "org_demo";
 export const DEMO_REVIEW_PROJECT_ID = "project_demo_review";
@@ -314,11 +316,15 @@ function digest(text: string) {
   return createHash("sha256").update(text).digest("hex");
 }
 
+function digestBytes(bytes: Buffer) {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
 /**
  * Idempotent document-review demo for org_demo.
  * Page text is read by the in-repo extractor. Decisions already stored are left in place.
  */
-export async function seedDemoReviewProject(db: PrismaClient) {
+export async function seedDemoReviewProject(db: PrismaClient, objects: ObjectStore = requireObjectStore()) {
   for (const project of DEMO_DESK_PROJECTS) {
     await db.project.upsert({
       where: { id: project.id },
@@ -350,18 +356,33 @@ export async function seedDemoReviewProject(db: PrismaClient) {
         },
       });
       for (const revision of document.revisions) {
-        await ensureExtractedRevision(db, document.id, revision);
+        await ensureDemoRevision(db, document.id, revision, objects);
       }
       await settleDocument(db, project.id, document);
     }
   }
 }
 
-async function ensureExtractedRevision(db: PrismaClient, documentId: string, revision: DemoRevisionSeed) {
+/**
+ * Writes the demo PDF into the shared object store, then creates or repairs the revision row.
+ * Re-seed still stores bytes when the Postgres row already exists.
+ */
+export async function ensureDemoRevision(
+  db: PrismaClient,
+  documentId: string,
+  revision: DemoRevisionSeed,
+  objects: ObjectStore,
+  extract: (revisionId: string) => Promise<void> = extractDemoRevision,
+) {
+  const stored = await storeDemoRevisionPdf(objects, revision);
   const existing = await db.documentRevision.findFirst({
     where: { documentId, revisionLabel: revision.label },
     select: {
       id: true,
+      byteSize: true,
+      sha256: true,
+      storageKey: true,
+      pages: { select: { pageNumber: true } },
       extractionRuns: { where: { status: "SUCCEEDED" }, select: { id: true }, take: 1 },
     },
   });
@@ -374,20 +395,61 @@ async function ensureExtractedRevision(db: PrismaClient, documentId: string, rev
         revisionOrder: revision.order,
         originalFilename: revision.filename,
         mimeType: "application/pdf",
-        byteSize: Buffer.byteLength(revision.text),
-        sha256: digest(revision.text),
-        storageKey: `demo/${revision.id}.pdf`,
+        byteSize: stored.byteSize,
+        sha256: stored.sha256,
+        storageKey: stored.storageKey,
         status: "PROCESSED",
         pages: {
           create: { pageNumber: 1, text: revision.text, textSha256: digest(revision.text) },
         },
       },
     });
+    await extract(revision.id);
+    return;
   }
-  if (existing && existing.extractionRuns.length > 0) return;
+  if (existing.byteSize !== stored.byteSize || existing.sha256 !== stored.sha256 || existing.storageKey !== stored.storageKey) {
+    await db.documentRevision.update({
+      where: { id: existing.id },
+      data: {
+        byteSize: stored.byteSize,
+        sha256: stored.sha256,
+        storageKey: stored.storageKey,
+        mimeType: "application/pdf",
+        originalFilename: revision.filename,
+      },
+    });
+  }
+  if (!existing.pages.some((page) => page.pageNumber === 1)) {
+    await db.documentPage.create({
+      data: {
+        documentRevisionId: existing.id,
+        pageNumber: 1,
+        text: revision.text,
+        textSha256: digest(revision.text),
+      },
+    });
+  }
+  if (existing.extractionRuns.length > 0) return;
+  await extract(existing.id);
+}
+
+async function storeDemoRevisionPdf(objects: ObjectStore, revision: DemoRevisionSeed) {
+  const bytes = buildTextPdf([revision.text]);
+  const storageKey = `demo/${revision.id}.pdf`;
+  try {
+    await objects.put(storageKey, bytes);
+  } catch (error) {
+    if (!(error instanceof StorageImmutableError)) throw error;
+    await objects.delete(storageKey);
+    await objects.put(storageKey, bytes);
+  }
+  return { storageKey, byteSize: bytes.byteLength, sha256: digestBytes(bytes) };
+}
+
+async function extractDemoRevision(revisionId: string) {
   await runConstructionFactsExtraction({
     organizationId: DEMO_REVIEW_ORGANIZATION_ID,
-    documentRevisionId: existing?.id ?? revision.id,
+    documentRevisionId: revisionId,
     model: deterministicConstructionFactsModel,
   });
 }

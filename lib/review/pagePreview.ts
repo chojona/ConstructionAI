@@ -1,6 +1,7 @@
 import { DomainError } from "@/lib/domain/errors";
 import { StorageObjectMissingError, type ObjectStore } from "@/lib/storage/objectStore";
 import { PAGE_PREVIEW_UNAVAILABLE_MESSAGE } from "./pagePreviewCopy";
+import { renderRevisionPageImage } from "./pagePreviewImage";
 
 export { PAGE_PREVIEW_UNAVAILABLE_MESSAGE } from "./pagePreviewCopy";
 
@@ -98,4 +99,20 @@ export async function openPagePreview(input: {
     if (error instanceof StorageObjectMissingError) throw unavailable();
     throw error;
   }
+}
+
+/** Same bytes the page-preview route returns: one PNG of the cited page. */
+export async function previewRevisionPage(input: {
+  organizationId: string;
+  projectId: string;
+  revisionId: string;
+  pageNumber: number;
+  repository: {
+    getRevision(organizationId: string, revisionId: string): Promise<PagePreviewRevision | null>;
+  };
+  objects: PagePreviewStore;
+}) {
+  const preview = await openPagePreview({ ...input, transport: "stream" });
+  if (preview.kind !== "stream") throw unavailable();
+  return renderRevisionPageImage(preview.bytes, preview.pageNumber);
 }

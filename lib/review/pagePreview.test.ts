@@ -228,7 +228,7 @@ describe("page preview access", () => {
     expect(source).not.toMatch(/ask the pdf|pdf-chat|Ask about this page|prompt box/i);
     const route = readFileSync("app/api/projects/[projectId]/revisions/[revisionId]/pages/[pageNumber]/route.ts", "utf8");
     expect(route).toContain("requireObjectStore");
-    expect(route).toContain("renderRevisionPageImage");
-    expect(route).toContain('transport: "stream"');
+    expect(route).toContain("previewRevisionPage");
+    expect(readFileSync("lib/review/pagePreview.ts", "utf8")).toContain('transport: "stream"');
   });
 });
