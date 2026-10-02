@@ -1,6 +1,6 @@
 export const EXPORT_BLOCKED_MESSAGE = "Approve at least one change to export.";
-export const ADD_ACC_EXPORT_LABEL = "Add ACC export";
-export const ACC_CHAPTER_FILE_LABEL = "RFI PDF";
+export const ADD_ACC_EXPORT_LABEL = "Add pack chapter";
+export const ACC_CHAPTER_FILE_LABEL = "PDF";
 export const ACC_CHAPTER_SOURCE_LABEL = "Source id";
 export const ACC_CHAPTER_KIND_LABEL = "Pack chapter";
 export const ACC_EXPORT_CHAPTER_TITLE = "ACC export";
