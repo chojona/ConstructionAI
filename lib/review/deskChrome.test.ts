@@ -4,6 +4,20 @@ import { describe, expect, it, vi } from "vitest";
 import { ChangeReview } from "@/components/review/change-review";
 import type { AttentionItemDto } from "@/lib/review/dto";
 import { decidedRowChrome } from "./changeRow";
+import {
+  ACC_CHAPTER_FILE_LABEL,
+  ACC_EXPORT_CHAPTER_TITLE,
+  ADD_ACC_EXPORT_LABEL,
+  ADD_PACK_APPENDIX_LABEL,
+  APPENDIX_ON_ACCEPTED_PACK_ONLY,
+  BLUEBEAM_MARKUP_APPENDIX_LABEL,
+  DESK_EMPTY_MISSING_EVIDENCE,
+  DESK_EMPTY_NO_OPEN_CHANGES,
+  DESK_EMPTY_NO_SELECTION,
+  EXPORT_BLOCKED_MESSAGE,
+  PACK_APPENDIX_FILE_LABEL,
+  RFI_PDF_CHAPTER_TITLE,
+} from "./exportPacketView";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh() { return undefined; } }),
@@ -52,6 +66,21 @@ const acceptedFinding = {
 };
 
 describe("changes desk chrome", () => {
+  it("locks PE Desk export labels and empty-state copy", () => {
+    expect(ADD_ACC_EXPORT_LABEL).toBe("Add pack chapter");
+    expect(ACC_EXPORT_CHAPTER_TITLE).toBe("ACC export");
+    expect(RFI_PDF_CHAPTER_TITLE).toBe("RFI PDF");
+    expect(ACC_CHAPTER_FILE_LABEL).toBe("File: PDF");
+    expect(ADD_PACK_APPENDIX_LABEL).toBe("Add pack appendix");
+    expect(BLUEBEAM_MARKUP_APPENDIX_LABEL).toBe("Bluebeam Markup Summary");
+    expect(PACK_APPENDIX_FILE_LABEL).toBe("File: PDF");
+    expect(APPENDIX_ON_ACCEPTED_PACK_ONLY).toBe("Appendix on accepted pack only");
+    expect(DESK_EMPTY_NO_OPEN_CHANGES).toBe("No open changes");
+    expect(DESK_EMPTY_NO_SELECTION).toBe("Select a change or fact to view evidence.");
+    expect(DESK_EMPTY_MISSING_EVIDENCE).toBe("No linked excerpt for this item.");
+    expect(EXPORT_BLOCKED_MESSAGE).toBe("Approve at least one change to export.");
+  });
+
   it("hides export while a review is open and keeps provenance on decided rows", () => {
     const blocked = renderToStaticMarkup(createElement(ChangeReview, {
       projectId: "project_demo_review",
@@ -85,6 +114,7 @@ describe("changes desk chrome", () => {
       decided: decidedRowChrome([acceptedFinding]),
     }));
     expect(open).toContain("Export approved pack");
+    expect(open).toContain("Appendix on accepted pack only");
     expect(open).toContain("Earthworks specification · Rev 04");
     expect(open).toContain("name=\"subjectKey\" value=\"proposed-fact:excavation\"");
     expect(open).toContain(">p. 1<");

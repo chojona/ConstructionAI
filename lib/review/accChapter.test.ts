@@ -40,7 +40,7 @@ describe("ACC PDF pack chapter", () => {
     expect(accChapterAttachVisible(0)).toBe(false);
     expect(accChapterAttachVisible(1)).toBe(true);
     expect(ADD_ACC_EXPORT_LABEL).toBe("Add pack chapter");
-    expect(ACC_CHAPTER_FILE_LABEL).toBe("PDF");
+    expect(ACC_CHAPTER_FILE_LABEL).toBe("File: PDF");
     expect(ACC_CHAPTER_SOURCE_LABEL).toBe("Source id");
     expect(ACC_EXPORT_CHAPTER_TITLE).toBe("ACC export");
     expect(RFI_PDF_CHAPTER_TITLE).toBe("RFI PDF");

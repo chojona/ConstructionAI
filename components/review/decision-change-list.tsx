@@ -1,4 +1,5 @@
 import type { DecidedRowChrome } from "@/lib/review/changeRow";
+import { DESK_EMPTY_MISSING_EVIDENCE } from "@/lib/review/exportPacketView";
 
 export function DecisionChangeList({
   rows,
@@ -30,14 +31,15 @@ export function DecisionChangeList({
 }
 
 export function DecisionEvidence({ row }: { row: DecidedRowChrome }) {
+  const missingExcerpt = !row.excerpt.trim() || row.excerpt === "No linked excerpt available.";
   return (
     <div className="evidence-rail-body">
       {row.pageNumber ? (
         <div className="evidence-rail-lead">
           <span className="page-chip">{row.pageLabel}</span>
-          {row.excerpt ? <p className="evidence-rail-excerpt">{row.excerpt}</p> : null}
+          {missingExcerpt ? <p className="rail-empty rail-empty-inline">{DESK_EMPTY_MISSING_EVIDENCE}</p> : <p className="evidence-rail-excerpt">{row.excerpt}</p>}
         </div>
-      ) : null}
+      ) : missingExcerpt ? <p className="rail-empty rail-empty-inline">{DESK_EMPTY_MISSING_EVIDENCE}</p> : null}
       <p className="row-meta">{row.documentTitle} · {row.revisionLabel}</p>
       <h3>{row.title}</h3>
     </div>
