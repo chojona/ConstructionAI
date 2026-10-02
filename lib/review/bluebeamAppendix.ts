@@ -8,7 +8,7 @@ import { displayFilename } from "@/lib/documents/storage";
 import { extractPdfDocument } from "@/lib/documents/extractPdf";
 import { writePacketBytes } from "@/lib/storage/packetBytes";
 import { requireObjectStore, type ObjectStore } from "@/lib/storage/objectStore";
-import { APPENDIX_PAGE_MISSING_MESSAGE, BLUEBEAM_APPENDIX_ROLE, BLUEBEAM_MARKUP_APPENDIX_TITLE, bindMarkupPageCites, factPageCites } from "./exportPacketView";
+import { APPENDIX_PAGE_MISSING_MESSAGE, BLUEBEAM_APPENDIX_ROLE, BLUEBEAM_MARKUP_APPENDIX_TITLE, bindMarkupPageCites, factPageCites, isLegacyPageCiteError } from "./exportPacketView";
 import { appendixStorageKey, packetAppendixFromStored, packetWithAppendix } from "./exportPacket";
 import { currentApprovedChangePacket, publishApprovedChangePacket, type Clock } from "./service";
 
@@ -38,12 +38,24 @@ export async function attachBluebeamMarkupAppendix(
     throw new DomainError("INVALID_INPUT", "Choose a Markup Summary.", 400);
   }
   const subjectKey = rawInput.subjectKey?.trim() || undefined;
-  const approved = await currentApprovedChangePacket(organizationId, projectId, repository, subjectKey);
+  let approved;
+  try {
+    approved = await currentApprovedChangePacket(organizationId, projectId, repository, subjectKey);
+  } catch (error) {
+    if (!isLegacyPageCiteError(error)) throw error;
+    approved = await currentApprovedChangePacket(organizationId, projectId, repository, subjectKey, {
+      frozen: false,
+      allowLegacyPageCites: true,
+    });
+  }
   const markup = await readMarkupSummary(rawInput);
   const fromFile = markupSummaryPageCites(markup.text);
   const cited = fromFile.length > 0 || !("contentHash" in approved)
     ? approved
-    : await currentApprovedChangePacket(organizationId, projectId, repository, subjectKey, { frozen: false });
+    : await currentApprovedChangePacket(organizationId, projectId, repository, subjectKey, {
+      frozen: false,
+      allowLegacyPageCites: true,
+    });
   const fromFact = factPageCites(cited.changes.flatMap((change) => change.evidence));
   const pageCites = bindMarkupPageCites(fromFile, fromFact);
   if (pageCites.length === 0) {

@@ -135,6 +135,8 @@ export interface StoredExportPacketChapter {
   filename: string;
   byteSize: number;
   pageCites: PackPageCite[];
+  /** Bare page strings from before cites were pinned. Empty once the row is pinned. */
+  legacyPageLabels?: readonly string[];
   reviewDecisionIds: string[];
 }
 

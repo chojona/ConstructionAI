@@ -8,6 +8,11 @@ import {
   type DeskPackFile,
 } from "@/lib/review/exportPacketView";
 
+export function LegacyPageCiteNotice({ message }: { message?: string | null }) {
+  if (!message) return null;
+  return <p className="empty" role="status">{message}</p>;
+}
+
 export function PackProofList({ files }: { files: readonly DeskPackFile[] }) {
   const proved = visiblePackProof(files);
   if (proved.length === 0) return null;
@@ -39,6 +44,7 @@ export function PackProofList({ files }: { files: readonly DeskPackFile[] }) {
                 ))}
               </span>
             )}
+            <LegacyPageCiteNotice message={file.citeNotice} />
           </li>
         );
       })}

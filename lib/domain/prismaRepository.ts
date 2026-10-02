@@ -4,7 +4,7 @@ import { DomainError } from "./errors";
 import { isSerializationConflict, serializationAttempts, uniqueConstraintTargets } from "./transactionConflict";
 import { PACK_MISSING_MESSAGE } from "@/lib/email/emailSendView";
 import { EXPORT_BLOCKED_MESSAGE } from "@/lib/review/exportPacket";
-import { PACK_CITE_UNPINNED_MESSAGE, readStoredPageCites, storedPageCiteStrings } from "@/lib/review/exportPacketView";
+import { PACK_CITE_UNPINNED_MESSAGE, legacyBarePageTokens, readStoredPageCites, replacementPageCites, storedPageCiteStrings } from "@/lib/review/exportPacketView";
 import { packetBytesToStore, readPacketBytes, writePacketBytes } from "@/lib/storage/packetBytes";
 import { requireObjectStore, type ObjectStore } from "@/lib/storage/objectStore";
 import { sameIdSet } from "./repository";
@@ -615,25 +615,36 @@ export class PrismaConstructionRepository implements ConstructionRepository {
       include: exportPacketChapterInclude,
     });
     if (existing) {
+      const replacement = replacementPageCites(existing.pageCites, [...(input.pageCites ?? [])]);
+      if (replacement) {
+        await this.db.exportPacketChapter.update({
+          where: { id: existing.id },
+          data: { pageCites: replacement },
+        });
+      }
       const linked = existing.decisions.map((decision) => decision.reviewDecisionId);
       const sameLinks = linked.length === input.reviewDecisionIds.length
         && linked.every((id, index) => id === input.reviewDecisionIds[index]);
-      if (sameLinks) return toStoredChapter(existing);
-      await this.db.$transaction(async (tx) => {
-        await tx.exportPacketChapterDecision.deleteMany({ where: { chapterId: existing.id } });
-        await tx.exportPacketChapterDecision.createMany({
-          data: input.reviewDecisionIds.map((reviewDecisionId, ordinal) => ({
-            chapterId: existing.id,
-            reviewDecisionId,
-            ordinal,
-          })),
+      if (replacement || !sameLinks) {
+        if (!sameLinks) {
+          await this.db.$transaction(async (tx) => {
+            await tx.exportPacketChapterDecision.deleteMany({ where: { chapterId: existing.id } });
+            await tx.exportPacketChapterDecision.createMany({
+              data: input.reviewDecisionIds.map((reviewDecisionId, ordinal) => ({
+                chapterId: existing.id,
+                reviewDecisionId,
+                ordinal,
+              })),
+            });
+          });
+        }
+        const updated = await this.db.exportPacketChapter.findUniqueOrThrow({
+          where: { id: existing.id },
+          include: exportPacketChapterInclude,
         });
-      });
-      const updated = await this.db.exportPacketChapter.findUniqueOrThrow({
-        where: { id: existing.id },
-        include: exportPacketChapterInclude,
-      });
-      return toStoredChapter(updated);
+        return toStoredChapter(updated);
+      }
+      return toStoredChapter(existing);
     }
 
     try {
@@ -895,7 +906,10 @@ function toStoredChapter(chapter: {
     throw new DomainError("MALFORMED_OUTPUT", "Stored pack chapter could not be read.", 500);
   }
   const pageCites = chapter.role === "bluebeam-markup" ? readStoredPageCites(chapter.pageCites) : [];
-  if (chapter.role === "bluebeam-markup" && (!pageCites || pageCites.length === 0)) {
+  const legacyPageLabels = chapter.role === "bluebeam-markup" && (!pageCites || pageCites.length === 0)
+    ? legacyBarePageTokens(chapter.pageCites)
+    : null;
+  if (chapter.role === "bluebeam-markup" && (!pageCites || pageCites.length === 0) && !legacyPageLabels) {
     throw new DomainError("MALFORMED_OUTPUT", "Stored pack appendix could not be read.", 500);
   }
   return {
@@ -910,6 +924,7 @@ function toStoredChapter(chapter: {
     filename: chapter.filename,
     byteSize: chapter.byteSize,
     pageCites: pageCites ?? [],
+    legacyPageLabels: legacyPageLabels ?? [],
     reviewDecisionIds: chapter.decisions.map((decision) => decision.reviewDecisionId),
   };
 }

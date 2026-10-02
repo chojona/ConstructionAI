@@ -7,6 +7,7 @@ import { PagePreview } from "@/components/review/page-preview";
 import { EvidenceQuotes } from "@/components/review/evidence-quotes";
 import { EmptyChanges } from "@/components/review/changes-empty";
 import { ExportPacketControl } from "@/components/review/export-packet";
+import { LegacyPageCiteNotice } from "@/components/review/pack-proof";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { AttentionItemDto, FindingDto } from "@/lib/review/dto";
@@ -36,6 +37,7 @@ export function ChangeReview({
   notes = [],
   chapters = [],
   appendices = [],
+  citeNotice = null,
 }: {
   projectId: string;
   items: AttentionItemDto[];
@@ -45,6 +47,7 @@ export function ChangeReview({
   notes?: readonly { key: string; text: string }[];
   chapters?: readonly DeskPackFile[];
   appendices?: readonly DeskPackFile[];
+  citeNotice?: string | null;
 }) {
   const router = useRouter();
   const [selectedKey, setSelectedKey] = useState("");
@@ -134,6 +137,7 @@ export function ChangeReview({
   return (
     <div className="change-desk">
       <div className="change-list-pane">
+        <LegacyPageCiteNotice message={citeNotice} />
         <ExportPacketControl projectId={projectId} changes={approved} actorId={reviewerId} openCount={items.length} chapters={chapters} appendices={appendices} appendixSubjectKey={appendixFact.subjectKey} appendixPageCites={appendixFact.pageCites} />
         {(decided.length > 0 || notes.length > 0) && (
           <>

@@ -12,6 +12,8 @@ import {
   canonicalPackPageCite,
   isLettingNotice,
   isPinnedEvidenceCite,
+  legacyAppendixPages,
+  legacyPageCiteMessage,
   RFI_PDF_CHAPTER_TITLE,
   type AccChapterRole,
   type ApprovedChangePreview,
@@ -197,6 +199,10 @@ export function packetFromStored(stored: { contentHash: string; payload: Uint8Ar
   const payload = Buffer.from(stored.payload);
   const parsed: unknown = JSON.parse(payload.toString("utf8"));
   if (!isCanonicalPacket(parsed)) {
+    const legacyPages = legacyAppendixPages(parsed);
+    if (legacyPages) {
+      throw new DomainError("MALFORMED_OUTPUT", legacyPageCiteMessage(legacyPages), 409);
+    }
     throw new DomainError("MALFORMED_OUTPUT", "Stored export packet could not be read.", 500);
   }
   const contentHash = packetContentHash(parsed);
