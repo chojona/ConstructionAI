@@ -89,7 +89,13 @@ describe("frozen export snapshot", () => {
     repository.exportPacketChapters[0]!.filename = "mutated-chapter.pdf";
     repository.exportPacketChapters[0]!.byteSize = 1;
     repository.exportPacketChapters[1]!.filename = "mutated-appendix.pdf";
-    repository.exportPacketChapters[1]!.pageCites = ["99"];
+    repository.exportPacketChapters[1]!.pageCites = [{
+      revisionId: "rev_mutated",
+      revisionLabel: "Z",
+      page: "99",
+      documentPageId: null,
+      contentHash: null,
+    }];
     repository.reviewDecisions[0]!.reason = "Changed after the pack was exported.";
     repository.documents[0]!.title = "Renamed plan";
     repository.proposedFacts[0]!.payload = {
@@ -104,7 +110,13 @@ describe("frozen export snapshot", () => {
     expect(again.changes[0]?.reason).toBe("Confirmed on sheet C-101.");
     expect(again.changes[0]?.summary).toContain("CAT 336");
     expect(again.chapters?.[0]?.filename).toBe("acc.pdf");
-    expect(again.appendices?.[0]?.pageCites).toEqual(["2"]);
+    expect(again.appendices?.[0]?.pageCites).toEqual([{
+      revisionId: project.revisionId,
+      revisionLabel: "A",
+      page: "2",
+      documentPageId: null,
+      contentHash: "a".repeat(64),
+    }]);
     expect(again.appendices?.[0]?.filename).toBe("markup.pdf");
     expect(repository.exportPackets).toHaveLength(3);
     expect(repository.exportPackets[0]!.payload.equals(originalPayload)).toBe(true);
@@ -171,12 +183,14 @@ function change(decisionId: string): ApprovedChangePacketItem {
     document: { id: "doc_1", title: "Drainage Plan" },
     revisions: [{ id: "rev_1", label: "A", role: "extracted" }],
     evidence: [{
+      revisionId: "rev_1",
+      revisionLabel: "A",
+      contentHash: "a".repeat(64),
       documentPageId: "page_1",
       pageNumber: 1,
       excerpt: "trench",
       startOffset: 0,
       endOffset: 6,
-      revisionId: "rev_1",
     }],
   };
 }
@@ -204,7 +218,13 @@ function appendix(sourceId: string, contentHash: string): ExportPacketAppendix {
     storageKey: `export-packets/project_1/appendices/${contentHash}.pdf`,
     filename: `${sourceId}.pdf`,
     byteSize: 20,
-    pageCites: ["2"],
+    pageCites: [{
+      revisionId: "rev_1",
+      revisionLabel: "A",
+      page: "2",
+      documentPageId: null,
+      contentHash: null,
+    }],
   };
 }
 

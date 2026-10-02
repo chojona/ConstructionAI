@@ -131,6 +131,8 @@ export interface ProjectRevisionContext {
   documentTitle: string;
   revisionLabel: string;
   revisionOrder: number;
+  /** sha256 of the stored revision bytes, when the repository loaded them. */
+  sha256?: string;
 }
 
 export interface ProjectRunContext {

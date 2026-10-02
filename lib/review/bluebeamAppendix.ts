@@ -8,7 +8,7 @@ import { displayFilename } from "@/lib/documents/storage";
 import { extractPdfDocument } from "@/lib/documents/extractPdf";
 import { writePacketBytes } from "@/lib/storage/packetBytes";
 import { requireObjectStore, type ObjectStore } from "@/lib/storage/objectStore";
-import { APPENDIX_PAGE_MISSING_MESSAGE, BLUEBEAM_APPENDIX_ROLE, BLUEBEAM_MARKUP_APPENDIX_TITLE, factPageCites } from "./exportPacketView";
+import { APPENDIX_PAGE_MISSING_MESSAGE, BLUEBEAM_APPENDIX_ROLE, BLUEBEAM_MARKUP_APPENDIX_TITLE, bindMarkupPageCites, factPageCites } from "./exportPacketView";
 import { appendixStorageKey, packetAppendixFromStored, packetWithAppendix } from "./exportPacket";
 import { currentApprovedChangePacket, publishApprovedChangePacket, type Clock } from "./service";
 
@@ -45,7 +45,7 @@ export async function attachBluebeamMarkupAppendix(
     ? approved
     : await currentApprovedChangePacket(organizationId, projectId, repository, subjectKey, { frozen: false });
   const fromFact = factPageCites(cited.changes.flatMap((change) => change.evidence));
-  const pageCites = fromFile.length > 0 ? fromFile : fromFact;
+  const pageCites = bindMarkupPageCites(fromFile, fromFact);
   if (pageCites.length === 0) {
     throw new DomainError("INVALID_INPUT", APPENDIX_PAGE_MISSING_MESSAGE, 400);
   }

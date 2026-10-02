@@ -18,7 +18,7 @@ import type {
 } from "@/lib/domain/repository";
 import { PACK_MISSING_MESSAGE } from "@/lib/email/emailSendView";
 import { EXPORT_BLOCKED_MESSAGE } from "@/lib/review/exportPacket";
-import { APPENDIX_PAGE_MISSING_MESSAGE } from "@/lib/review/exportPacketView";
+import { PACK_CITE_UNPINNED_MESSAGE, canonicalPackPageCite, type PackPageCite } from "@/lib/review/exportPacketView";
 import type {
   DocumentDetail,
   DocumentRecord,
@@ -277,6 +277,7 @@ export class MemoryRepository implements ConstructionRepository {
         documentTitle: documents.find((document) => document.id === item.documentId)?.title ?? "",
         revisionLabel: item.revisionLabel,
         revisionOrder: item.revisionOrder,
+        sha256: item.sha256,
       }));
     const revisionIds = new Set(revisions.map((item) => item.id));
     const runs = this.extractionRuns
@@ -545,18 +546,18 @@ function copyExportPacketChapter(chapter: StoredExportPacketChapter): StoredExpo
   return {
     ...chapter,
     fetchedAt: new Date(chapter.fetchedAt),
-    pageCites: [...chapter.pageCites],
+    pageCites: chapter.pageCites.map((cite) => ({ ...cite })),
     reviewDecisionIds: [...chapter.reviewDecisionIds],
   };
 }
 
-function pageCitesFor(input: SaveExportPacketChapterInput) {
-  const cites = [...(input.pageCites ?? [])];
+function pageCitesFor(input: SaveExportPacketChapterInput): PackPageCite[] {
   if (input.role !== "bluebeam-markup") return [];
-  if (cites.length === 0 || cites.some((cite) => cite.length === 0 || cite.length > 80 || cite.trim() !== cite)) {
-    throw new DomainError("INVALID_INPUT", APPENDIX_PAGE_MISSING_MESSAGE, 400);
+  const cites = [...(input.pageCites ?? [])].map((cite) => canonicalPackPageCite(cite));
+  if (cites.length === 0 || cites.some((cite) => cite === null)) {
+    throw new DomainError("INVALID_INPUT", PACK_CITE_UNPINNED_MESSAGE, 400);
   }
-  return cites;
+  return cites.filter((cite): cite is PackPageCite => cite !== null);
 }
 
 function copyEmailSend(email: EmailSendRecord): EmailSendRecord {

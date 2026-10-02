@@ -27,6 +27,8 @@ export const CONTENT_SHA256_LABEL = "sha256";
 export const PACK_PROOF_SOURCE_LABEL = "Source id";
 export const PACK_PROOF_FETCHED_LABEL = "Fetched";
 export const APPENDIX_PAGE_MISSING_MESSAGE = "This accepted fact has no page cite.";
+export const PACK_CITE_UNPINNED_MESSAGE = "A pack cite must name the document revision.";
+export const LETTING_NOTICE_NOT_EVIDENCE = "Letting notices are not pack evidence.";
 
 export const ACC_CHAPTER_ROLES = ["acc-docs", "rfi"] as const;
 export type AccChapterRole = (typeof ACC_CHAPTER_ROLES)[number];
@@ -43,9 +45,194 @@ export interface ApprovedChangePreview {
   summary: string;
   evidence: Array<{
     revisionId: string;
+    revisionLabel: string;
     pageNumber: number;
     excerpt: string;
+    documentPageId?: string | null;
+    contentHash?: string | null;
   }>;
+}
+
+/**
+ * A pack page cite pinned to one DocumentRevision.
+ * Field order is the pin: revision, then page, then the immutable page id and content hash.
+ * A page number, URL, or document name alone is not a cite.
+ */
+export interface PackPageCite {
+  revisionId: string;
+  revisionLabel: string;
+  page: string;
+  documentPageId: string | null;
+  contentHash: string | null;
+}
+
+const REVISION_PIN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,199}$/;
+const CONTENT_HASH = /^[a-f0-9]{64}$/;
+const FLOATING_REVISION = /^(current|latest)$/i;
+const LETTING_NOTICE = /\bletting\s*-?\s*board\b|\bnysdot\b[^.\n]{0,40}\bnotice\b|\bnotice\b[^.\n]{0,40}\bnysdot\b/i;
+
+export function isLettingNotice(value: string) {
+  return LETTING_NOTICE.test(value);
+}
+
+export function canonicalPackPageCite(value: unknown): PackPageCite | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const cite = value as Partial<PackPageCite>;
+  if (typeof cite.revisionId !== "string" || !isRevisionPin(cite.revisionId)) return null;
+  if (typeof cite.revisionLabel !== "string" || !isRevisionLabel(cite.revisionLabel)) return null;
+  if (typeof cite.page !== "string" || !isPageToken(cite.page)) return null;
+  if (isLettingNotice(cite.page) || isLettingNotice(cite.revisionLabel)) return null;
+  const documentPageId = cite.documentPageId ?? null;
+  if (documentPageId !== null && !isRevisionPin(documentPageId)) return null;
+  const contentHash = cite.contentHash ?? null;
+  if (contentHash !== null && (typeof contentHash !== "string" || !CONTENT_HASH.test(contentHash))) return null;
+  return {
+    revisionId: cite.revisionId,
+    revisionLabel: cite.revisionLabel,
+    page: cite.page,
+    documentPageId,
+    contentHash,
+  };
+}
+
+/** Evidence on an approved pack. A bare page number is not evidence. */
+export function isPinnedEvidenceCite(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const cite = value as {
+    revisionId?: unknown;
+    documentPageId?: unknown;
+    pageNumber?: unknown;
+    contentHash?: unknown;
+    revisionLabel?: unknown;
+    documentTitle?: unknown;
+    url?: unknown;
+  };
+  if (typeof cite.pageNumber !== "number" || !Number.isInteger(cite.pageNumber) || cite.pageNumber < 1) return false;
+  if (typeof cite.url === "string" && cite.url.trim().length > 0) return false;
+  if (typeof cite.revisionLabel === "string" && (FLOATING_REVISION.test(cite.revisionLabel) || isLettingNotice(cite.revisionLabel))) return false;
+  if (typeof cite.documentTitle === "string" && isLettingNotice(cite.documentTitle)) return false;
+  if ("contentHash" in cite && cite.contentHash !== null && cite.contentHash !== undefined) {
+    if (typeof cite.contentHash !== "string" || !CONTENT_HASH.test(cite.contentHash)) return false;
+  }
+  if (typeof cite.revisionId === "string" && FLOATING_REVISION.test(cite.revisionId)) return false;
+  if (typeof cite.revisionId === "string" && isRevisionPin(cite.revisionId)) return true;
+  return typeof cite.documentPageId === "string" && isRevisionPin(cite.documentPageId);
+}
+
+export function factPageCites(evidence: readonly {
+  revisionId?: string;
+  revisionLabel?: string;
+  pageNumber?: number;
+  page?: string;
+  documentPageId?: string | null;
+  contentHash?: string | null;
+}[]): PackPageCite[] {
+  const cites: PackPageCite[] = [];
+  const seen = new Set<string>();
+  for (const item of evidence) {
+    const page = item.page ?? (typeof item.pageNumber === "number" ? String(item.pageNumber) : "");
+    const cite = canonicalPackPageCite({
+      revisionId: item.revisionId,
+      revisionLabel: item.revisionLabel,
+      page,
+      documentPageId: item.documentPageId ?? null,
+      contentHash: item.contentHash ?? null,
+    });
+    if (!cite) continue;
+    const key = `${cite.revisionId}\n${cite.page.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    cites.push(cite);
+  }
+  return cites;
+}
+
+/**
+ * Markup-summary page labels are not cites until each one is pinned to an accepted fact's revision.
+ * A label is never attached to whichever revision is newest.
+ */
+export function bindMarkupPageCites(filePages: readonly string[], evidenceCites: readonly PackPageCite[]): PackPageCite[] {
+  const facts = factPageCites(evidenceCites);
+  const labels: string[] = [];
+  const seenLabels = new Set<string>();
+  for (const raw of filePages) {
+    const page = raw.trim();
+    const key = page.toLowerCase();
+    if (!page || seenLabels.has(key) || isLettingNotice(page)) continue;
+    seenLabels.add(key);
+    labels.push(page);
+  }
+  if (labels.length === 0) return facts;
+  const revisionIds = [...new Set(facts.map((cite) => cite.revisionId))];
+  if (revisionIds.length === 1) {
+    const pin = facts[0];
+    if (!pin) return [];
+    const bound: PackPageCite[] = [];
+    for (const page of labels) {
+      const match = facts.find((cite) => cite.page.toLowerCase() === page.toLowerCase());
+      const cite = canonicalPackPageCite({
+        revisionId: pin.revisionId,
+        revisionLabel: pin.revisionLabel,
+        page,
+        documentPageId: match?.documentPageId ?? null,
+        contentHash: pin.contentHash,
+      });
+      if (cite) bound.push(cite);
+    }
+    return bound.length > 0 ? bound : facts;
+  }
+  const bound: PackPageCite[] = [];
+  for (const page of labels) {
+    const matches = facts.filter((cite) => cite.page.toLowerCase() === page.toLowerCase());
+    const ids = new Set(matches.map((cite) => cite.revisionId));
+    if (ids.size === 1 && matches[0]) bound.push(matches[0]);
+  }
+  return bound.length > 0 ? bound : facts;
+}
+
+export function packPageCiteLabel(cite: Pick<PackPageCite, "revisionLabel" | "page">) {
+  return `Rev ${cite.revisionLabel} · p. ${cite.page}`;
+}
+
+export function storedPageCiteStrings(cites: readonly unknown[]): string[] | null {
+  const pinned = cites.map((cite) => canonicalPackPageCite(cite));
+  if (pinned.length === 0 || pinned.some((cite) => cite === null)) return null;
+  return pinned.map((cite) => JSON.stringify(cite));
+}
+
+export function readStoredPageCites(raw: readonly string[]): PackPageCite[] | null {
+  const cites: PackPageCite[] = [];
+  for (const value of raw) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return null;
+    }
+    const cite = canonicalPackPageCite(parsed);
+    if (!cite) return null;
+    cites.push(cite);
+  }
+  return cites;
+}
+
+function isRevisionPin(value: string) {
+  return REVISION_PIN.test(value) && !FLOATING_REVISION.test(value);
+}
+
+function isRevisionLabel(value: string) {
+  return value.length > 0
+    && value.length <= 80
+    && value.trim() === value
+    && !FLOATING_REVISION.test(value)
+    && !/[\u0000-\u001f]/.test(value);
+}
+
+function isPageToken(value: string) {
+  if (value.length === 0 || value.length > 80 || value.trim() !== value) return false;
+  if (/[\u0000-\u001f]/.test(value) || value.includes("://") || /^https?:/i.test(value) || /^www\./i.test(value)) return false;
+  if (/^\d+$/.test(value) && Number(value) < 1) return false;
+  return true;
 }
 
 export function subjectExportVisible(decision: string | null | undefined) {
@@ -75,7 +262,7 @@ export interface DeskPackFile {
   sourceId: string;
   fetchedAt: string;
   contentHash: string;
-  pageCites: string[];
+  pageCites: PackPageCite[];
 }
 
 const CONTENT_SHA256_SHORT_LENGTH = 12;
@@ -90,25 +277,12 @@ export function appendixFactBinding(
   if (selected?.decision === "ACCEPTED") {
     return { subjectKey: accepted?.subjectKey ?? "", pageCites: factPageCites(accepted?.evidence ?? []) };
   }
-  if (selected) return { subjectKey: "", pageCites: [] as string[] };
+  if (selected) return { subjectKey: "", pageCites: [] as PackPageCite[] };
   if (changes.length === 1) {
     const change = changes[0]!;
     return { subjectKey: change.subjectKey, pageCites: factPageCites(change.evidence) };
   }
   return { subjectKey: "", pageCites: factPageCites(changes.flatMap((change) => change.evidence)) };
-}
-
-export function factPageCites(evidence: readonly { pageNumber: number }[]) {
-  const cites: string[] = [];
-  const seen = new Set<string>();
-  for (const item of evidence) {
-    if (!Number.isInteger(item.pageNumber) || item.pageNumber < 1) continue;
-    const cite = String(item.pageNumber);
-    if (seen.has(cite)) continue;
-    seen.add(cite);
-    cites.push(cite);
-  }
-  return cites;
 }
 
 export function shortContentSha256(contentHash: string) {
@@ -120,14 +294,17 @@ export function deskPackFiles(files: readonly {
   sourceId: string;
   fetchedAt: string;
   contentHash: string;
-  pageCites?: readonly string[];
+  pageCites?: readonly unknown[];
 }[] | undefined): DeskPackFile[] {
   return (files ?? []).map((file) => ({
     title: file.title,
     sourceId: file.sourceId,
     fetchedAt: file.fetchedAt,
     contentHash: file.contentHash,
-    pageCites: [...(file.pageCites ?? [])],
+    pageCites: factPageCites((file.pageCites ?? []).flatMap((cite) => {
+      const pinned = canonicalPackPageCite(cite);
+      return pinned ? [pinned] : [];
+    })),
   }));
 }
 
@@ -155,6 +332,6 @@ export function packProofChrome(file: DeskPackFile) {
     sourceId: file.sourceId.trim(),
     fetchedAt: file.fetchedAt,
     sha256: shortContentSha256(file.contentHash),
-    pageCites: file.pageCites,
+    pageCites: factPageCites(file.pageCites),
   };
 }

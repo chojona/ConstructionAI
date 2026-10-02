@@ -15,6 +15,7 @@ import type {
   RevisionChangeType,
   RevisionDetail,
 } from "./types";
+import type { PackPageCite } from "@/lib/review/exportPacketView";
 
 export interface CreateRevisionRecordInput {
   documentId: string;
@@ -118,7 +119,7 @@ export interface SaveExportPacketChapterInput {
   storageKey: string;
   filename: string;
   byteSize: number;
-  pageCites?: readonly string[];
+  pageCites?: readonly PackPageCite[];
   reviewDecisionIds: string[];
 }
 
@@ -133,7 +134,7 @@ export interface StoredExportPacketChapter {
   storageKey: string;
   filename: string;
   byteSize: number;
-  pageCites: string[];
+  pageCites: PackPageCite[];
   reviewDecisionIds: string[];
 }
 

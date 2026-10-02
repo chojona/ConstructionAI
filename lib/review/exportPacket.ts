@@ -7,9 +7,15 @@ import {
   BLUEBEAM_APPENDIX_ROLE,
   BLUEBEAM_MARKUP_APPENDIX_TITLE,
   EXPORT_BLOCKED_MESSAGE,
+  LETTING_NOTICE_NOT_EVIDENCE,
+  PACK_CITE_UNPINNED_MESSAGE,
+  canonicalPackPageCite,
+  isLettingNotice,
+  isPinnedEvidenceCite,
   RFI_PDF_CHAPTER_TITLE,
   type AccChapterRole,
   type ApprovedChangePreview,
+  type PackPageCite,
 } from "./exportPacketView";
 
 export {
@@ -50,12 +56,14 @@ export interface ApprovedChangePacketItem {
   document: { id: string; title: string };
   revisions: Array<{ id: string; label: string; role: ProjectFinding["sources"][number]["role"] }>;
   evidence: Array<{
+    revisionId: string;
+    revisionLabel: string;
+    contentHash: string | null;
     documentPageId: string | null;
     pageNumber: number;
     excerpt: string;
     startOffset: number;
     endOffset: number;
-    revisionId: string;
   }>;
 }
 
@@ -81,7 +89,7 @@ export interface ExportPacketAppendix {
   storageKey: string;
   filename: string;
   byteSize: number;
-  pageCites: string[];
+  pageCites: PackPageCite[];
 }
 
 export interface ExportPacketCanonical {
@@ -207,8 +215,16 @@ function isCanonicalPacket(value: unknown): value is ExportPacketCanonical {
     && packet.note === APPROVED_CHANGE_PACKET_NOTE
     && Array.isArray(packet.decisionIds)
     && Array.isArray(packet.changes)
+    && packet.changes.every(changeEvidenceIsPinned)
     && (packet.chapters === undefined || (Array.isArray(packet.chapters) && packet.chapters.every(isChapter)))
     && (packet.appendices === undefined || (Array.isArray(packet.appendices) && packet.appendices.every(isAppendix)));
+}
+
+function changeEvidenceIsPinned(value: unknown) {
+  if (!value || typeof value !== "object") return false;
+  const change = value as { evidence?: unknown; document?: { title?: unknown } };
+  if (typeof change.document?.title === "string" && isLettingNotice(change.document.title)) return false;
+  return Array.isArray(change.evidence) && change.evidence.every(isPinnedEvidenceCite);
 }
 
 function isChapter(value: unknown): value is ExportPacketChapter {
@@ -250,7 +266,7 @@ function isAppendix(value: unknown): value is ExportPacketAppendix {
     && appendix.byteSize >= 0
     && Array.isArray(appendix.pageCites)
     && appendix.pageCites.length > 0
-    && appendix.pageCites.every((cite) => typeof cite === "string" && cite.length > 0 && cite.length <= 80 && cite.trim() === cite);
+    && appendix.pageCites.every((cite) => canonicalPackPageCite(cite) !== null);
 }
 
 function canonicalChapter(chapter: ExportPacketChapter): ExportPacketChapter {
@@ -267,6 +283,13 @@ function canonicalChapter(chapter: ExportPacketChapter): ExportPacketChapter {
 }
 
 function canonicalAppendix(appendix: ExportPacketAppendix): ExportPacketAppendix {
+  const pageCites = appendix.pageCites.flatMap((cite) => {
+    const pinned = canonicalPackPageCite(cite);
+    return pinned ? [pinned] : [];
+  });
+  if (pageCites.length === 0 || pageCites.length !== appendix.pageCites.length) {
+    throw new DomainError("INVALID_INPUT", PACK_CITE_UNPINNED_MESSAGE, 400);
+  }
   return {
     role: BLUEBEAM_APPENDIX_ROLE,
     title: BLUEBEAM_MARKUP_APPENDIX_TITLE,
@@ -276,7 +299,7 @@ function canonicalAppendix(appendix: ExportPacketAppendix): ExportPacketAppendix
     storageKey: appendix.storageKey,
     filename: appendix.filename,
     byteSize: appendix.byteSize,
-    pageCites: [...appendix.pageCites],
+    pageCites,
   };
 }
 
@@ -339,9 +362,13 @@ export function packetAppendixFromStored(row: {
   storageKey: string;
   filename: string;
   byteSize: number;
-  pageCites: readonly string[];
+  pageCites: readonly PackPageCite[];
 }): ExportPacketAppendix {
-  const appendix = canonicalAppendix({
+  const pageCites = row.pageCites.map((cite) => canonicalPackPageCite(cite));
+  if (pageCites.some((cite) => cite === null)) {
+    throw new DomainError("MALFORMED_OUTPUT", "Stored pack appendix could not be read.", 500);
+  }
+  const appendix: ExportPacketAppendix = {
     role: BLUEBEAM_APPENDIX_ROLE,
     title: BLUEBEAM_MARKUP_APPENDIX_TITLE,
     sourceId: row.sourceId,
@@ -350,12 +377,12 @@ export function packetAppendixFromStored(row: {
     storageKey: row.storageKey,
     filename: row.filename,
     byteSize: row.byteSize,
-    pageCites: [...row.pageCites],
-  });
+    pageCites: pageCites.filter((cite): cite is PackPageCite => cite !== null),
+  };
   if (row.role !== BLUEBEAM_APPENDIX_ROLE || row.title !== BLUEBEAM_MARKUP_APPENDIX_TITLE || !isAppendix(appendix)) {
     throw new DomainError("MALFORMED_OUTPUT", "Stored pack appendix could not be read.", 500);
   }
-  return appendix;
+  return canonicalAppendix(appendix);
 }
 
 function canonicalChapters(chapters: readonly ExportPacketChapter[]) {
@@ -423,14 +450,7 @@ function toPacketItem(finding: ProjectFinding, revisions: readonly ProjectRevisi
       label: source.revisionLabel,
       role: source.role,
     })),
-    evidence: citedEvidence(finding).map((item) => ({
-      documentPageId: item.documentPageId,
-      pageNumber: item.pageNumber,
-      excerpt: item.excerpt,
-      startOffset: item.startOffset,
-      endOffset: item.endOffset,
-      revisionId: item.revisionId,
-    })),
+    evidence: citedEvidence(finding).map((item) => packetEvidence(item, revisions)),
   };
 }
 
@@ -453,7 +473,25 @@ function documentFor(finding: ProjectFinding, revisions: readonly ProjectRevisio
   const preferred = finding.sources.find((source) => source.role === "current" || source.role === "extracted") ?? finding.sources[0];
   const revision = preferred ? revisions.find((item) => item.id === preferred.revisionId) : undefined;
   if (!revision) throw new DomainError("INVALID_INPUT", "Approved change is missing its document.", 400);
+  if (isLettingNotice(revision.documentTitle)) throw new DomainError("INVALID_INPUT", LETTING_NOTICE_NOT_EVIDENCE, 400);
   return { id: revision.documentId, title: revision.documentTitle };
+}
+
+function packetEvidence(item: FindingEvidence, revisions: readonly ProjectRevisionContext[]) {
+  const revision = revisions.find((candidate) => candidate.id === item.revisionId);
+  const contentHash = revision?.sha256 && /^[a-f0-9]{64}$/.test(revision.sha256) ? revision.sha256 : null;
+  const cite = {
+    revisionId: item.revisionId,
+    revisionLabel: item.revisionLabel,
+    contentHash,
+    documentPageId: item.documentPageId,
+    pageNumber: item.pageNumber,
+    excerpt: item.excerpt,
+    startOffset: item.startOffset,
+    endOffset: item.endOffset,
+  };
+  if (!isPinnedEvidenceCite(cite)) throw new DomainError("INVALID_INPUT", PACK_CITE_UNPINNED_MESSAGE, 400);
+  return cite;
 }
 
 function pageChips(finding: ProjectFinding) {
@@ -463,7 +501,13 @@ function pageChips(finding: ProjectFinding) {
     const key = `${item.revisionId}:${item.pageNumber}:${item.excerpt}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    chips.push({ revisionId: item.revisionId, pageNumber: item.pageNumber, excerpt: item.excerpt });
+    chips.push({
+      revisionId: item.revisionId,
+      revisionLabel: item.revisionLabel,
+      pageNumber: item.pageNumber,
+      excerpt: item.excerpt,
+      documentPageId: item.documentPageId,
+    });
   }
   return chips;
 }

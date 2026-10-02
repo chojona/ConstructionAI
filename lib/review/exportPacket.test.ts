@@ -129,9 +129,16 @@ describe("export packet gate", () => {
       reviewDecisionIds: [accepted.id],
       byteSize: repository.exportPackets[0]!.payload.byteLength,
     });
-    const stored = JSON.parse(repository.exportPackets[0]!.payload.toString("utf8")) as { changes: Array<{ evidence: Array<{ pageNumber: number; excerpt: string }> }> };
+    const stored = JSON.parse(repository.exportPackets[0]!.payload.toString("utf8")) as { changes: Array<{ evidence: Array<Record<string, unknown>> }> };
     expect(createHash("sha256").update(repository.exportPackets[0]!.payload).digest("hex")).toBe(packet.contentHash);
-    expect(stored.changes[0]?.evidence).toEqual([expect.objectContaining({ pageNumber: 1, excerpt: trench })]);
+    expect(stored.changes[0]?.evidence).toEqual([expect.objectContaining({ pageNumber: 1, excerpt: trench, revisionId: project.revisionId })]);
+    expect(Object.keys(stored.changes[0]!.evidence[0]!).slice(0, 4)).toEqual(["revisionId", "revisionLabel", "contentHash", "documentPageId"]);
+    expect(stored.changes[0]?.evidence[0]).toMatchObject({
+      revisionId: project.revisionId,
+      revisionLabel: "A",
+      contentHash: "a".repeat(64),
+    });
+    expect(stored.changes[0]?.evidence[0]?.revisionId).not.toMatch(/^(current|latest)$/);
     expect(canonicalPacketBytes(packet).equals(repository.exportPackets[0]!.payload)).toBe(true);
 
     const again = await exportApprovedChangePacket("org_a", project.id, {}, repository, () => new Date("2026-10-02T00:00:00.000Z"));
@@ -216,6 +223,36 @@ describe("export packet gate", () => {
     expect(review.decisions.map((decision) => decision.decision)).toEqual(["ACCEPTED", "DISMISSED"]);
     expect(review.findings.find((finding) => finding.subjectKey === accepted.subjectKey)?.currentDecision?.decision).toBe("DISMISSED");
     expect(repository.exportPackets).toHaveLength(0);
+  });
+
+  it("keeps the approved cite on the original revision after a newer revision is stored", async () => {
+    const { repository, project, facts } = await scaffold();
+    const clock = sequencedClock();
+    await recordReviewDecision("org_a", project.id, "pm-1", {
+      decision: "ACCEPTED",
+      subject: { type: "proposed_fact", proposedFactId: facts.trench.id },
+    }, repository, clock);
+    const newer = await repository.createRevision({
+      documentId: project.documentId,
+      revisionLabel: "B",
+      originalFilename: "b.pdf",
+      mimeType: "application/pdf",
+      byteSize: 12,
+      sha256: "b".repeat(64),
+      storageKey: "revisions/b.pdf",
+      status: "PROCESSED",
+      pages: [{ pageNumber: 1, text: "A loader shall stockpile the spoil.", textSha256: "d".repeat(64) }],
+    });
+    await propose(repository, newer.id, [equipmentFact("A loader shall stockpile the spoil.", "loader")]);
+
+    const packet = await exportApprovedChangePacket("org_a", project.id, {}, repository, clock);
+    expect(packet.changes[0]?.evidence).toEqual([expect.objectContaining({
+      revisionId: project.revisionId,
+      revisionLabel: "A",
+      contentHash: "a".repeat(64),
+      pageNumber: 1,
+    })]);
+    expect(packet.changes[0]?.evidence.some((item) => item.revisionId === newer.id || item.contentHash === "b".repeat(64))).toBe(false);
   });
 });
 

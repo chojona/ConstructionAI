@@ -85,7 +85,7 @@ describe("sha256 attach idempotency", () => {
   });
 
   it("returns the existing markup appendix when the same bytes are attached again", async () => {
-    const { repository, project, objects } = await scaffold();
+    const { repository, project, packet, objects } = await scaffold();
     const pdf = buildTextPdf(["Markup Summary", "Page: 2", "Page: 14"]);
     const fetchedAt = new Date("2026-10-02T04:00:00.000Z");
     const contentHash = createHash("sha256").update(pdf).digest("hex");
@@ -107,13 +107,21 @@ describe("sha256 attach idempotency", () => {
 
     expect(repository.exportPacketChapters).toHaveLength(1);
     expect(repository.exportPacketChapters[0]?.id).toBe(existing.id);
+    const pin = packet.changes[0]!.evidence[0]!;
+    const pinned = (page: string) => ({
+      revisionId: pin.revisionId,
+      revisionLabel: pin.revisionLabel,
+      page,
+      documentPageId: null,
+      contentHash: pin.contentHash,
+    });
     expect(repository.exportPacketChapters[0]).toMatchObject({
       role: "bluebeam-markup",
       sourceId: "bb-summary-17",
       fetchedAt,
       contentHash,
       filename: "markup-summary.pdf",
-      pageCites: ["2", "14"],
+      pageCites: [pinned("2"), pinned("14")],
     });
     expect(again.appendices).toEqual([
       expect.objectContaining({
@@ -121,7 +129,7 @@ describe("sha256 attach idempotency", () => {
         fetchedAt: fetchedAt.toISOString(),
         contentHash,
         filename: "markup-summary.pdf",
-        pageCites: ["2", "14"],
+        pageCites: [pinned("2"), pinned("14")],
       }),
     ]);
     expect(again.chapters).toBeUndefined();
@@ -204,5 +212,5 @@ async function scaffold() {
   const fixture = await approvedPacketFixture(repository, "org_a");
   const root = mkdtempSync(path.join(tmpdir(), "attach-idempotency-"));
   roots.push(root);
-  return { repository, project: fixture.project, objects: new LocalObjectStore(root) };
+  return { repository, project: fixture.project, packet: fixture.packet, objects: new LocalObjectStore(root) };
 }

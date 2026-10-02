@@ -17,7 +17,7 @@ describe("desk fact list", () => {
       subjectKey: "proposed-fact:fact-trench",
       decision: "ACCEPTED",
       summary: "Quantity to review",
-      evidence: [{ revisionId: "rev", pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY." }],
+      evidence: [{ revisionId: "rev", revisionLabel: "Rev 04", pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY." }],
     }]);
     expect(rows).toEqual([{
       key: "value:fact-trench",
@@ -35,7 +35,7 @@ describe("desk fact list", () => {
       subjectKey: "revision-change:base:revised:MODIFIED:slot:fact-next",
       decision: "ACCEPTED",
       summary: "Quantity changed",
-      evidence: [{ revisionId: "rev-b", pageNumber: 2, excerpt: "Excavation quantity is 1,500 CY." }],
+      evidence: [{ revisionId: "rev-b", revisionLabel: "Rev 05", pageNumber: 2, excerpt: "Excavation quantity is 1,500 CY." }],
     }]);
     expect(rows.map((row) => row.key)).toEqual([
       "value:fact-trench",
@@ -49,7 +49,7 @@ describe("desk fact list", () => {
       subjectKey: "revision-change:base:revised:MODIFIED:slot:fact-trench",
       decision: "ACCEPTED",
       summary: "Quantity changed",
-      evidence: [{ revisionId: "rev", pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY." }],
+      evidence: [{ revisionId: "rev", revisionLabel: "Rev 04", pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY." }],
     }]);
     expect(rows).toHaveLength(1);
   });

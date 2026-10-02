@@ -1,3 +1,5 @@
+import type { PackPageCite } from "@/lib/review/exportPacketView";
+
 export const DRAFT_EMAIL_ACTION = "Draft email";
 export const DRAFT_EMAIL_TITLE = "Draft email with approved pack";
 export const PACK_MISSING_MESSAGE = "Export or build pack first";
@@ -35,7 +37,7 @@ export interface EmailAttachmentPreview {
   documentId: string;
   documentTitle: string;
   decisionId: string;
-  evidence: Array<{ pageNumber: number; excerpt: string }>;
+  evidence: Array<{ revisionId: string; revisionLabel: string; pageNumber: number; excerpt: string }>;
 }
 
 export interface EmailPackFilePreview {
@@ -44,7 +46,7 @@ export interface EmailPackFilePreview {
   sourceId: string;
   fetchedAt: string;
   contentHash: string;
-  pageCites: string[];
+  pageCites: PackPageCite[];
 }
 
 export type EmailAppendixPreview = EmailPackFilePreview;
