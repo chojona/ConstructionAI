@@ -1,6 +1,8 @@
 import type { PrismaClient } from "@prisma/client";
 
 export async function deletePacketFixture(db: PrismaClient, projectId: string) {
+  await db.exportPacketChapterDecision.deleteMany({ where: { chapter: { projectId } } });
+  await db.exportPacketChapter.deleteMany({ where: { projectId } });
   await db.exportPacketDecision.deleteMany({ where: { exportPacket: { projectId } } });
   await db.exportPacket.deleteMany({ where: { projectId } });
   const decisions = await db.reviewDecision.findMany({ where: { projectId }, orderBy: { createdAt: "desc" } });
