@@ -86,5 +86,27 @@ describe("changes desk chrome", () => {
     }));
     expect(open).toContain("Export approved pack");
     expect(open).toContain("Earthworks specification · Rev 04");
+    expect(open).toContain("name=\"subjectKey\" value=\"proposed-fact:excavation\"");
+    expect(open).toContain(">p. 1<");
+    expect(open).not.toContain("This accepted fact has no page cite.");
+    expect(open).not.toContain("name=\"page");
+  });
+
+  it("blocks appendix attach when the selected accepted fact has no page cite", () => {
+    const markup = renderToStaticMarkup(createElement(ChangeReview, {
+      projectId: "project_demo_review",
+      uploadHref: "/projects/project_demo_review?view=documents",
+      items: [],
+      approved: [{
+        subjectKey: acceptedFinding.subjectKey,
+        decision: "ACCEPTED",
+        summary: acceptedFinding.label,
+        evidence: [],
+      }],
+      decided: decidedRowChrome([{ ...acceptedFinding, after: { category: "quantity", evidence: [] }, evidence: [] }]),
+    }));
+    expect(markup).toContain("This accepted fact has no page cite.");
+    expect(markup).toContain("disabled=\"\"");
+    expect(markup).not.toContain("name=\"subjectKey\"");
   });
 });

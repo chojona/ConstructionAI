@@ -13,6 +13,7 @@ import {
   ACC_EXPORT_CHAPTER_TITLE,
   ADD_ACC_EXPORT_LABEL,
   ADD_PACK_APPENDIX_LABEL,
+  APPENDIX_PAGE_MISSING_MESSAGE,
   BLUEBEAM_APPENDIX_ROLE,
   BLUEBEAM_MARKUP_APPENDIX_TITLE,
   PACK_APPENDIX_ADDED_MESSAGE,
@@ -36,6 +37,8 @@ export function ExportPacketControl({
   openCount = 0,
   chapters = [],
   appendices = [],
+  appendixSubjectKey = "",
+  appendixPageCites = [],
 }: {
   projectId: string;
   changes: readonly ApprovedChangePreview[];
@@ -43,6 +46,8 @@ export function ExportPacketControl({
   openCount?: number;
   chapters?: readonly DeskPackFile[];
   appendices?: readonly DeskPackFile[];
+  appendixSubjectKey?: string;
+  appendixPageCites?: readonly string[];
 }) {
   const approved = visiblePacketChanges(changes).filter((change) => subjectExportVisible(change.decision));
   const action = exportPacketAction(approved.length, projectId, openCount);
@@ -58,7 +63,7 @@ export function ExportPacketControl({
         {draftEmailVisible(approved.length) && <DraftEmailButton projectId={projectId} actorId={actorId} />}
       </div>
       <AccChapterForm projectId={projectId} initialFiles={chapters} />
-      <MarkupAppendixForm projectId={projectId} initialFiles={appendices} />
+      <MarkupAppendixForm projectId={projectId} initialFiles={appendices} subjectKey={appendixSubjectKey} pageCites={appendixPageCites} />
     </div>
   );
 }
@@ -118,7 +123,17 @@ function AccChapterForm({ projectId, initialFiles }: { projectId: string; initia
   );
 }
 
-function MarkupAppendixForm({ projectId, initialFiles }: { projectId: string; initialFiles: readonly DeskPackFile[] }) {
+function MarkupAppendixForm({
+  projectId,
+  initialFiles,
+  subjectKey,
+  pageCites,
+}: {
+  projectId: string;
+  initialFiles: readonly DeskPackFile[];
+  subjectKey: string;
+  pageCites: readonly string[];
+}) {
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
   const [files, setFiles] = useState(() => visiblePackProof(initialFiles));
@@ -126,6 +141,7 @@ function MarkupAppendixForm({ projectId, initialFiles }: { projectId: string; in
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
+    if (pageCites.length === 0) return;
     setPending(true);
     setMessage("");
     try {
@@ -165,7 +181,13 @@ function MarkupAppendixForm({ projectId, initialFiles }: { projectId: string; in
           <option value={BLUEBEAM_APPENDIX_ROLE}>{BLUEBEAM_MARKUP_APPENDIX_TITLE}</option>
         </select>
       </label>
-      <Button type="submit" variant="outline" disabled={pending}>{ADD_PACK_APPENDIX_LABEL}</Button>
+      {subjectKey && pageCites.length > 0 ? <input type="hidden" name="subjectKey" value={subjectKey} /> : null}
+      {pageCites.length > 0 ? (
+        <p className="packet-chips" aria-label="Page">
+          {pageCites.map((page) => <span className="page-chip" key={page}>p. {page}</span>)}
+        </p>
+      ) : <p className="packet-blocked">{APPENDIX_PAGE_MISSING_MESSAGE}</p>}
+      <Button type="submit" variant="outline" disabled={pending || pageCites.length === 0}>{ADD_PACK_APPENDIX_LABEL}</Button>
       <PackProofList files={files} />
       {message ? <p className="packet-blocked">{message}</p> : null}
     </form>

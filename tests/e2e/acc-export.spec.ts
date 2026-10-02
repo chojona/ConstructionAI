@@ -84,6 +84,26 @@ test("attaches a markup summary on an approved pack", async ({ page, request }) 
   ]);
 });
 
+test("binds the accepted fact page when the markup file has no page cite", async ({ page }) => {
+  await page.goto(`/projects/${projectId}?view=changes`);
+  const appendix = page.getByRole("form", { name: "Pack appendix" });
+  await expect(appendix.locator(".packet-chips").getByText("p. 1", { exact: true })).toBeVisible();
+  await expect(appendix.getByRole("textbox", { name: "Page" })).toHaveCount(0);
+  await appendix.getByLabel("PDF").setInputFiles({
+    name: "markup-summary.pdf",
+    mimeType: "application/pdf",
+    buffer: buildTextPdf(["Markup Summary", "No pages listed"]),
+  });
+  await appendix.getByLabel("Source id").fill("bb-fact-page");
+  await appendix.getByRole("button", { name: "Add pack appendix" }).click();
+  const proof = appendix.locator(".packet-proof li", { hasText: "bb-fact-page" });
+  await expect(proof.getByText("bb-fact-page")).toBeVisible();
+  await expect(proof.locator("time")).toHaveAttribute("datetime", /^\d{4}-\d{2}-\d{2}T/);
+  await expect(proof.getByText(/^[a-f0-9]{12}$/)).toBeVisible();
+  await expect(proof.getByText("p. 1", { exact: true })).toBeVisible();
+  await expect(page.getByText("This accepted fact has no page cite.")).toHaveCount(0);
+});
+
 test("blank source id shows the upload marker on chapter and appendix proof", async ({ page }) => {
   await page.goto(`/projects/${projectId}?view=changes`);
   const chapter = page.getByRole("form", { name: "Pack chapter" });

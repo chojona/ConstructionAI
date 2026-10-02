@@ -16,6 +16,8 @@ import { canonicalPacketBytes, packetContentHash } from "./exportPacket";
 import {
   ADD_PACK_APPENDIX_LABEL,
   BLUEBEAM_MARKUP_APPENDIX_TITLE,
+  APPENDIX_PAGE_MISSING_MESSAGE,
+  appendixFactBinding,
   EXPORT_BLOCKED_MESSAGE,
   PACK_APPENDIX_ADDED_MESSAGE,
   PACK_APPENDIX_FILE_LABEL,
@@ -80,6 +82,17 @@ describe("Bluebeam markup summary appendix", () => {
     expect(copySource).not.toMatch(BANNED_COPY);
     expect(readFileSync("lib/review/bluebeamAppendix.ts", "utf8")).not.toMatch(/S3Client|public-read|PutObjectCommand|new S3/);
     expect(readFileSync("lib/review/bluebeamAppendix.ts", "utf8")).toMatch(/writePacketBytes|ObjectStore/);
+  });
+
+  it("binds the appendix to the selected accepted fact page", () => {
+    const fact = { subjectKey: "proposed-fact:excavation", decision: "ACCEPTED" as const, summary: "excavation", evidence: [{ revisionId: "rev", pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY." }] };
+    expect(appendixFactBinding([fact], { key: fact.subjectKey, decision: "ACCEPTED" })).toEqual({
+      subjectKey: fact.subjectKey,
+      pageCites: ["1"],
+    });
+    expect(appendixFactBinding([fact], null)).toEqual({ subjectKey: fact.subjectKey, pageCites: ["1"] });
+    expect(appendixFactBinding([{ ...fact, evidence: [] }], { key: fact.subjectKey, decision: "ACCEPTED" }).pageCites).toEqual([]);
+    expect(appendixFactBinding([fact], { key: "other", decision: "DISMISSED" })).toEqual({ subjectKey: "", pageCites: [] });
   });
 
   it("reads page cites from a markup summary export", () => {
@@ -277,19 +290,30 @@ describe("Bluebeam markup summary appendix", () => {
     }, repository, objects, clock)).rejects.toMatchObject({
       message: "Only an approved change can be exported.",
     });
+    const bare = buildTextPdf(["Markup Summary", "No pages listed"]);
+    const bound = await attachBluebeamMarkupAppendix("org_a", project.id, {
+      bytes: bare,
+      filename: "markup.pdf",
+      mimeType: "application/pdf",
+    }, repository, objects, clock);
+    expect(bound.appendices?.[0]?.pageCites).toEqual(["1"]);
+    expect(repository.emailSends).toHaveLength(0);
+    for (const item of facts.trench.evidence) item.pageNumber = 0;
+    const stillBare = buildTextPdf(["Markup Summary", "No page on the fact"]);
     await expect(attachBluebeamMarkupAppendix("org_a", project.id, {
-      bytes: buildTextPdf(["Markup Summary", "No pages listed"]),
+      bytes: stillBare,
       filename: "markup.pdf",
       mimeType: "application/pdf",
     }, repository, objects, clock)).rejects.toMatchObject({
-      message: "The markup summary needs a page cite.",
+      message: APPENDIX_PAGE_MISSING_MESSAGE,
     });
+    expect(await objects.exists(`export-packets/${project.id}/appendices/${createHash("sha256").update(stillBare).digest("hex")}.pdf`)).toBe(false);
     await expect(attachBluebeamMarkupAppendix("org_a", project.id, {
       bytes: Buffer.from("notes"),
       filename: "notes.txt",
       mimeType: "text/plain",
     }, repository, objects, clock)).rejects.toMatchObject({ code: "INVALID_INPUT" });
-    expect(repository.exportPacketChapters).toHaveLength(0);
+    expect(repository.exportPacketChapters).toHaveLength(1);
     expect(repository.emailSends).toHaveLength(0);
   });
 

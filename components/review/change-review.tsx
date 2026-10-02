@@ -9,7 +9,7 @@ import { ExportPacketControl } from "@/components/review/export-packet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { AttentionItemDto, FindingDto } from "@/lib/review/dto";
-import type { ApprovedChangePreview, DeskPackFile } from "@/lib/review/exportPacketView";
+import { appendixFactBinding, type ApprovedChangePreview, type DeskPackFile } from "@/lib/review/exportPacketView";
 import { changeEvidenceLead, changePageChip, changeRowTitle, type DecidedRowChrome } from "@/lib/review/changeRow";
 import { decisionReturnPath, findingDomId } from "@/lib/review/evidenceLocation";
 import { defaultDeskKey } from "@/lib/review/factList";
@@ -62,6 +62,7 @@ export function ChangeReview({
   const activeKey = selectedIsKnown ? selectedKey : fallbackKey;
   const selected = items.find((item) => item.finding.subjectKey === activeKey)?.finding;
   const selectedDecided = decided.find((row) => row.key === activeKey) ?? null;
+  const appendixFact = appendixFactBinding(approved, selectedDecided);
 
   useEffect(() => {
     function selectHash() {
@@ -131,7 +132,7 @@ export function ChangeReview({
   return (
     <div className="change-desk">
       <div className="change-list-pane">
-        <ExportPacketControl projectId={projectId} changes={approved} actorId={reviewerId} openCount={items.length} chapters={chapters} appendices={appendices} />
+        <ExportPacketControl projectId={projectId} changes={approved} actorId={reviewerId} openCount={items.length} chapters={chapters} appendices={appendices} appendixSubjectKey={appendixFact.subjectKey} appendixPageCites={appendixFact.pageCites} />
         {(decided.length > 0 || notes.length > 0) && (
           <>
             {decided.length > 0 && (

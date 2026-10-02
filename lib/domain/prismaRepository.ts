@@ -4,6 +4,7 @@ import { DomainError } from "./errors";
 import { isSerializationConflict, serializationAttempts, uniqueConstraintTargets } from "./transactionConflict";
 import { PACK_MISSING_MESSAGE } from "@/lib/email/emailSendView";
 import { EXPORT_BLOCKED_MESSAGE } from "@/lib/review/exportPacket";
+import { APPENDIX_PAGE_MISSING_MESSAGE } from "@/lib/review/exportPacketView";
 import { packetBytesToStore, readPacketBytes, writePacketBytes } from "@/lib/storage/packetBytes";
 import { requireObjectStore, type ObjectStore } from "@/lib/storage/objectStore";
 import type {
@@ -847,7 +848,7 @@ function pageCitesFor(input: SaveExportPacketChapterInput) {
   const cites = [...(input.pageCites ?? [])];
   if (input.role !== "bluebeam-markup") return [];
   if (cites.length === 0 || cites.some((cite) => cite.length === 0 || cite.length > 80 || cite.trim() !== cite)) {
-    throw new DomainError("INVALID_INPUT", "The markup summary needs a page cite.", 400);
+    throw new DomainError("INVALID_INPUT", APPENDIX_PAGE_MISSING_MESSAGE, 400);
   }
   return cites;
 }

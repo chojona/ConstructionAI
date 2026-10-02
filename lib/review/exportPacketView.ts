@@ -18,6 +18,7 @@ export const BLUEBEAM_APPENDIX_ROLE = "bluebeam-markup";
 export const CONTENT_SHA256_LABEL = "sha256";
 export const PACK_PROOF_SOURCE_LABEL = "Source id";
 export const PACK_PROOF_FETCHED_LABEL = "Fetched";
+export const APPENDIX_PAGE_MISSING_MESSAGE = "This accepted fact has no page cite.";
 
 export const ACC_CHAPTER_ROLES = ["acc-docs", "rfi"] as const;
 export type AccChapterRole = (typeof ACC_CHAPTER_ROLES)[number];
@@ -70,6 +71,37 @@ export interface DeskPackFile {
 }
 
 const CONTENT_SHA256_SHORT_LENGTH = 12;
+
+export function appendixFactBinding(
+  changes: readonly ApprovedChangePreview[],
+  selected: { key: string; decision: string } | null,
+) {
+  const accepted = selected?.decision === "ACCEPTED"
+    ? changes.find((change) => change.subjectKey === selected.key)
+    : undefined;
+  if (selected?.decision === "ACCEPTED") {
+    return { subjectKey: accepted?.subjectKey ?? "", pageCites: factPageCites(accepted?.evidence ?? []) };
+  }
+  if (selected) return { subjectKey: "", pageCites: [] as string[] };
+  if (changes.length === 1) {
+    const change = changes[0]!;
+    return { subjectKey: change.subjectKey, pageCites: factPageCites(change.evidence) };
+  }
+  return { subjectKey: "", pageCites: factPageCites(changes.flatMap((change) => change.evidence)) };
+}
+
+export function factPageCites(evidence: readonly { pageNumber: number }[]) {
+  const cites: string[] = [];
+  const seen = new Set<string>();
+  for (const item of evidence) {
+    if (!Number.isInteger(item.pageNumber) || item.pageNumber < 1) continue;
+    const cite = String(item.pageNumber);
+    if (seen.has(cite)) continue;
+    seen.add(cite);
+    cites.push(cite);
+  }
+  return cites;
+}
 
 export function shortContentSha256(contentHash: string) {
   return contentHash.slice(0, CONTENT_SHA256_SHORT_LENGTH);
