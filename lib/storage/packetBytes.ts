@@ -3,6 +3,7 @@ import { StorageObjectMissingError, type ObjectStore } from "./objectStore";
 
 const MISSING = "Approved pack bytes are missing.";
 const MISMATCH = "Approved pack object does not match its stored bytes.";
+const STORE_FAILED = "Could not store the pack file.";
 
 export function packetBytesToStore(legacyPayload: Uint8Array | null, payload: Buffer, byteSize: number) {
   if (payload.byteLength !== byteSize) {
@@ -29,14 +30,19 @@ export async function readPacketBytes(input: {
 }
 
 export async function writePacketBytes(objects: ObjectStore, storageKey: string, payload: Buffer) {
-  const existing = await readIfPresent(objects, storageKey);
-  if (existing) {
-    if (!existing.equals(payload)) throw new DomainError("STORAGE_ERROR", MISMATCH, 500);
-    return;
+  try {
+    const existing = await readIfPresent(objects, storageKey);
+    if (existing) {
+      if (!existing.equals(payload)) throw new DomainError("STORAGE_ERROR", MISMATCH, 500);
+      return;
+    }
+    await objects.put(storageKey, payload);
+    const stored = await objects.get(storageKey);
+    if (!stored.equals(payload)) throw new DomainError("STORAGE_ERROR", MISMATCH, 500);
+  } catch (error) {
+    if (error instanceof DomainError) throw error;
+    throw new DomainError("STORAGE_ERROR", STORE_FAILED, 503);
   }
-  await objects.put(storageKey, payload);
-  const stored = await objects.get(storageKey);
-  if (!stored.equals(payload)) throw new DomainError("STORAGE_ERROR", MISMATCH, 500);
 }
 
 async function readIfPresent(objects: ObjectStore, storageKey: string) {

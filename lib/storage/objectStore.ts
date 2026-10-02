@@ -50,6 +50,7 @@ export interface ObjectStorageS3Config {
 }
 
 const CREDENTIALS_MESSAGE = "Set OBJECT_STORAGE_BUCKET, OBJECT_STORAGE_ACCESS_KEY_ID, and OBJECT_STORAGE_SECRET_ACCESS_KEY together.";
+export const STORAGE_UNAVAILABLE_MESSAGE = "Could not store the pack file. Object storage is not configured.";
 
 export type ObjectStorageEnv = Record<string, string | undefined>;
 
@@ -59,11 +60,11 @@ export function localObjectRoot(env: ObjectStorageEnv = process.env) {
 }
 
 export function readObjectStorageConfig(env: ObjectStorageEnv): ObjectStorageS3Config | null {
-  const bucket = trimmed(env.OBJECT_STORAGE_BUCKET);
-  const accessKeyId = trimmed(env.OBJECT_STORAGE_ACCESS_KEY_ID);
-  const secretAccessKey = trimmed(env.OBJECT_STORAGE_SECRET_ACCESS_KEY);
-  const endpoint = trimmed(env.OBJECT_STORAGE_ENDPOINT);
-  const region = trimmed(env.OBJECT_STORAGE_REGION);
+  const bucket = first(env.OBJECT_STORAGE_BUCKET, env.DOCUMENT_STORAGE_BUCKET);
+  const accessKeyId = first(env.OBJECT_STORAGE_ACCESS_KEY_ID, env.AWS_ACCESS_KEY_ID);
+  const secretAccessKey = first(env.OBJECT_STORAGE_SECRET_ACCESS_KEY, env.AWS_SECRET_ACCESS_KEY);
+  const endpoint = first(env.OBJECT_STORAGE_ENDPOINT, env.AWS_ENDPOINT_URL_S3);
+  const region = first(env.OBJECT_STORAGE_REGION, env.AWS_REGION);
   const forceFlag = trimmed(env.OBJECT_STORAGE_FORCE_PATH_STYLE);
   if (!bucket && !accessKeyId && !secretAccessKey && !endpoint) return null;
   if (!bucket || !accessKeyId || !secretAccessKey) throw new ObjectStorageConfigError(CREDENTIALS_MESSAGE);
@@ -97,15 +98,21 @@ export function getObjectStore(): ObjectStore {
   return cached;
 }
 
-export function requireObjectStore(): ObjectStore {
+/** Opens a store for one environment without caching it. Hosted config failures become a desk error. */
+export function openObjectStore(env: ObjectStorageEnv = process.env, localRoot = localObjectRoot(env)): ObjectStore {
   try {
-    return getObjectStore();
+    return createObjectStore(env, localRoot);
   } catch (error) {
     if (error instanceof ObjectStorageConfigError) {
-      throw new DomainError("STORAGE_ERROR", error.message, 500);
+      throw new DomainError("STORAGE_ERROR", STORAGE_UNAVAILABLE_MESSAGE, 503);
     }
     throw error;
   }
+}
+
+export function requireObjectStore(): ObjectStore {
+  cached ??= openObjectStore();
+  return cached;
 }
 
 export function objectStoreLabel(store: ObjectStore) {
@@ -232,6 +239,14 @@ function sha256(bytes: Buffer) {
 function trimmed(value: string | undefined) {
   const text = value?.trim();
   return text ? text : undefined;
+}
+
+function first(...values: Array<string | undefined>) {
+  for (const value of values) {
+    const text = trimmed(value);
+    if (text) return text;
+  }
+  return undefined;
 }
 
 function parseForcePathStyle(value: string | undefined, endpointSet: boolean) {

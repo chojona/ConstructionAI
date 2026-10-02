@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { LocalObjectStore } from "./objectStore";
+import { LocalObjectStore, type ObjectStore } from "./objectStore";
 import { packetBytesToStore, readPacketBytes, writePacketBytes } from "./packetBytes";
 
 const roots: string[] = [];
@@ -40,5 +40,26 @@ describe("approved pack bytes", () => {
     })).rejects.toMatchObject({ code: "STORAGE_ERROR", message: "Approved pack bytes are missing." });
     expect(packetBytesToStore(legacy, legacy, legacy.byteLength).equals(legacy)).toBe(true);
     expect(() => packetBytesToStore(Buffer.from("other-approved-pack"), legacy, legacy.byteLength)).toThrow(Error);
+  });
+
+  it("turns an object-store write failure into a desk storage error", async () => {
+    const objects: ObjectStore = {
+      mode: "s3",
+      async put() {
+        throw new Error("AccessDenied");
+      },
+      async get() {
+        throw new Error("AccessDenied");
+      },
+      async delete() {},
+      async exists() {
+        return false;
+      },
+    };
+    await expect(writePacketBytes(objects, "export-packets/project/appendices/abc.pdf", Buffer.from("%PDF-1.4"))).rejects.toMatchObject({
+      code: "STORAGE_ERROR",
+      httpStatus: 503,
+      message: "Could not store the pack file.",
+    });
   });
 });

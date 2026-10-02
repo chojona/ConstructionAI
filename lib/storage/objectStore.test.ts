@@ -9,8 +9,10 @@ import {
   createObjectStore,
   LocalObjectStore,
   ObjectStorageConfigError,
+  openObjectStore,
   readObjectStorageConfig,
   S3ObjectStore,
+  STORAGE_UNAVAILABLE_MESSAGE,
   StorageImmutableError,
   StorageObjectMissingError,
 } from "./objectStore";
@@ -45,6 +47,38 @@ describe("object storage", () => {
       OBJECT_STORAGE_FORCE_PATH_STYLE: "maybe",
     })).toThrow(/true or false/);
     expect(() => createObjectStore({ VERCEL: "1" }, "/tmp/packs")).toThrow(/hosted filesystem/);
+    expect(() => openObjectStore({ VERCEL: "1" }, "/tmp/packs")).toThrow(expect.objectContaining({
+      code: "STORAGE_ERROR",
+      httpStatus: 503,
+      message: STORAGE_UNAVAILABLE_MESSAGE,
+    }));
+  });
+
+  it("uses the preview document bucket when OBJECT_STORAGE_* is unset", () => {
+    const store = createObjectStore({
+      VERCEL: "1",
+      DOCUMENT_STORAGE_BUCKET: "preview-packs",
+      AWS_ACCESS_KEY_ID: "key",
+      AWS_SECRET_ACCESS_KEY: "secret",
+      AWS_ENDPOINT_URL_S3: "https://example.test",
+    });
+    expect(store).toBeInstanceOf(S3ObjectStore);
+    expect(store.mode).toBe("s3");
+    expect((store as S3ObjectStore).bucket).toBe("preview-packs");
+    const config = readObjectStorageConfig({
+      VERCEL: "1",
+      OBJECT_STORAGE_BUCKET: "",
+      DOCUMENT_STORAGE_BUCKET: "preview-packs",
+      AWS_ACCESS_KEY_ID: "key",
+      AWS_SECRET_ACCESS_KEY: "secret",
+      AWS_ENDPOINT_URL_S3: "https://s3.example.test",
+    });
+    expect(config).toMatchObject({
+      bucket: "preview-packs",
+      endpoint: "https://s3.example.test",
+      region: "us-east-1",
+      forcePathStyle: true,
+    });
   });
 
   it("builds an S3 store when bucket credentials are set", () => {
