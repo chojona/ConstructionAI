@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 import { GET } from "@/app/api/projects/[projectId]/heavyjob-objects/route";
-import { createPrismaClient } from "@/lib/db";
 import {
   HEAVYJOB_DEMO_PROJECT_ID,
   HEAVYJOB_FIXTURE_FETCHED_AT,
@@ -10,12 +9,10 @@ import {
 } from "@/lib/heavyjob/fixtures";
 import { loadHeavyJobFixtures, seedHeavyJobDemoProject } from "@/lib/heavyjob/loadFixtures";
 import { PrismaHeavyJobSourceRepository } from "@/lib/heavyjob/repository";
+import { hasIntegrationDatabase, integrationDb } from "@/tests/support/integrationDb";
 
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) throw new Error("DATABASE_URL is required for integration tests.");
-
-describe("HeavyJob source objects", () => {
-  const db = createPrismaClient();
+describe.skipIf(!hasIntegrationDatabase)("HeavyJob source objects", () => {
+  const db = integrationDb();
   const repository = new PrismaHeavyJobSourceRepository(db);
   const suffix = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
   const orgA = `it_hj_org_a_${suffix}`;

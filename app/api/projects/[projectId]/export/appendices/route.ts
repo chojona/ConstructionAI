@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse } from "@/lib/http";
+import { authorizeRequest } from "@/lib/auth/membership";
 import { attachBluebeamMarkupAppendix } from "@/lib/review/bluebeamAppendix";
-import { requestOrganizationId } from "@/lib/tenancy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,6 +12,7 @@ export async function POST(
 ) {
   try {
     const { projectId } = await context.params;
+    const access = await authorizeRequest(request, "upload");
     const form = await request.formData();
     const file = form.get("file");
     if (!(file instanceof File)) {
@@ -23,7 +24,7 @@ export async function POST(
     const sourceId = form.get("sourceId");
     const kind = form.get("kind");
     const subjectKey = form.get("subjectKey");
-    const packet = await attachBluebeamMarkupAppendix(requestOrganizationId(request), projectId, {
+    const packet = await attachBluebeamMarkupAppendix(access.organizationId, projectId, {
       bytes: Buffer.from(await file.arrayBuffer()),
       filename: file.name,
       mimeType: file.type.trim() || (file.name.toLowerCase().endsWith(".csv") ? "text/csv" : "application/pdf"),

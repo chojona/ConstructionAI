@@ -14,6 +14,7 @@ import {
   packetChapterFromStored,
   packetContentHash,
   packetFromStored,
+  type ExportPacketCanonical,
 } from "./exportPacket";
 import { listProjectFindings, type ProjectFinding } from "./findings";
 import { projectEffectiveState, type EffectiveProjectState } from "./projectState";
@@ -204,6 +205,7 @@ export async function currentApprovedChangePacket(
   projectId: string,
   repository: ConstructionRepository = constructionRepository,
   subjectKey?: string,
+  options?: { frozen?: boolean },
 ) {
   const { source, decisions } = await load(organizationId, projectId, repository);
   const findings = listProjectFindings(source, decisions);
@@ -213,6 +215,10 @@ export async function currentApprovedChangePacket(
     revisions: source.revisions,
     subjectKey,
   });
+  if (options?.frozen !== false) {
+    const frozen = await repository.findLatestExportPacketForDecisions(organizationId, projectId, base.decisionIds);
+    if (frozen) return packetFromStored(frozen);
+  }
   const storedChapters = await repository.listExportPacketChapters(organizationId, projectId, base.decisionIds);
   if (!storedChapters) throw new DomainError("NOT_FOUND", "Project not found.", 404);
   if (storedChapters.length === 0) return base;
@@ -239,16 +245,32 @@ export async function exportApprovedChangePacket(
     subjectKey: rawQuery.subjectKey?.trim() || undefined,
   }).subjectKey;
   const built = await currentApprovedChangePacket(organizationId, projectId, repository, subjectKey);
-  const payload = canonicalPacketBytes(built);
-  const contentHash = packetContentHash(built);
+  return publishApprovedChangePacket(organizationId, projectId, built, repository, clock());
+}
+
+export async function publishApprovedChangePacket(
+  organizationId: string,
+  projectId: string,
+  packet: ExportPacketCanonical,
+  repository: ConstructionRepository,
+  createdAt: Date,
+) {
+  const payload = canonicalPacketBytes(packet);
+  const contentHash = packetContentHash(packet);
+  const existing = await repository.getExportPacketByContentHash(organizationId, projectId, contentHash);
+  if (existing) return packetFromStored(existing);
+  const prior = await repository.findLatestExportPacketForDecisions(organizationId, projectId, packet.decisionIds);
+  const stamped = prior && prior.createdAt.getTime() >= createdAt.getTime()
+    ? new Date(prior.createdAt.getTime() + 1)
+    : createdAt;
   const stored = await repository.saveExportPacket({
     organizationId,
     projectId,
     contentHash,
     storageKey: exportPacketStorageKey(projectId, contentHash),
     payload,
-    reviewDecisionIds: built.changes.map((change) => change.decisionId),
-    createdAt: clock(),
+    reviewDecisionIds: packet.decisionIds,
+    createdAt: stamped,
   });
   if (!stored) throw new DomainError("NOT_FOUND", "Project not found.", 404);
   return packetFromStored(stored);

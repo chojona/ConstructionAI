@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authorizeRequest } from "@/lib/auth/membership";
 import { createDocument } from "@/lib/documents/service";
 import { errorResponse } from "@/lib/http";
-import { requestOrganizationId } from "@/lib/tenancy";
 
 export async function POST(
   request: NextRequest,
@@ -9,8 +9,9 @@ export async function POST(
 ) {
   try {
     const { projectId } = await context.params;
+    const access = await authorizeRequest(request, "upload");
     const document = await createDocument(
-      requestOrganizationId(request),
+      access.organizationId,
       projectId,
       await request.json(),
     );

@@ -3,16 +3,16 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createPrismaClient } from "@/lib/db";
 import { PrismaConstructionRepository } from "@/lib/domain/prismaRepository";
 import { LocalObjectStore } from "@/lib/storage/objectStore";
 import { attachAccPdfChapter } from "@/lib/review/accChapter";
 import { recordReviewDecision } from "@/lib/review/service";
 import { approvedPacketFixture } from "@/tests/support/approvedPacketFixture";
 import { deletePacketFixture } from "@/tests/support/deletePacketFixture";
+import { hasIntegrationDatabase, integrationDb } from "@/tests/support/integrationDb";
 
-describe("ACC PDF chapter persistence", () => {
-  const db = createPrismaClient();
+describe.skipIf(!hasIntegrationDatabase)("ACC PDF chapter persistence", () => {
+  const db = integrationDb();
   const organizationId = `it_acc_chapter_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   let root = "";
   let projectId = "";

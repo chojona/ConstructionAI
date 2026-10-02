@@ -195,6 +195,18 @@ export interface UpdateEmailDraftInput {
   sentAt: Date | null;
 }
 
+export function sameIdSet(left: readonly string[], right: readonly string[]) {
+  if (left.length !== right.length) return false;
+  const counts = new Map<string, number>();
+  for (const id of right) counts.set(id, (counts.get(id) ?? 0) + 1);
+  for (const id of left) {
+    const remaining = counts.get(id) ?? 0;
+    if (remaining === 0) return false;
+    counts.set(id, remaining - 1);
+  }
+  return true;
+}
+
 export interface ConstructionRepository {
   organizationExists(organizationId: string): Promise<boolean>;
   createProject(input: {
@@ -231,6 +243,7 @@ export interface ConstructionRepository {
   saveExportPacket(input: SaveExportPacketInput): Promise<StoredExportPacket | null>;
   getExportPacketByContentHash(organizationId: string, projectId: string, contentHash: string): Promise<StoredExportPacket | null>;
   getExportPacketById(organizationId: string, projectId: string, exportPacketId: string): Promise<StoredExportPacket | null>;
+  findLatestExportPacketForDecisions(organizationId: string, projectId: string, reviewDecisionIds: string[]): Promise<StoredExportPacket | null>;
   saveExportPacketChapter(input: SaveExportPacketChapterInput): Promise<StoredExportPacketChapter | null>;
   listExportPacketChapters(organizationId: string, projectId: string, reviewDecisionIds: string[]): Promise<StoredExportPacketChapter[] | null>;
   createEmailSend(input: CreateEmailSendInput): Promise<EmailSendRecord | null>;

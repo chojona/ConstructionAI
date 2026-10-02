@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authorizeRequest, withLedgerActor } from "@/lib/auth/membership";
 import { readEmailSend, updateEmailDraft } from "@/lib/email/service";
 import { errorResponse } from "@/lib/http";
-import { requestOrganizationId } from "@/lib/tenancy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +12,8 @@ export async function GET(
 ) {
   try {
     const { projectId, emailSendId } = await context.params;
-    const email = await readEmailSend(requestOrganizationId(request), projectId, emailSendId);
+    const access = await authorizeRequest(request, "read");
+    const email = await readEmailSend(access.organizationId, projectId, emailSendId);
     return NextResponse.json({ email });
   } catch (error) {
     return errorResponse(error);
@@ -25,11 +26,12 @@ export async function PATCH(
 ) {
   try {
     const { projectId, emailSendId } = await context.params;
+    const access = await authorizeRequest(request, "draft_email");
     const email = await updateEmailDraft(
-      requestOrganizationId(request),
+      access.organizationId,
       projectId,
       emailSendId,
-      await request.json(),
+      withLedgerActor(access, await request.json()),
     );
     return NextResponse.json({ email });
   } catch (error) {
