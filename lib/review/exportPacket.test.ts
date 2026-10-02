@@ -13,6 +13,7 @@ import {
   subjectExportVisible,
   visiblePacketChanges,
 } from "./exportPacket";
+import { EXPORT_OPEN_MESSAGE } from "./exportPacketView";
 import { exportApprovedChangePacket, getProjectReview, recordReviewDecision } from "./service";
 
 const trench = "A CAT 336 excavator shall be used for the trench.";
@@ -35,6 +36,20 @@ describe("export packet gate", () => {
     expect(exportPacketAction(1, "project_1")).toEqual({
       enabled: true,
       href: "/api/projects/project_1/export",
+      message: null,
+    });
+  });
+
+  it("stays off while any change is still open, even when an accepted fact is eligible", () => {
+    expect(exportPacketAction(3, "project_demo_review", 4)).toEqual({
+      enabled: false,
+      href: null,
+      message: EXPORT_OPEN_MESSAGE,
+    });
+    expect(exportPacketAction(0, "project_demo_review", 0).enabled).toBe(false);
+    expect(exportPacketAction(1, "project_demo_review", 0)).toEqual({
+      enabled: true,
+      href: "/api/projects/project_demo_review/export",
       message: null,
     });
   });

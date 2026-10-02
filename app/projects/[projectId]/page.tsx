@@ -12,6 +12,7 @@ import { toHeavyJobSourceObjectDto } from "@/lib/heavyjob/dto";
 import { listHeavyJobSourceObjects } from "@/lib/heavyjob/service";
 import { getProject } from "@/lib/projects/service";
 import { listAttention } from "@/lib/review/attention";
+import { decidedRowChrome } from "@/lib/review/changeRow";
 import { approvedChangePreview } from "@/lib/review/exportPacket";
 import { uploadRevisionHref } from "@/lib/review/emptyState";
 import { toAttentionDto } from "@/lib/review/dto";
@@ -51,14 +52,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           projectId={project.id}
           items={attention.map(toAttentionDto)}
           approved={approvedChangePreview(review.findings)}
-          facts={review.state.facts.map((fact) => ({
-            proposedFactId: fact.proposedFactId,
-            summary: fact.summary,
-            documentTitle: fact.documentTitle,
-            revisionLabel: fact.revisionLabel,
-            reviewerId: fact.reviewerId,
-            evidence: fact.evidence.map((item) => ({ pageNumber: item.pageNumber, excerpt: item.excerpt })),
-          }))}
+          decided={decidedRowChrome(review.findings)}
           notes={review.state.retirements.map((retirement) => ({
             key: `${retirement.proposedFactId}-${retirement.decisionId}`,
             text: retirement.supersededByProposedFactId
