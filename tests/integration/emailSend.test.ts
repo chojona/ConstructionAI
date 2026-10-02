@@ -107,6 +107,18 @@ describe("Prisma email send ledger", () => {
     expect(source.ready).toBe(true);
     if (!source.ready) return;
 
+    const draftedAt = new Date("2026-10-01T15:02:30.000Z");
+    const draft = await recordEmailSend(organizationId, project.id, {
+      recipients: "draft@example.com",
+      subject: "Email bridge — approved facts pack",
+      body: "Approved changes for Email bridge are attached as the approved facts pack.\nThe pack lists each accepted change and the page it cites.",
+      actorId: "Alex Chen",
+      exportPacketId: source.exportPacketId,
+      status: "DRAFT",
+    }, repository, () => draftedAt);
+    expect(draft.status).toBe("DRAFT");
+    expect(draft.sentAt).toBeNull();
+
     const sentAt = new Date("2026-10-01T15:03:00.000Z");
     const email = await recordEmailSend(organizationId, project.id, {
       recipients: "pm@example.com, DOT AE",

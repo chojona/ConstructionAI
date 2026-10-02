@@ -122,6 +122,7 @@ describe("export packet gate", () => {
     expect(repository.reviewDecisions).toHaveLength(decisionsBefore);
     expect(repository.reviewDecisions.map((decision) => decision.decision)).toEqual(["ACCEPTED", "DISMISSED", "FLAGGED"]);
     expect(repository.exportPackets).toHaveLength(1);
+    expect(repository.emailSends).toHaveLength(0);
     expect(repository.exportPackets[0]).toMatchObject({
       contentHash: packet.contentHash,
       storageKey: exportPacketStorageKey(project.id, packet.contentHash),
