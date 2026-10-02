@@ -26,10 +26,11 @@ Vercel detects the Next.js app automatically; `vercel.json` pins the framework p
 - `DATABASE_URL`: Neon pooled connection string. The app passes it to the PostgreSQL driver adapter.
 - `DIRECT_DATABASE_URL`: Neon direct (non-pooled) connection string. Prisma Migrate reads it from `prisma.config.ts`.
 - `APP_ORGANIZATION_ID`: organization id used by the UI, such as `org_demo` after seeding.
-- `DOCUMENT_STORAGE_DIR`: optional local directory. Default `./data/documents`.
-- `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_ACCESS_KEY_ID`, and `OBJECT_STORAGE_SECRET_ACCESS_KEY`: required together on Vercel. `DOCUMENT_STORAGE_BUCKET`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_ENDPOINT_URL_S3` are the same settings when the `OBJECT_STORAGE_*` names are unset. Any S3-compatible store works.
-- `OBJECT_STORAGE_REGION`: optional, default `us-east-1`. Use `auto` for Cloudflare R2.
-- `OBJECT_STORAGE_ENDPOINT`: optional endpoint for MinIO, R2, or another non-AWS store.
+- `DOCUMENT_STORAGE_DIR`: optional local directory. Default `./data/documents`. Used only when no bucket credentials are set.
+- `DOCUMENT_STORAGE_BUCKET`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, and `AWS_ENDPOINT_URL_S3`: Neon object storage used in production for documents and pack files. The bucket stays private. Path-style requests are on when an endpoint is set, which Neon requires.
+- `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_ACCESS_KEY_ID`, and `OBJECT_STORAGE_SECRET_ACCESS_KEY`: optional override for the same store. When these are set they win over the Neon names.
+- `OBJECT_STORAGE_REGION`: optional, default `us-east-1` or `AWS_REGION`. Use `auto` for Cloudflare R2.
+- `OBJECT_STORAGE_ENDPOINT`: optional endpoint override for MinIO, R2, or another non-AWS store.
 - `OBJECT_STORAGE_FORCE_PATH_STYLE`: optional `true` or `false`. When omitted, path-style is on if an endpoint is set.
 
 For a database that is not built on Vercel, apply the checked-in migrations with `DIRECT_DATABASE_URL` set:
