@@ -1,4 +1,4 @@
-type RowEvidence = { pageNumber: number; excerpt?: string };
+type RowEvidence = { pageNumber: number; excerpt?: string; revisionId?: string };
 
 type RowFinding = {
   subject: { type: string; changeType?: string };
@@ -32,6 +32,7 @@ export function changeEvidenceLead(finding: RowFinding) {
   return {
     page: evidence.pageNumber,
     excerpt: excerpt || "No linked excerpt available.",
+    revisionId: evidence.revisionId?.trim() || null,
   };
 }
 
@@ -52,6 +53,7 @@ export interface DecidedRowChrome {
   pageLabel: string;
   pageNumber: number | null;
   excerpt: string;
+  revisionId: string | null;
 }
 
 /** List and drawer fields open change cards already show: document, revision, and page. */
@@ -64,6 +66,7 @@ export function openRowChrome(finding: RowFinding & { documentTitle: string; rev
     pageLabel: changePageChip(finding),
     pageNumber,
     excerpt: lead?.excerpt ?? "",
+    revisionId: lead?.revisionId ?? null,
   };
 }
 

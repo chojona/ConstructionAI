@@ -42,7 +42,7 @@ npx prisma migrate deploy
 npm run db:seed
 ```
 
-The Vercel build runs `prisma migrate deploy` and `npm run db:seed` before `next build`. Migrate uses `DIRECT_DATABASE_URL` when it is set and `DATABASE_URL` otherwise. Seed upserts the organization selected by `APP_ORGANIZATION_ID`, or `org_demo` when that variable is unset, and an active org-admin membership for `alex.chen@northstar.example`. It loads HeavyJob fixture snapshots onto the demo project `project_heavyjob_demo`. For `org_demo`, seed also loads the demo portfolio. Running `npm run db:seed` again adds any missing rows and leaves review decisions and existing membership role or status that are already stored. `prisma generate` still runs during dependency installation.
+The Vercel build runs `prisma migrate deploy` and `npm run db:seed` before `next build`. Migrate uses `DIRECT_DATABASE_URL` when it is set and `DATABASE_URL` otherwise. Seed upserts the organization selected by `APP_ORGANIZATION_ID`, or `org_demo` when that variable is unset, and an active org-admin membership for `alex.chen@northstar.example`. It loads HeavyJob fixture snapshots onto the demo project `project_heavyjob_demo`. For `org_demo`, seed also loads the demo portfolio. Running `npm run db:seed` again adds any missing rows, stores each demo revision PDF in the shared object store, and leaves review decisions and existing membership role or status that are already stored. `prisma generate` still runs during dependency installation.
 
 After seeding, open:
 
