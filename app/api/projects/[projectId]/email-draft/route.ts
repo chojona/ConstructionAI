@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authorizeRequest } from "@/lib/auth/membership";
 import { getEmailDraftSource } from "@/lib/email/service";
 import { errorResponse } from "@/lib/http";
-import { requestOrganizationId } from "@/lib/tenancy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +12,8 @@ export async function GET(
 ) {
   try {
     const { projectId } = await context.params;
-    const source = await getEmailDraftSource(requestOrganizationId(request), projectId);
+    const access = await authorizeRequest(request, "draft_email");
+    const source = await getEmailDraftSource(access.organizationId, projectId);
     return NextResponse.json(source);
   } catch (error) {
     return errorResponse(error);
