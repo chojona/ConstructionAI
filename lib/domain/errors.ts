@@ -13,6 +13,7 @@ export type DomainErrorCode =
   | "INVALID_TRANSITION"
   | "MALFORMED_OUTPUT"
   | "PROVIDER_ERROR"
+  | "PAGE_PREVIEW_UNAVAILABLE"
   | "TIMEOUT";
 
 export class DomainError extends Error {

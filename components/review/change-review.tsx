@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { DecisionChangeList, DecisionEvidence } from "@/components/review/decision-change-list";
+import { PagePreview } from "@/components/review/page-preview";
 import { EvidenceQuotes } from "@/components/review/evidence-quotes";
 import { EmptyChanges } from "@/components/review/changes-empty";
 import { ExportPacketControl } from "@/components/review/export-packet";
@@ -172,6 +173,9 @@ export function ChangeReview({
                 <div className="evidence-rail-lead">
                   <span className="page-chip">{changePageChip(selected)}</span>
                   <p className="evidence-rail-excerpt">{evidenceLead.excerpt}</p>
+                  {evidenceLead.page > 0 && (
+                    <PagePreview projectId={projectId} revisionId={evidenceLead.revisionId} pageNumber={evidenceLead.page} />
+                  )}
                 </div>
               )}
               <p className="row-meta">{selected.documentTitle} · {selected.revisionLabel}</p>
@@ -211,7 +215,7 @@ export function ChangeReview({
               </div>
             </form>
           </>
-        ) : selectedDecided ? <DecisionEvidence row={selectedDecided} /> : <p className="rail-empty">{DESK_EMPTY_NO_SELECTION}</p>}
+        ) : selectedDecided ? <DecisionEvidence row={selectedDecided} projectId={projectId} /> : <p className="rail-empty">{DESK_EMPTY_NO_SELECTION}</p>}
       </aside>
     </div>
   );

@@ -1,3 +1,4 @@
+import { PagePreview } from "@/components/review/page-preview";
 import type { DecidedRowChrome } from "@/lib/review/changeRow";
 import { DESK_EMPTY_MISSING_EVIDENCE } from "@/lib/review/exportPacketView";
 
@@ -30,7 +31,7 @@ export function DecisionChangeList({
   );
 }
 
-export function DecisionEvidence({ row }: { row: DecidedRowChrome }) {
+export function DecisionEvidence({ row, projectId }: { row: DecidedRowChrome; projectId: string }) {
   const missingExcerpt = !row.excerpt.trim() || row.excerpt === "No linked excerpt available.";
   return (
     <div className="evidence-rail-body">
@@ -38,6 +39,7 @@ export function DecisionEvidence({ row }: { row: DecidedRowChrome }) {
         <div className="evidence-rail-lead">
           <span className="page-chip">{row.pageLabel}</span>
           {missingExcerpt ? <p className="rail-empty rail-empty-inline">{DESK_EMPTY_MISSING_EVIDENCE}</p> : <p className="evidence-rail-excerpt">{row.excerpt}</p>}
+          <PagePreview projectId={projectId} revisionId={row.revisionId} pageNumber={row.pageNumber} />
         </div>
       ) : missingExcerpt ? <p className="rail-empty rail-empty-inline">{DESK_EMPTY_MISSING_EVIDENCE}</p> : null}
       <p className="row-meta">{row.documentTitle} · {row.revisionLabel}</p>
