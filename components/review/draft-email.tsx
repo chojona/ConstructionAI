@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useId, useState } from "react";
 import Link from "next/link";
+import { PackProofList } from "@/components/review/pack-proof";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CONTENT_SHA256_LABEL, shortContentSha256 } from "@/lib/review/exportPacketView";
+import type { DeskPackFile } from "@/lib/review/exportPacketView";
 import {
   ACTOR_REQUIRED,
   APPROVED_CHIP,
@@ -20,6 +21,7 @@ import {
   SEND_RECORDED_MESSAGE,
   SUBJECT_REQUIRED,
   type EmailDraftSource,
+  type EmailPackFilePreview,
   type EmailSendView,
 } from "@/lib/email/emailSendView";
 
@@ -190,20 +192,8 @@ function DraftEmailPanel({
                     </span>
                   </li>
                 ))}
-                {source.appendices.map((item) => (
-                  <li key={`${item.sourceId}:${item.contentHash}`}>
-                    <span className="packet-summary">{item.title}</span>
-                    <span className="row-meta">{item.sourceId}</span>
-                    <time className="row-meta" dateTime={item.fetchedAt}>{item.fetchedAt}</time>
-                    <span className="page-chip">{CONTENT_SHA256_LABEL} {shortContentSha256(item.contentHash)}</span>
-                    <span className="packet-chips">
-                      {item.pageCites.map((page) => (
-                        <span className="page-chip" key={`${item.sourceId}:${page}`}>p. {page}</span>
-                      ))}
-                    </span>
-                  </li>
-                ))}
               </ul>
+              <PackProofList files={[...source.chapters, ...source.appendices].map(deskPackFile)} />
             </div>
             <div className="packet-actions">
               <Button type="submit" disabled={pending}>Send</Button>
@@ -215,6 +205,16 @@ function DraftEmailPanel({
       </div>
     </aside>
   );
+}
+
+function deskPackFile(file: EmailPackFilePreview): DeskPackFile {
+  return {
+    title: file.title,
+    sourceId: file.sourceId,
+    fetchedAt: file.fetchedAt,
+    contentHash: file.contentHash,
+    pageCites: file.pageCites,
+  };
 }
 
 async function loadDraft(projectId: string): Promise<{ ok: true; source: EmailDraftSource } | { ok: false; message: string }> {

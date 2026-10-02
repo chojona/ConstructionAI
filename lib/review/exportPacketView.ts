@@ -16,6 +16,8 @@ export const BLUEBEAM_MARKUP_APPENDIX_TITLE = "Markup Summary";
 export const PACK_APPENDIX_ADDED_MESSAGE = "Pack appendix added.";
 export const BLUEBEAM_APPENDIX_ROLE = "bluebeam-markup";
 export const CONTENT_SHA256_LABEL = "sha256";
+export const PACK_PROOF_SOURCE_LABEL = "Source id";
+export const PACK_PROOF_FETCHED_LABEL = "Fetched";
 
 export const ACC_CHAPTER_ROLES = ["acc-docs", "rfi"] as const;
 export type AccChapterRole = (typeof ACC_CHAPTER_ROLES)[number];
@@ -96,4 +98,15 @@ export function visiblePackProof(files: readonly DeskPackFile[]) {
     && Number.isNaN(Date.parse(file.fetchedAt)) === false
     && /^[a-f0-9]{64}$/.test(file.contentHash)
   ));
+}
+
+/** Visible chapter/appendix chrome. A blank source id is already stored as `upload:{sha256}`. */
+export function packProofChrome(file: DeskPackFile) {
+  return {
+    title: file.title.trim(),
+    sourceId: file.sourceId.trim(),
+    fetchedAt: file.fetchedAt,
+    sha256: shortContentSha256(file.contentHash),
+    pageCites: file.pageCites,
+  };
 }

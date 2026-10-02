@@ -19,6 +19,7 @@ import {
   EXPORT_BLOCKED_MESSAGE,
   PACK_APPENDIX_ADDED_MESSAGE,
   PACK_APPENDIX_FILE_LABEL,
+  packProofChrome,
   shortContentSha256,
   visiblePackProof,
 } from "./exportPacketView";
@@ -53,8 +54,10 @@ describe("Bluebeam markup summary appendix", () => {
     }]);
     expect(proved).toHaveLength(1);
     expect(visiblePackProof([{ ...proved[0]!, contentHash: "short" }])).toEqual([]);
-    expect(viewSource()).toContain("shortContentSha256");
-    expect(viewSource()).toContain("dateTime");
+    expect(viewSource()).toContain("packProofChrome");
+    expect(viewSource()).toContain("PACK_PROOF_SOURCE_LABEL");
+    expect(viewSource()).toContain("PACK_PROOF_FETCHED_LABEL");
+    expect(viewSource()).toContain("<time");
     expect(viewSource()).not.toMatch(/\battached\b/i);
     const copy = [
       PACK_APPENDIX_FILE_LABEL,
@@ -211,7 +214,21 @@ describe("Bluebeam markup summary appendix", () => {
       storageKey: `export-packets/${project.id}/appendices/${contentHash}.csv`,
       pageCites: ["C-101", "3"],
     });
-    expect(await objects.get(packet.appendices![0]!.storageKey)).toEqual(csv);
+    const appendix = packet.appendices![0]!;
+    expect(packProofChrome({
+      title: appendix.title,
+      sourceId: appendix.sourceId,
+      fetchedAt: appendix.fetchedAt,
+      contentHash: appendix.contentHash,
+      pageCites: appendix.pageCites,
+    })).toEqual({
+      title: "Markup Summary",
+      sourceId: `upload:${contentHash}`,
+      fetchedAt: "2026-10-02T04:30:00.000Z",
+      sha256: contentHash.slice(0, 12),
+      pageCites: ["C-101", "3"],
+    });
+    expect(await objects.get(appendix.storageKey)).toEqual(csv);
   });
 
   it.each(["DISMISSED", "FLAGGED"] as const)("rejects a %s decision and stores nothing", async (decision) => {
@@ -324,7 +341,11 @@ describe("Bluebeam markup summary appendix", () => {
 });
 
 function viewSource() {
-  return readFileSync("components/review/export-packet.tsx", "utf8");
+  return [
+    readFileSync("components/review/export-packet.tsx", "utf8"),
+    readFileSync("components/review/pack-proof.tsx", "utf8"),
+    readFileSync("components/review/draft-email.tsx", "utf8"),
+  ].join("\n");
 }
 
 function markupPdf() {

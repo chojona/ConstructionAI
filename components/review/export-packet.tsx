@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { DraftEmailButton } from "@/components/review/draft-email";
+import { PackProofList } from "@/components/review/pack-proof";
 import { Button } from "@/components/ui/button";
 import { draftEmailVisible } from "@/lib/email/emailSendView";
 import {
@@ -14,7 +15,6 @@ import {
   ADD_PACK_APPENDIX_LABEL,
   BLUEBEAM_APPENDIX_ROLE,
   BLUEBEAM_MARKUP_APPENDIX_TITLE,
-  CONTENT_SHA256_LABEL,
   PACK_APPENDIX_ADDED_MESSAGE,
   PACK_APPENDIX_FILE_LABEL,
   PACK_APPENDIX_SOURCE_LABEL,
@@ -22,7 +22,6 @@ import {
   accChapterAttachVisible,
   deskPackFiles,
   exportPacketAction,
-  shortContentSha256,
   subjectExportVisible,
   visiblePackProof,
   visiblePacketChanges,
@@ -170,24 +169,5 @@ function MarkupAppendixForm({ projectId, initialFiles }: { projectId: string; in
       <PackProofList files={files} />
       {message ? <p className="packet-blocked">{message}</p> : null}
     </form>
-  );
-}
-
-function PackProofList({ files }: { files: readonly DeskPackFile[] }) {
-  if (files.length === 0) return null;
-  return (
-    <ul className="packet-proof">
-      {files.map((file) => (
-        <li key={`${file.sourceId}:${file.contentHash}`}>
-          <span className="packet-summary">{file.title}</span>
-          <span className="row-meta">{file.sourceId}</span>
-          <time className="row-meta" dateTime={file.fetchedAt}>{file.fetchedAt}</time>
-          <span className="page-chip">{CONTENT_SHA256_LABEL} {shortContentSha256(file.contentHash)}</span>
-          {file.pageCites.map((page) => (
-            <span className="page-chip" key={`${file.contentHash}:${page}`}>p. {page}</span>
-          ))}
-        </li>
-      ))}
-    </ul>
   );
 }

@@ -35,7 +35,7 @@ describe("draft email gate", () => {
     ].join("\n");
     expect(emailCopyIsAllowed(copy)).toBe(true);
     expect(copy).not.toMatch(PRODUCT_BANNED);
-    const client = ["components/review/draft-email.tsx", "components/review/export-packet.tsx"]
+    const client = ["components/review/draft-email.tsx", "components/review/export-packet.tsx", "components/review/pack-proof.tsx"]
       .map((file) => readFileSync(file, "utf8"))
       .join("\n");
     expect(client).not.toMatch(PRODUCT_BANNED);

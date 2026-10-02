@@ -38,7 +38,7 @@ export interface EmailAttachmentPreview {
   evidence: Array<{ pageNumber: number; excerpt: string }>;
 }
 
-export interface EmailAppendixPreview {
+export interface EmailPackFilePreview {
   title: string;
   filename: string;
   sourceId: string;
@@ -46,6 +46,8 @@ export interface EmailAppendixPreview {
   contentHash: string;
   pageCites: string[];
 }
+
+export type EmailAppendixPreview = EmailPackFilePreview;
 
 export interface EmailSendView {
   id: string;
@@ -69,6 +71,7 @@ export interface EmailDraftReady {
   subject: string;
   body: string;
   attachments: EmailAttachmentPreview[];
+  chapters: EmailPackFilePreview[];
   appendices: EmailAppendixPreview[];
   draft: EmailSendView | null;
 }

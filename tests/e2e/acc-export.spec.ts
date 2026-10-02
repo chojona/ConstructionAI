@@ -30,9 +30,13 @@ test("attaches a PDF on an approved pack", async ({ page, request }) => {
   await chapter.getByLabel("Source id").fill("ACC:RFI:42");
   await chapter.getByRole("button", { name: "Add pack chapter" }).click();
   await expect(page.getByText("Pack chapter added.")).toBeVisible();
-  await expect(chapter.locator(".packet-proof").getByText("ACC:RFI:42")).toBeVisible();
-  await expect(chapter.locator("time")).toHaveAttribute("datetime", /.+/);
-  await expect(chapter.getByText(/^sha256 [a-f0-9]{12}$/)).toBeVisible();
+  const chapterProof = chapter.locator(".packet-proof");
+  await expect(chapterProof.getByText("ACC:RFI:42")).toBeVisible();
+  await expect(chapterProof.getByText("Source id")).toBeVisible();
+  await expect(chapterProof.locator("time")).toHaveAttribute("datetime", /^\d{4}-\d{2}-\d{2}T/);
+  await expect(chapterProof.getByText("Fetched")).toBeVisible();
+  await expect(chapterProof.getByText("sha256")).toBeVisible();
+  await expect(chapterProof.getByText(/^[a-f0-9]{12}$/).first()).toBeVisible();
   const response = await request.get(`/api/projects/${projectId}/export`);
   expect(response.ok()).toBe(true);
   const packet = await response.json();
@@ -59,8 +63,11 @@ test("attaches a markup summary on an approved pack", async ({ page, request }) 
   const proof = appendix.locator(".packet-proof");
   await expect(proof.getByText("Markup Summary")).toBeVisible();
   await expect(proof.getByText("bb-summary-17")).toBeVisible();
-  await expect(proof.locator("time")).toHaveAttribute("datetime", /.+/);
-  await expect(proof.getByText(/^sha256 [a-f0-9]{12}$/)).toBeVisible();
+  await expect(proof.getByText("Source id")).toBeVisible();
+  await expect(proof.locator("time")).toHaveAttribute("datetime", /^\d{4}-\d{2}-\d{2}T/);
+  await expect(proof.getByText("Fetched")).toBeVisible();
+  await expect(proof.getByText("sha256")).toBeVisible();
+  await expect(proof.getByText(/^[a-f0-9]{12}$/).first()).toBeVisible();
   await expect(proof.getByText("p. 2")).toBeVisible();
   await page.reload();
   await expect(page.getByRole("form", { name: "Pack appendix" }).locator(".packet-proof").getByText("bb-summary-17")).toBeVisible();
@@ -75,4 +82,38 @@ test("attaches a markup summary on an approved pack", async ({ page, request }) 
       pageCites: ["2", "14"],
     }),
   ]);
+});
+
+test("blank source id shows the upload marker on chapter and appendix proof", async ({ page }) => {
+  await page.goto(`/projects/${projectId}?view=changes`);
+  const chapter = page.getByRole("form", { name: "Pack chapter" });
+  await chapter.getByRole("button", { name: "PDF", exact: true }).setInputFiles({
+    name: "blank-source.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.4\nblank source chapter\n%%EOF"),
+  });
+  await chapter.getByRole("button", { name: "Add pack chapter" }).click();
+  const chapterProof = chapter.locator(".packet-proof");
+  const chapterRow = chapterProof.locator("li", { hasText: "upload:" });
+  await expect(chapterRow.getByText(/^upload:[a-f0-9]{64}$/)).toBeVisible();
+  await expect(chapterRow.locator("time")).toHaveAttribute("datetime", /^\d{4}-\d{2}-\d{2}T/);
+  await expect(chapterRow.getByText(/^[a-f0-9]{12}$/)).toBeVisible();
+
+  const appendix = page.getByRole("form", { name: "Pack appendix" });
+  await appendix.getByLabel("PDF").setInputFiles({
+    name: "blank-markup.pdf",
+    mimeType: "application/pdf",
+    buffer: buildTextPdf(["Markup Summary", "Page: 2"]),
+  });
+  await appendix.getByRole("button", { name: "Add pack appendix" }).click();
+  const appendixProof = appendix.locator(".packet-proof");
+  const appendixRow = appendixProof.locator("li", { hasText: "upload:" });
+  await expect(appendixRow.getByText("Markup Summary")).toBeVisible();
+  await expect(appendixRow.getByText(/^upload:[a-f0-9]{64}$/)).toBeVisible();
+  await expect(appendixRow.locator("time")).toHaveAttribute("datetime", /^\d{4}-\d{2}-\d{2}T/);
+  await expect(appendixRow.getByText(/^[a-f0-9]{12}$/)).toBeVisible();
+  await expect(appendixRow.getByText("p. 2")).toBeVisible();
+  await expect(appendixRow.getByText("Source id")).toBeVisible();
+  await expect(appendixRow.getByText("Fetched")).toBeVisible();
+  await expect(appendixRow.getByText("sha256")).toBeVisible();
 });

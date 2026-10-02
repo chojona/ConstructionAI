@@ -200,8 +200,13 @@ a.change-card:hover, .change-card:hover { background: #20232c; }
 .packet-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .packet-chapter { display: grid; gap: 6px; }
 .packet-chapter-label { display: grid; gap: 4px; color: var(--color-ink-secondary); font-size: 11px; font-weight: 650; }
-.packet-proof { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.packet-proof li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.packet-proof { display: grid; gap: 8px; margin: 8px 0 0; padding: 0; list-style: none; }
+.packet-proof li { display: grid; gap: 4px; min-width: 0; padding: 8px 10px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-surface); }
+.packet-proof-title { font-size: 13px; font-weight: 650; line-height: 1.35; overflow-wrap: anywhere; }
+.packet-proof-fields { display: grid; gap: 2px; margin: 0; }
+.packet-proof-fields div { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 8px; align-items: baseline; }
+.packet-proof-fields dt { margin: 0; color: var(--color-ink-secondary); font-size: 11px; font-weight: 650; }
+.packet-proof-fields dd { margin: 0; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
 .fact-list { display: grid; gap: 4px; margin: 0 0 10px; padding: 0; list-style: none; }
 .fact-row { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: 6px 8px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-surface); color: inherit; text-align: left; }
 .fact-row:hover { background: #20232c; }
