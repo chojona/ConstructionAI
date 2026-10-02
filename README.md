@@ -63,6 +63,10 @@ npm run storage:migrate-packets
 
 The command copies each remaining payload into the object store, clears that column, and copies document files found under `DOCUMENT_STORAGE_DIR` when the object store does not already have them. Running it again is safe. Re-exporting the same approved pack uses the existing row and the same object key.
 
+## WEAK wedge schema wall
+
+Prisma and API DTOs must not add entitlement, DSC, force-account, or change-order candidate fields while the WEAK wedge is active. See [docs/weak-wedge-schema-wall.md](docs/weak-wedge-schema-wall.md) (CON-74, complements CON-47 copy lock). `lib/spine/weakWedgeSchemaWall.test.ts` enforces this in unit tests.
+
 ## Checks
 
 ```bash
