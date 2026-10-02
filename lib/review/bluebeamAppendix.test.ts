@@ -26,7 +26,7 @@ import {
   shortContentSha256,
   visiblePackProof,
 } from "./exportPacketView";
-import { exportApprovedChangePacket, recordReviewDecision } from "./service";
+import { currentApprovedChangePacket, exportApprovedChangePacket, recordReviewDecision } from "./service";
 
 const BANNED_COPY = /\b(dsc|fa|force account|force-account|change orders?|co|pco|entitlement|candidate|unpaid|claim|detection)\b/i;
 
@@ -184,6 +184,48 @@ describe("Bluebeam markup summary appendix", () => {
     const stored = JSON.parse(repository.exportPackets.at(-1)!.payload.toString("utf8")) as { appendices: Array<{ pageCites: Array<{ revisionId: string; page: string }> }> };
     expect(stored.appendices[0]?.pageCites).toEqual([pinnedPage(project.revisionId, "2"), pinnedPage(project.revisionId, "14")]);
     expect(stored.appendices[0]?.pageCites.every((cite) => typeof cite !== "string")).toBe(true);
+  });
+
+  it("re-attaches a markup summary whose stored cites are bare page strings", async () => {
+    const { repository, project, facts } = await scaffold();
+    const objects = objectStore();
+    const clock = sequencedClock();
+    await recordReviewDecision("org_a", project.id, "pm-1", {
+      decision: "ACCEPTED",
+      subject: { type: "proposed_fact", proposedFactId: facts.trench.id },
+    }, repository, clock);
+    const pdf = markupPdf();
+    const fetchedAt = new Date("2026-10-02T04:00:00.000Z");
+    await attachBluebeamMarkupAppendix("org_a", project.id, {
+      bytes: pdf,
+      filename: "markup-summary.pdf",
+      mimeType: "application/pdf",
+      sourceId: "bb-summary-17",
+    }, repository, objects, () => fetchedAt);
+
+    const stored = repository.exportPackets.at(-1)!;
+    const payload = JSON.parse(stored.payload.toString("utf8")) as { appendices: Array<{ pageCites: unknown }> };
+    payload.appendices[0]!.pageCites = ["2", "14"];
+    stored.payload = Buffer.from(JSON.stringify(payload));
+    stored.contentHash = "f".repeat(64);
+    repository.exportPacketChapters[0]!.pageCites = [];
+    repository.exportPacketChapters[0]!.legacyPageLabels = ["2", "14"];
+
+    await expect(currentApprovedChangePacket("org_a", project.id, repository)).rejects.toThrow(/Re-attach this appendix/);
+
+    const again = await attachBluebeamMarkupAppendix("org_a", project.id, {
+      bytes: pdf,
+      filename: "markup-summary.pdf",
+      mimeType: "application/pdf",
+      sourceId: "bb-summary-17",
+    }, repository, objects, () => new Date("2026-10-02T05:00:00.000Z"));
+    expect(again.appendices?.[0]?.pageCites).toEqual([
+      pinnedPage(project.revisionId, "2"),
+      pinnedPage(project.revisionId, "14"),
+    ]);
+    expect(repository.exportPacketChapters[0]?.legacyPageLabels).toEqual([]);
+    const reloaded = await currentApprovedChangePacket("org_a", project.id, repository);
+    expect(reloaded.appendices?.[0]?.pageCites).toEqual(again.appendices?.[0]?.pageCites);
   });
 
   it("keeps a pack without an appendix on the previous content hash", async () => {

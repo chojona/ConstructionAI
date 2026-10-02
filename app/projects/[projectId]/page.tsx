@@ -14,7 +14,7 @@ import { getProject } from "@/lib/projects/service";
 import { listAttention } from "@/lib/review/attention";
 import { decidedRowChrome } from "@/lib/review/changeRow";
 import { approvedChangePreview } from "@/lib/review/exportPacket";
-import { deskPackFiles, EXPORT_BLOCKED_MESSAGE } from "@/lib/review/exportPacketView";
+import { deskPackFiles, EXPORT_BLOCKED_MESSAGE, isLegacyPageCiteError } from "@/lib/review/exportPacketView";
 import { uploadRevisionHref } from "@/lib/review/emptyState";
 import { toAttentionDto } from "@/lib/review/dto";
 import { currentApprovedChangePacket, getProjectReview } from "@/lib/review/service";
@@ -28,10 +28,14 @@ async function loadPackFiles(organizationId: string, projectId: string) {
     return {
       chapters: deskPackFiles(packet.chapters),
       appendices: deskPackFiles(packet.appendices),
+      citeNotice: null,
     };
   } catch (error) {
     if (error instanceof DomainError && error.message === EXPORT_BLOCKED_MESSAGE) {
-      return { chapters: [], appendices: [] };
+      return { chapters: [], appendices: [], citeNotice: null };
+    }
+    if (isLegacyPageCiteError(error)) {
+      return { chapters: [], appendices: [], citeNotice: error.message };
     }
     throw error;
   }
@@ -51,7 +55,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   catch (error) { if (error instanceof DomainError && error.code === "NOT_FOUND") notFound(); throw error; }
   const attention = listAttention(review.findings);
   const approved = approvedChangePreview(review.findings);
-  const packFiles = approved.length > 0 ? await loadPackFiles(organizationId, projectId) : { chapters: [], appendices: [] };
+  const packFiles = approved.length > 0 ? await loadPackFiles(organizationId, projectId) : { chapters: [], appendices: [], citeNotice: null };
   const heavyJobObjects = view === "heavyjob"
     ? (await listHeavyJobSourceObjects(organizationId, projectId)).map(toHeavyJobSourceObjectDto)
     : [];
@@ -73,6 +77,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           decided={decidedRowChrome(review.findings)}
           chapters={packFiles.chapters}
           appendices={packFiles.appendices}
+          citeNotice={packFiles.citeNotice}
           notes={review.state.retirements.map((retirement) => ({
             key: `${retirement.proposedFactId}-${retirement.decisionId}`,
             text: retirement.supersededByProposedFactId

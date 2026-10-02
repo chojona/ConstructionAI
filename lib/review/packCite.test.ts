@@ -18,8 +18,11 @@ import {
   factPageCites,
   isLettingNotice,
   isPinnedEvidenceCite,
+  legacyPageCiteMessage,
   packPageCiteLabel,
+  pinLegacyPageCites,
   readStoredPageCites,
+  replacementPageCites,
   storedPageCiteStrings,
   type PackPageCite,
 } from "./exportPacketView";
@@ -55,13 +58,45 @@ describe("pack page cites", () => {
     expect(storedPageCiteStrings(["2"])).toBeNull();
     expect(readStoredPageCites(["2"])).toBeNull();
     expect(readStoredPageCites(["C-101"])).toBeNull();
-    expect(deskPackFiles([{
+    const mixed = deskPackFiles([{
       title: "Markup Summary",
       sourceId: "bb-1",
       fetchedAt: "2026-10-02T00:00:00.000Z",
       contentHash: "ab".repeat(32),
       pageCites: ["2", "https://example.com/sheet", "Drainage Plan"],
-    }])[0]?.pageCites).toEqual([]);
+    }])[0];
+    expect(mixed?.pageCites).toEqual([]);
+    expect(mixed?.citeNotice).toBeNull();
+  });
+
+  it("names legacy bare page cites and pins them to one revision", () => {
+    const raw = ["2", "C-101"];
+    const message = legacyPageCiteMessage(raw);
+    expect(message).toContain("Re-attach this appendix");
+    expect(message).toContain("Pages: 2, C-101");
+    expect(pinLegacyPageCites(raw, { revisionId: "rev_a", revisionLabel: "A", contentHash: hashA })).toEqual([
+      JSON.stringify(pin("rev_a", "A", "2", null, hashA)),
+      JSON.stringify(pin("rev_a", "A", "C-101", null, hashA)),
+    ]);
+    expect(pinLegacyPageCites(["https://example.com/2"], { revisionId: "rev_a", revisionLabel: "A" })).toBeNull();
+    expect(replacementPageCites(raw, [pin("rev_a", "A", "2", null, hashA), pin("rev_a", "A", "C-101", null, hashA)])).toEqual([
+      JSON.stringify(pin("rev_a", "A", "2", null, hashA)),
+      JSON.stringify(pin("rev_a", "A", "C-101", null, hashA)),
+    ]);
+    expect(replacementPageCites([JSON.stringify(pin("rev_a", "A", "2", null, hashA))], [pin("rev_a", "A", "9", null, hashA)])).toBeNull();
+    const files = deskPackFiles([{
+      title: "Markup Summary",
+      sourceId: "bb-1",
+      fetchedAt: "2026-10-02T00:00:00.000Z",
+      contentHash: "ab".repeat(32),
+      pageCites: raw,
+    }]);
+    expect(files[0]?.pageCites).toEqual([]);
+    expect(files[0]?.citeNotice).toBe(message);
+    const html = renderToStaticMarkup(createElement(PackProofList, { files }));
+    expect(html).toContain("Re-attach this appendix");
+    expect(html).toContain("Pages: 2, C-101");
+    expect(html).not.toContain(">p. 2<");
   });
 
   it("pins fact page cites to the accepted revision and keeps that pin when another revision exists", () => {
@@ -129,7 +164,7 @@ describe("pack page cites", () => {
         pageCites: ["2"],
       }))),
       createdAt: new Date("2026-10-02T00:00:00.000Z"),
-    })).toThrow(/could not be read/);
+    })).toThrow(/Re-attach this appendix/);
   });
 
   it("does not export a letting notice as pack evidence", () => {

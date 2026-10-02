@@ -405,6 +405,10 @@ export class MemoryRepository implements ConstructionRepository {
       && chapter.role === input.role
     ));
     if (existing) {
+      if ((existing.legacyPageLabels?.length ?? 0) > 0) {
+        existing.pageCites = pageCites;
+        existing.legacyPageLabels = [];
+      }
       const sameLinks = existing.reviewDecisionIds.length === input.reviewDecisionIds.length
         && existing.reviewDecisionIds.every((id, index) => id === input.reviewDecisionIds[index]);
       if (!sameLinks) existing.reviewDecisionIds = [...input.reviewDecisionIds];
@@ -547,6 +551,7 @@ function copyExportPacketChapter(chapter: StoredExportPacketChapter): StoredExpo
     ...chapter,
     fetchedAt: new Date(chapter.fetchedAt),
     pageCites: chapter.pageCites.map((cite) => ({ ...cite })),
+    legacyPageLabels: [...(chapter.legacyPageLabels ?? [])],
     reviewDecisionIds: [...chapter.reviewDecisionIds],
   };
 }

@@ -16,6 +16,7 @@ import {
   packetFromStored,
   type ExportPacketCanonical,
 } from "./exportPacket";
+import { isLegacyPageCiteError, legacyPageCiteMessage } from "./exportPacketView";
 import { listProjectFindings, type ProjectFinding } from "./findings";
 import { projectEffectiveState, type EffectiveProjectState } from "./projectState";
 import { proposedFactSubjectKey, removalSubjectKey } from "./subjects";
@@ -205,7 +206,7 @@ export async function currentApprovedChangePacket(
   projectId: string,
   repository: ConstructionRepository = constructionRepository,
   subjectKey?: string,
-  options?: { frozen?: boolean },
+  options?: { frozen?: boolean; allowLegacyPageCites?: boolean },
 ) {
   const { source, decisions } = await load(organizationId, projectId, repository);
   const findings = listProjectFindings(source, decisions);
@@ -217,20 +218,31 @@ export async function currentApprovedChangePacket(
   });
   if (options?.frozen !== false) {
     const frozen = await repository.findLatestExportPacketForDecisions(organizationId, projectId, base.decisionIds);
-    if (frozen) return packetFromStored(frozen);
+    if (frozen) {
+      try {
+        return packetFromStored(frozen);
+      } catch (error) {
+        if (!(options?.allowLegacyPageCites && isLegacyPageCiteError(error))) throw error;
+      }
+    }
   }
   const storedChapters = await repository.listExportPacketChapters(organizationId, projectId, base.decisionIds);
   if (!storedChapters) throw new DomainError("NOT_FOUND", "Project not found.", 404);
   if (storedChapters.length === 0) return base;
   const chapters = storedChapters.filter((row) => row.role === "acc-docs" || row.role === "rfi");
   const appendices = storedChapters.filter((row) => row.role === "bluebeam-markup");
+  const legacyPages = appendices.flatMap((row) => row.legacyPageLabels ?? []);
+  if (legacyPages.length > 0 && !options?.allowLegacyPageCites) {
+    throw new DomainError("MALFORMED_OUTPUT", legacyPageCiteMessage(legacyPages), 409);
+  }
+  const pinnedAppendices = appendices.filter((row) => (row.legacyPageLabels?.length ?? 0) === 0);
   return buildApprovedChangePacket({
     projectId,
     findings,
     revisions: source.revisions,
     subjectKey,
     chapters: chapters.map(packetChapterFromStored),
-    appendices: appendices.map(packetAppendixFromStored),
+    appendices: pinnedAppendices.map(packetAppendixFromStored),
   });
 }
 

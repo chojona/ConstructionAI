@@ -28,6 +28,7 @@ export const PACK_PROOF_SOURCE_LABEL = "Source id";
 export const PACK_PROOF_FETCHED_LABEL = "Fetched";
 export const APPENDIX_PAGE_MISSING_MESSAGE = "This accepted fact has no page cite.";
 export const PACK_CITE_UNPINNED_MESSAGE = "A pack cite must name the document revision.";
+export const LEGACY_PAGE_CITE_MESSAGE = "Page cites are not pinned to a document revision. Re-attach this appendix.";
 export const LETTING_NOTICE_NOT_EVIDENCE = "Letting notices are not pack evidence.";
 
 export const ACC_CHAPTER_ROLES = ["acc-docs", "rfi"] as const;
@@ -216,6 +217,70 @@ export function readStoredPageCites(raw: readonly string[]): PackPageCite[] | nu
   return cites;
 }
 
+export function legacyPageCiteMessage(pages: readonly string[]) {
+  return `${LEGACY_PAGE_CITE_MESSAGE} Pages: ${pages.join(", ")}.`;
+}
+
+export function isLegacyPageCiteError(error: unknown): error is Error {
+  return error instanceof Error && error.message.startsWith(LEGACY_PAGE_CITE_MESSAGE);
+}
+
+/** Bare page strings stored before cites were pinned to a DocumentRevision. */
+export function legacyBarePageTokens(values: readonly unknown[]): string[] | null {
+  if (values.length === 0) return null;
+  const pages: string[] = [];
+  for (const value of values) {
+    if (typeof value !== "string" || !isPageToken(value)) return null;
+    if (value.startsWith("{") || value.startsWith("[")) return null;
+    pages.push(value);
+  }
+  return pages;
+}
+
+/** JSON pins for a legacy row. Returns null when the row is not entirely bare page strings. */
+export function pinLegacyPageCites(
+  raw: readonly string[],
+  pin: { revisionId: string; revisionLabel: string; documentPageId?: string | null; contentHash?: string | null },
+): string[] | null {
+  const pages = legacyBarePageTokens(raw);
+  if (!pages) return null;
+  const pinned = pages.map((page) => canonicalPackPageCite({
+    revisionId: pin.revisionId,
+    revisionLabel: pin.revisionLabel,
+    page,
+    documentPageId: pin.documentPageId ?? null,
+    contentHash: pin.contentHash ?? null,
+  }));
+  if (pinned.some((cite) => cite === null)) return null;
+  return pinned.map((cite) => JSON.stringify(cite));
+}
+
+export function replacementPageCites(existingRaw: readonly string[], next: readonly unknown[]): string[] | null {
+  if (!legacyBarePageTokens(existingRaw)) return null;
+  return storedPageCiteStrings(next);
+}
+
+/** Bare appendix page strings inside a stored pack payload. Null when the cites are pinned or not page tokens. */
+export function legacyAppendixPages(value: unknown): string[] | null {
+  if (!value || typeof value !== "object") return null;
+  const appendices = (value as { appendices?: unknown }).appendices;
+  if (!Array.isArray(appendices) || appendices.length === 0) return null;
+  const pages: string[] = [];
+  for (const appendix of appendices) {
+    if (!appendix || typeof appendix !== "object") return null;
+    const cites = (appendix as { pageCites?: unknown }).pageCites;
+    if (!Array.isArray(cites)) return null;
+    const bare = legacyBarePageTokens(cites);
+    if (bare) {
+      pages.push(...bare);
+      continue;
+    }
+    if (cites.every((cite) => canonicalPackPageCite(cite) !== null)) continue;
+    return null;
+  }
+  return pages.length > 0 ? pages : null;
+}
+
 function isRevisionPin(value: string) {
   return REVISION_PIN.test(value) && !FLOATING_REVISION.test(value);
 }
@@ -263,6 +328,7 @@ export interface DeskPackFile {
   fetchedAt: string;
   contentHash: string;
   pageCites: PackPageCite[];
+  citeNotice?: string | null;
 }
 
 const CONTENT_SHA256_SHORT_LENGTH = 12;
@@ -296,16 +362,22 @@ export function deskPackFiles(files: readonly {
   contentHash: string;
   pageCites?: readonly unknown[];
 }[] | undefined): DeskPackFile[] {
-  return (files ?? []).map((file) => ({
-    title: file.title,
-    sourceId: file.sourceId,
-    fetchedAt: file.fetchedAt,
-    contentHash: file.contentHash,
-    pageCites: factPageCites((file.pageCites ?? []).flatMap((cite) => {
+  return (files ?? []).map((file) => {
+    const raw = file.pageCites ?? [];
+    const pageCites = factPageCites(raw.flatMap((cite) => {
       const pinned = canonicalPackPageCite(cite);
       return pinned ? [pinned] : [];
-    })),
-  }));
+    }));
+    const legacy = pageCites.length === 0 ? legacyBarePageTokens(raw) : null;
+    return {
+      title: file.title,
+      sourceId: file.sourceId,
+      fetchedAt: file.fetchedAt,
+      contentHash: file.contentHash,
+      pageCites,
+      citeNotice: legacy ? legacyPageCiteMessage(legacy) : null,
+    };
+  });
 }
 
 export function visiblePackProof(files: readonly DeskPackFile[]) {
