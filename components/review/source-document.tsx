@@ -28,19 +28,23 @@ export function SourceDocument({
             key={page.id}
             ref={active ? targetRef : undefined}
           >
-            <h2>Page {page.pageNumber}</h2>
+            <div className="page-source-head">
+              <span className="page-chip">Page {page.pageNumber}</span>
+            </div>
             {active && target && !span && (
               <p className="source-warning">The stored location does not match this page text, so the excerpt is not highlighted.</p>
             )}
-            <pre>
-              {page.text
-                ? segments.map((segment, index) => (
+            {page.text.trim() ? (
+              <div className="page-source-body">
+                {segments.map((segment, index) => (
                   segment.hit
                     ? <mark className="source-hit" key={`${page.id}-${index}`}>{segment.text}</mark>
                     : <span key={`${page.id}-${index}`}>{segment.text}</span>
-                ))
-                : "No embedded text found on this page."}
-            </pre>
+                ))}
+              </div>
+            ) : (
+              <p className="page-source-missing">No embedded text on this page.</p>
+            )}
           </section>
         );
       })}

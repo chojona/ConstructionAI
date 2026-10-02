@@ -4,6 +4,7 @@ import { RevisionHistory } from "@/components/documents/revision-history";
 import { ProjectContext } from "@/components/workspace/project-context";
 import { ProjectNavigation } from "@/components/workspace/project-navigation";
 import { UploadRevisionForm } from "@/components/forms/upload-revision-form";
+import { documentIdentity } from "@/lib/documents/documentDesk";
 import { getDocument } from "@/lib/documents/service";
 import { describeReading } from "@/lib/documents/revisionExperience";
 import { DomainError } from "@/lib/domain/errors";
@@ -51,7 +52,7 @@ export default async function DocumentPage({
 
   const latest = document.revisions[0];
   const reading = latest ? describeReading(latest.status, latest.failureCode, latest.failureMessage) : null;
-  const identity = [document.documentType || "Document", document.project.name].join(" · ");
+  const identity = documentIdentity(document.documentType, document.project.name);
 
   return (
     <main className="page">
