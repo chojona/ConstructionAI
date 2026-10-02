@@ -104,12 +104,15 @@ test.afterAll(async () => {
 test("draft email stays gated until approve and send records the ledger", async ({ page }) => {
   const banned = /\b(cold outreach|auto-send|claim filing|entitlement|dsc|pco|change order|force account|candidate)\b/i;
   await page.goto(`/projects/${projectId}?view=changes`);
-  await expect(page.getByText("Approve at least one change to export.")).toBeVisible();
+  await expect(page.getByText("Finish open reviews before exporting.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Draft email" })).toHaveCount(0);
   await expect(page.getByText(banned)).toHaveCount(0);
 
   await page.locator(".change-card", { hasText: "Quantity changed" }).getByRole("button", { name: "Review" }).click();
   await page.getByLabel("Reviewer", { exact: true }).fill("Alex Chen");
+  await page.getByRole("button", { name: "Approve", exact: true }).click();
+  await expect(page.getByRole("link", { name: "Export approved pack" })).toHaveCount(0);
+  await page.locator(".change-card").getByRole("button", { name: "Review" }).click();
   await page.getByRole("button", { name: "Approve", exact: true }).click();
   await expect(page.getByRole("button", { name: "Draft email" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Export approved pack" })).toBeVisible();

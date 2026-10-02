@@ -34,3 +34,50 @@ export function changeEvidenceLead(finding: RowFinding) {
     excerpt: excerpt || "No linked excerpt available.",
   };
 }
+
+export interface DecidedFinding extends RowFinding {
+  subjectKey: string;
+  documentTitle: string;
+  revisionLabel: string;
+  label: string;
+  currentDecision: { decision: string } | null;
+}
+
+export interface DecidedRowChrome {
+  key: string;
+  decision: "ACCEPTED" | "DISMISSED";
+  title: string;
+  documentTitle: string;
+  revisionLabel: string;
+  pageLabel: string;
+  pageNumber: number | null;
+  excerpt: string;
+}
+
+/** List and drawer fields open change cards already show: document, revision, and page. */
+export function openRowChrome(finding: RowFinding & { documentTitle: string; revisionLabel: string }) {
+  const lead = changeEvidenceLead(finding);
+  const pageNumber = lead?.page && lead.page > 0 ? lead.page : null;
+  return {
+    documentTitle: finding.documentTitle,
+    revisionLabel: finding.revisionLabel,
+    pageLabel: changePageChip(finding),
+    pageNumber,
+    excerpt: lead?.excerpt ?? "",
+  };
+}
+
+export function decidedRowChrome(findings: readonly DecidedFinding[]): DecidedRowChrome[] {
+  const rows: DecidedRowChrome[] = [];
+  for (const finding of findings) {
+    const decision = finding.currentDecision?.decision;
+    if (decision !== "ACCEPTED" && decision !== "DISMISSED") continue;
+    rows.push({
+      key: finding.subjectKey,
+      decision,
+      title: finding.label,
+      ...openRowChrome(finding),
+    });
+  }
+  return rows;
+}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
+import { DecisionChangeList, DecisionEvidence } from "@/components/review/decision-change-list";
 import { EvidenceQuotes } from "@/components/review/evidence-quotes";
 import { EmptyChanges } from "@/components/review/changes-empty";
 import { ExportPacketControl } from "@/components/review/export-packet";
@@ -9,9 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { AttentionItemDto, FindingDto } from "@/lib/review/dto";
 import type { ApprovedChangePreview } from "@/lib/review/exportPacketView";
-import { changeEvidenceLead, changePageChip, changeRowTitle } from "@/lib/review/changeRow";
+import { changeEvidenceLead, changePageChip, changeRowTitle, type DecidedRowChrome } from "@/lib/review/changeRow";
 import { decisionReturnPath, findingDomId } from "@/lib/review/evidenceLocation";
-import { defaultDeskKey, deskFactCite, mergeDeskFacts, type DeskFactRow, type DeskValueInput } from "@/lib/review/factList";
+import { defaultDeskKey } from "@/lib/review/factList";
 
 const reviewerStorageKey = "construction-ai.reviewer-name";
 
@@ -29,14 +30,14 @@ export function ChangeReview({
   items,
   uploadHref,
   approved = [],
-  facts = [],
+  decided = [],
   notes = [],
 }: {
   projectId: string;
   items: AttentionItemDto[];
   uploadHref: string;
   approved?: readonly ApprovedChangePreview[];
-  facts?: readonly DeskValueInput[];
+  decided?: readonly DecidedRowChrome[];
   notes?: readonly { key: string; text: string }[];
 }) {
   const router = useRouter();
@@ -48,16 +49,15 @@ export function ChangeReview({
   const [rejecting, setRejecting] = useState(false);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
-  const factRows = mergeDeskFacts(facts, approved);
   const findingKeys = items.map((item) => {
     const page = changeEvidenceLead(item.finding)?.page;
     return { key: item.finding.subjectKey, pageNumber: page && page > 0 ? page : null };
   });
-  const fallbackKey = defaultDeskKey(factRows, findingKeys);
-  const selectedIsKnown = factRows.some((row) => row.key === selectedKey) || items.some((item) => item.finding.subjectKey === selectedKey);
+  const fallbackKey = defaultDeskKey(decided, findingKeys);
+  const selectedIsKnown = decided.some((row) => row.key === selectedKey) || items.some((item) => item.finding.subjectKey === selectedKey);
   const activeKey = selectedIsKnown ? selectedKey : fallbackKey;
   const selected = items.find((item) => item.finding.subjectKey === activeKey)?.finding;
-  const selectedFact = factRows.find((row) => row.key === activeKey) ?? null;
+  const selectedDecided = decided.find((row) => row.key === activeKey) ?? null;
 
   useEffect(() => {
     function selectHash() {
@@ -77,7 +77,7 @@ export function ChangeReview({
     window.history.replaceState(null, "", `#${findingDomId(finding.subjectKey)}`);
   }
 
-  function openFact(row: DeskFactRow) {
+  function openDecided(row: DecidedRowChrome) {
     setSelectedKey(row.key);
     setRejecting(false);
     setReason("");
@@ -127,27 +127,15 @@ export function ChangeReview({
   return (
     <div className="change-desk">
       <div className="change-list-pane">
-        <ExportPacketControl projectId={projectId} changes={approved} actorId={reviewerId} />
-        {factRows.length > 0 && (
+        <ExportPacketControl projectId={projectId} changes={approved} actorId={reviewerId} openCount={items.length} />
+        {(decided.length > 0 || notes.length > 0) && (
           <>
-            <p className="packet-kicker">Facts <span className="count">{factRows.length}</span></p>
-            <ul className="fact-list" aria-label="Facts">
-              {factRows.map((row) => {
-                const active = row.key === activeKey;
-                const cite = deskFactCite(row);
-                return (
-                  <li key={row.key}>
-                    <button type="button" className={`fact-row${active ? " is-active" : ""}`} aria-pressed={active} onClick={() => openFact(row)}>
-                      <span className="fact-row-copy">
-                        <span className="row-title">{row.title}</span>
-                        <span className="row-meta">{row.meta}</span>
-                      </span>
-                      <span className="page-chip">{cite ? `p. ${cite.page}` : "p. —"}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+            {decided.length > 0 && (
+              <>
+                <p className="packet-kicker">Facts <span className="count">{decided.length}</span></p>
+                <DecisionChangeList rows={decided} activeKey={activeKey} onSelect={openDecided} />
+              </>
+            )}
             {notes.length > 0 && <div className="retired">{notes.map((note) => <p key={note.key}>{note.text}</p>)}</div>}
           </>
         )}
@@ -217,24 +205,8 @@ export function ChangeReview({
               </div>
             </form>
           </>
-        ) : selectedFact ? <FactEvidence fact={selectedFact} /> : <p className="rail-empty">Evidence opens here.</p>}
+        ) : selectedDecided ? <DecisionEvidence row={selectedDecided} /> : <p className="rail-empty">Evidence opens here.</p>}
       </aside>
-    </div>
-  );
-}
-
-function FactEvidence({ fact }: { fact: DeskFactRow }) {
-  const cite = deskFactCite(fact);
-  return (
-    <div className="evidence-rail-body">
-      {cite && (
-        <div className="evidence-rail-lead">
-          <span className="page-chip">p. {cite.page}</span>
-          <p className="evidence-rail-excerpt">{cite.excerpt}</p>
-        </div>
-      )}
-      <p className="row-meta">{fact.meta}</p>
-      <h3>{fact.title}</h3>
     </div>
   );
 }

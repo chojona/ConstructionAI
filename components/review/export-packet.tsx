@@ -23,13 +23,15 @@ export function ExportPacketControl({
   projectId,
   changes,
   actorId = "",
+  openCount = 0,
 }: {
   projectId: string;
   changes: readonly ApprovedChangePreview[];
   actorId?: string;
+  openCount?: number;
 }) {
   const approved = visiblePacketChanges(changes).filter((change) => subjectExportVisible(change.decision));
-  const action = exportPacketAction(approved.length, projectId);
+  const action = exportPacketAction(approved.length, projectId, openCount);
   if (!action.enabled || !action.href || !accChapterAttachVisible(approved.length)) {
     return <p className="packet-blocked">{action.message}</p>;
   }
