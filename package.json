@@ -24,6 +24,7 @@
     "eval:change-accuracy": "node --import tsx lib/benchmarks/constructionDocuments/changeAccuracyCli.ts",
     "bench:latency": "node --import tsx lib/observability/benchmarkCli.ts",
     "quality:v0": "node --import tsx lib/quality/v0GateCli.ts",
+    "guard:v0-no-writeback": "node --import tsx lib/guardrails/v0NoUpstreamWritebackCli.ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "node --env-file-if-exists=.env --import tsx prisma/seed.ts",
