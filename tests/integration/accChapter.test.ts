@@ -4,7 +4,6 @@ import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createPrismaClient } from "@/lib/db";
 import { buildTextPdf } from "@/lib/documents/minimalPdf";
 import { createDocument } from "@/lib/documents/service";
 import { PrismaConstructionRepository } from "@/lib/domain/prismaRepository";
@@ -14,9 +13,7 @@ import { createProject } from "@/lib/projects/service";
 import { attachAccPdfChapter } from "@/lib/review/accChapter";
 import { recordReviewDecision } from "@/lib/review/service";
 import { LocalObjectStore } from "@/lib/storage/objectStore";
-
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) throw new Error("DATABASE_URL is required for integration tests.");
+import { hasIntegrationDatabase, integrationDb } from "@/tests/support/integrationDb";
 
 const approvedExcerpt = "A CAT 336 excavator shall be used for the trench.";
 const rejectedExcerpt = "A dozer shall be used.";
@@ -27,8 +24,8 @@ const provenance = {
   model: "gpt-4.1",
 };
 
-describe("Prisma ACC pack chapter", () => {
-  const db = createPrismaClient();
+describe.skipIf(!hasIntegrationDatabase)("Prisma ACC pack chapter", () => {
+  const db = integrationDb();
   const storageRoot = mkdtempSync(path.join(tmpdir(), "acc-chapter-"));
   const objects = new LocalObjectStore(storageRoot);
   const repository = new PrismaConstructionRepository(db, objects);
@@ -126,6 +123,25 @@ describe("Prisma ACC pack chapter", () => {
     });
     expect(row).toMatchObject({ sourceId: "acc-doc-8841", fetchedAt, contentHash, storageKey });
     expect(row.decisions.map((link) => link.reviewDecisionId)).toEqual([accepted.id]);
+
+    const again = await attachAccPdfChapter(organizationId, project.id, {
+      bytes: pdf,
+      filename: "rfi-42-copy.pdf",
+      mimeType: "application/pdf",
+      sourceId: "acc-doc-9999",
+      role: "acc-docs",
+    }, repository, objects, () => new Date("2026-10-03T00:00:00.000Z"));
+    expect(again.chapters).toHaveLength(1);
+    expect(again.chapters?.[0]).toMatchObject({
+      sourceId: "acc-doc-8841",
+      fetchedAt: fetchedAt.toISOString(),
+      contentHash,
+      filename: "rfi-42.pdf",
+    });
+    expect(await db.exportPacketChapter.count({ where: { projectId: project.id, contentHash } })).toBe(1);
+    const kept = await db.exportPacketChapter.findFirstOrThrow({ where: { id: row.id } });
+    expect(kept).toMatchObject({ sourceId: "acc-doc-8841", fetchedAt, contentHash });
+
     const storedPack = await objects.get(`export-packets/${project.id}/${packet.contentHash}.json`);
     expect(createHash("sha256").update(storedPack).digest("hex")).toBe(packet.contentHash);
     expect(JSON.parse(storedPack.toString("utf8")).chapters[0].contentHash).toBe(contentHash);

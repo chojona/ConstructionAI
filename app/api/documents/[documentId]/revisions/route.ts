@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { toRevisionUploadDto } from "@/lib/documents/dto";
+import { authorizeRequest } from "@/lib/auth/membership";
 import { publishRevision } from "@/lib/documents/publishRevision";
 import { errorResponse } from "@/lib/http";
-import { requestOrganizationId } from "@/lib/tenancy";
 
 export const runtime = "nodejs";
 
@@ -12,6 +12,7 @@ export async function POST(
 ) {
   try {
     const { documentId } = await context.params;
+    const access = await authorizeRequest(request, "upload");
     const form = await request.formData();
     const file = form.get("file");
     const revisionLabel = form.get("revisionLabel");
@@ -21,7 +22,7 @@ export async function POST(
         { status: 400 },
       );
     }
-    const revision = await publishRevision(requestOrganizationId(request), documentId, {
+    const revision = await publishRevision(access.organizationId, documentId, {
       revisionLabel,
       originalFilename: file.name,
       mimeType: file.type,

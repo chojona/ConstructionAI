@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse } from "@/lib/http";
 import { toFindingDto, toReviewDecisionDto } from "@/lib/review/dto";
+import { authorizeRequest } from "@/lib/auth/membership";
 import { getProjectReview, recordReviewDecision } from "@/lib/review/service";
-import { requestOrganizationId } from "@/lib/tenancy";
 
 export const runtime = "nodejs";
 
@@ -12,7 +12,8 @@ export async function GET(
 ) {
   try {
     const { projectId } = await context.params;
-    const review = await getProjectReview(requestOrganizationId(request), projectId);
+    const access = await authorizeRequest(request, "read");
+    const review = await getProjectReview(access.organizationId, projectId);
     return NextResponse.json({
       decisions: review.decisions.map(toReviewDecisionDto),
       findings: review.findings.map(toFindingDto),
@@ -28,10 +29,11 @@ export async function POST(
 ) {
   try {
     const { projectId } = await context.params;
+    const access = await authorizeRequest(request, "approve");
     const decision = await recordReviewDecision(
-      requestOrganizationId(request),
+      access.organizationId,
       projectId,
-      request.headers.get("x-reviewer-id"),
+      access.named ? access.userId : request.headers.get("x-reviewer-id"),
       await request.json(),
     );
     return NextResponse.json({ decision: toReviewDecisionDto(decision) }, { status: 201 });

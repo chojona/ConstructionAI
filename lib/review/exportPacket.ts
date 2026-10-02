@@ -130,13 +130,47 @@ export function canonicalPacketBytes(packet: ExportPacketCanonical) {
     decisionIds: packet.decisionIds,
     changes: packet.changes,
   };
-  if (packet.chapters && packet.chapters.length > 0) body.chapters = packet.chapters.map(canonicalChapter);
-  if (packet.appendices && packet.appendices.length > 0) body.appendices = packet.appendices.map(canonicalAppendix);
+  const chapters = canonicalChapters(packet.chapters ?? []);
+  const appendices = canonicalAppendices(packet.appendices ?? []);
+  if (chapters.length > 0) body.chapters = chapters;
+  if (appendices.length > 0) body.appendices = appendices;
   return Buffer.from(JSON.stringify(body));
 }
 
+// Packet content hash: sha256 of canonicalPacketBytes.
+// Covered: kind, version, projectId, note, decisionIds, approved changes, chapters, and appendices.
+// Chapter and appendix file bytes are covered by each item's sha256 contentHash; raw files stay in object storage.
+// Chapters and appendices are sorted and de-duplicated first, so the same inputs always hash the same.
+// generatedAt and the packet id are outside the hash.
+// Re-export returns this frozen snapshot. A later chapter or appendix attach stores a new packet and does not rewrite the hash.
 export function packetContentHash(packet: ExportPacketCanonical) {
   return createHash("sha256").update(canonicalPacketBytes(packet)).digest("hex");
+}
+
+export function packetWithChapter(packet: ExportPacketCanonical, chapter: ExportPacketChapter): ExportPacketCanonical {
+  return {
+    kind: packet.kind,
+    version: packet.version,
+    projectId: packet.projectId,
+    note: packet.note,
+    decisionIds: packet.decisionIds,
+    changes: packet.changes,
+    chapters: [...(packet.chapters ?? []), chapter],
+    ...(packet.appendices?.length ? { appendices: packet.appendices } : {}),
+  };
+}
+
+export function packetWithAppendix(packet: ExportPacketCanonical, appendix: ExportPacketAppendix): ExportPacketCanonical {
+  return {
+    kind: packet.kind,
+    version: packet.version,
+    projectId: packet.projectId,
+    note: packet.note,
+    decisionIds: packet.decisionIds,
+    changes: packet.changes,
+    ...(packet.chapters?.length ? { chapters: packet.chapters } : {}),
+    appendices: [...(packet.appendices ?? []), appendix],
+  };
 }
 
 export function exportPacketStorageKey(projectId: string, contentHash: string) {
@@ -325,24 +359,36 @@ export function packetAppendixFromStored(row: {
 }
 
 function canonicalChapters(chapters: readonly ExportPacketChapter[]) {
-  return [...chapters]
+  return dedupeAttachments([...chapters]
     .map(canonicalChapter)
     .sort((left, right) => (
       left.role.localeCompare(right.role)
       || left.sourceId.localeCompare(right.sourceId)
       || left.contentHash.localeCompare(right.contentHash)
       || left.fetchedAt.localeCompare(right.fetchedAt)
-    ));
+    )), (chapter) => `${chapter.role}\0${chapter.sourceId}\0${chapter.contentHash}`);
 }
 
 function canonicalAppendices(appendices: readonly ExportPacketAppendix[]) {
-  return [...appendices]
+  return dedupeAttachments([...appendices]
     .map(canonicalAppendix)
     .sort((left, right) => (
       left.sourceId.localeCompare(right.sourceId)
       || left.contentHash.localeCompare(right.contentHash)
       || left.fetchedAt.localeCompare(right.fetchedAt)
-    ));
+    )), (appendix) => `${appendix.role}\0${appendix.sourceId}\0${appendix.contentHash}`);
+}
+
+function dedupeAttachments<T>(items: readonly T[], keyOf: (item: T) => string) {
+  const seen = new Set<string>();
+  const unique: T[] = [];
+  for (const item of items) {
+    const key = keyOf(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(item);
+  }
+  return unique;
 }
 
 export function selectApprovedFindings(findings: readonly ProjectFinding[], subjectKey?: string) {

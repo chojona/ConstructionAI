@@ -17,7 +17,9 @@ npm run dev
 
 Open [http://localhost:3000/projects](http://localhost:3000/projects).
 
-Uploaded document files and approved pack bytes use one object store. Leave the bucket variables unset for a local demo and files stay under `DOCUMENT_STORAGE_DIR` (default `./data/documents`). The original filename is retained only as display metadata. The seeded organization id is `org_demo`; `APP_ORGANIZATION_ID` selects the organization used by the Phase 1 UI. API callers may provide `x-organization-id` as the already-authenticated tenancy context until authentication is introduced.
+Uploaded document files and approved pack bytes use one object store. Leave the bucket variables unset for a local demo and files stay under `DOCUMENT_STORAGE_DIR` (default `./data/documents`). The original filename is retained only as display metadata. The seeded organization id is `org_demo`. `APP_ORGANIZATION_ID` selects the organization used by the server-rendered desk. Seed also creates an active org admin, `user_demo` (`alex.chen@northstar.example`), in that organization.
+
+Project, document, review, export, and email routes check organization membership. Send `x-user-id` for a person. That person can only act in an organization where their membership is active, and the role must allow the action (Viewer cannot Approve or export; Reviewer can). Callers that omit `x-user-id` still run as that demo admin until each person has a login. A different `x-organization-id` is denied on those routes unless the demo user is an active member. Org admins invite with `POST /api/org/memberships` and disable with `POST /api/org/memberships/{membershipId}/disable`. HeavyJob reads still accept `x-organization-id` as tenancy context.
 
 ## Deploy to Vercel with Neon
 
@@ -40,7 +42,7 @@ npx prisma migrate deploy
 npm run db:seed
 ```
 
-The Vercel build runs `prisma migrate deploy` and `npm run db:seed` before `next build`. Migrate uses `DIRECT_DATABASE_URL` when it is set and `DATABASE_URL` otherwise. Seed upserts the organization selected by `APP_ORGANIZATION_ID`, or `org_demo` when that variable is unset, and loads HeavyJob fixture snapshots onto the demo project `project_heavyjob_demo`. For `org_demo`, seed also loads the demo portfolio. Running `npm run db:seed` again adds any missing rows, stores each demo revision PDF in the shared object store, and leaves review decisions that are already stored. `prisma generate` still runs during dependency installation.
+The Vercel build runs `prisma migrate deploy` and `npm run db:seed` before `next build`. Migrate uses `DIRECT_DATABASE_URL` when it is set and `DATABASE_URL` otherwise. Seed upserts the organization selected by `APP_ORGANIZATION_ID`, or `org_demo` when that variable is unset, and an active org-admin membership for `alex.chen@northstar.example`. It loads HeavyJob fixture snapshots onto the demo project `project_heavyjob_demo`. For `org_demo`, seed also loads the demo portfolio. Running `npm run db:seed` again adds any missing rows, stores each demo revision PDF in the shared object store, and leaves review decisions and existing membership role or status that are already stored. `prisma generate` still runs during dependency installation.
 
 After seeding, open:
 
@@ -51,6 +53,8 @@ After seeding, open:
 
 Approved pack JSON is stored at `export-packets/{projectId}/{contentHash}.json`. Postgres keeps the packet row, the content hash, the byte size, and the links to accepted review decisions. New exports write the bytes to object storage and leave `ExportPacket.payload` empty. A hosted deploy without the bucket variables refuses to write those bytes, because the Vercel filesystem is temporary.
 
+The content hash is the sha256 of that canonical JSON. It covers the approved changes, their decision ids, and any chapters and appendices. Each chapter or appendix is included by the sha256 of its file bytes. Exporting or downloading again returns that frozen snapshot. Attaching a chapter or appendix after export stores a new pack and leaves the earlier snapshot unchanged.
+
 Packs created before this change may still have bytes in `ExportPacket.payload`. After the bucket variables are set, run the copy once:
 
 ```bash
@@ -58,6 +62,10 @@ npm run storage:migrate-packets
 ```
 
 The command copies each remaining payload into the object store, clears that column, and copies document files found under `DOCUMENT_STORAGE_DIR` when the object store does not already have them. Running it again is safe. Re-exporting the same approved pack uses the existing row and the same object key.
+
+## WEAK wedge schema wall
+
+Prisma and API DTOs must not add entitlement, DSC, force-account, or change-order candidate fields while the WEAK wedge is active. See [docs/weak-wedge-schema-wall.md](docs/weak-wedge-schema-wall.md) (CON-74, complements CON-47 copy lock). `lib/spine/weakWedgeSchemaWall.test.ts` enforces this in unit tests.
 
 ## Checks
 
@@ -73,7 +81,7 @@ npm run build
 
 `npm run db:seed` stores checked-in HeavyJob-shaped fixtures for one demo project. Each row is a fetch snapshot (`HeavyJobSourceObject`) linked to that project, with `sourceId`, `fetchedAt`, the raw payload, and an object type of `timecard`, `cost_code`, `quantity`, `diary`, or `attachment`. Loading the same snapshot again does not rewrite it. Timecard `isTm` and `isRework` flags stay inside the raw payload as source data.
 
-Read them with `GET /api/projects/{projectId}/heavyjob-objects`, optionally filtered by `objectType`. The same organization header used by the rest of the API applies.
+Read them with `GET /api/projects/{projectId}/heavyjob-objects`, optionally filtered by `objectType`. This read still takes `x-organization-id` as tenancy context. Membership gating on the other project routes is described above.
 
 After seeding, open `/projects/project_heavyjob_demo?view=heavyjob` (the HeavyJob tab on Northstar River Road Reconstruction). The table columns are type, sourceId, fetchedAt, and a collapsed raw expand.
 

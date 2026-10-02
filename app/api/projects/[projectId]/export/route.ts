@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse } from "@/lib/http";
+import { authorizeRequest } from "@/lib/auth/membership";
 import { exportApprovedChangePacket } from "@/lib/review/service";
-import { requestOrganizationId } from "@/lib/tenancy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,8 +12,9 @@ export async function GET(
 ) {
   try {
     const { projectId } = await context.params;
+    const access = await authorizeRequest(request, "export");
     const packet = await exportApprovedChangePacket(
-      requestOrganizationId(request),
+      access.organizationId,
       projectId,
       { subjectKey: request.nextUrl.searchParams.get("subjectKey") },
     );

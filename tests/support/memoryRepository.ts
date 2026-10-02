@@ -1,4 +1,5 @@
 import { DomainError } from "@/lib/domain/errors";
+import { sameIdSet } from "@/lib/domain/repository";
 import type {
   AppendReviewDecisionInput,
   ConstructionRepository,
@@ -372,6 +373,20 @@ export class MemoryRepository implements ConstructionRepository {
     return packet ? copyExportPacket(packet) : null;
   }
 
+  async findLatestExportPacketForDecisions(organizationId: string, projectId: string, reviewDecisionIds: string[]) {
+    const project = this.projects.find((item) => item.id === projectId && item.organizationId === organizationId);
+    if (!project || reviewDecisionIds.length === 0) return null;
+    const matches = this.exportPackets
+      .map((packet, index) => ({ packet, index }))
+      .filter(({ packet }) => packet.projectId === projectId && sameIdSet(packet.reviewDecisionIds, reviewDecisionIds));
+    matches.sort((left, right) => (
+      right.packet.createdAt.getTime() - left.packet.createdAt.getTime()
+      || right.index - left.index
+    ));
+    const latest = matches[0]?.packet;
+    return latest ? copyExportPacket(latest) : null;
+  }
+
   async saveExportPacketChapter(input: SaveExportPacketChapterInput): Promise<StoredExportPacketChapter | null> {
     const project = this.projects.find((item) => item.id === input.projectId && item.organizationId === input.organizationId);
     if (!project) return null;
@@ -386,7 +401,6 @@ export class MemoryRepository implements ConstructionRepository {
     const existing = this.exportPacketChapters.find((chapter) => (
       chapter.projectId === input.projectId
       && chapter.contentHash === input.contentHash
-      && chapter.sourceId === input.sourceId
       && chapter.role === input.role
     ));
     if (existing) {

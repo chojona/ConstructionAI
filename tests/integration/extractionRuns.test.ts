@@ -1,7 +1,6 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { createPrismaClient } from "@/lib/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ingestRevision } from "@/lib/documents/ingestRevision";
 import { buildTextPdf } from "@/lib/documents/minimalPdf";
@@ -14,9 +13,7 @@ import {
   listExtractionRuns,
 } from "@/lib/extractions/service";
 import { createProject } from "@/lib/projects/service";
-
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) throw new Error("DATABASE_URL is required for integration tests.");
+import { hasIntegrationDatabase, integrationDb } from "@/tests/support/integrationDb";
 
 const provenance = {
   extractorName: "construction-facts",
@@ -25,8 +22,8 @@ const provenance = {
   model: "gpt-4.1",
 };
 
-describe("Prisma extraction runs", () => {
-  const db = createPrismaClient();
+describe.skipIf(!hasIntegrationDatabase)("Prisma extraction runs", () => {
+  const db = integrationDb();
   const repository = new PrismaConstructionRepository(db);
   const suffix = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
   const orgA = `it_extract_a_${suffix}`;

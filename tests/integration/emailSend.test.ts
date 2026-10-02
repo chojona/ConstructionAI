@@ -1,4 +1,3 @@
-import { createPrismaClient } from "@/lib/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDocument } from "@/lib/documents/service";
 import { PrismaConstructionRepository } from "@/lib/domain/prismaRepository";
@@ -9,9 +8,7 @@ import { advanceExtractionRun, createExtractionRun } from "@/lib/extractions/ser
 import { createProject } from "@/lib/projects/service";
 import { EXPORT_BLOCKED_MESSAGE } from "@/lib/review/exportPacketView";
 import { exportApprovedChangePacket, readStoredExportPacket, recordReviewDecision } from "@/lib/review/service";
-
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) throw new Error("DATABASE_URL is required for integration tests.");
+import { hasIntegrationDatabase, integrationDb } from "@/tests/support/integrationDb";
 
 const approvedExcerpt = "A CAT 336 excavator shall be used for the trench.";
 const rejectedExcerpt = "A dozer shall be used.";
@@ -22,8 +19,8 @@ const provenance = {
   model: "gpt-4.1",
 };
 
-describe("Prisma email send ledger", () => {
-  const db = createPrismaClient();
+describe.skipIf(!hasIntegrationDatabase)("Prisma email send ledger", () => {
+  const db = integrationDb();
   const repository = new PrismaConstructionRepository(db);
   const suffix = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
   const organizationId = `it_email_${suffix}`;
@@ -106,6 +103,18 @@ describe("Prisma email send ledger", () => {
     const source = await getEmailDraftSource(organizationId, project.id, repository);
     expect(source.ready).toBe(true);
     if (!source.ready) return;
+
+    const draftedAt = new Date("2026-10-01T15:02:30.000Z");
+    const draft = await recordEmailSend(organizationId, project.id, {
+      recipients: "draft@example.com",
+      subject: "Email bridge — approved facts pack",
+      body: "Approved changes for Email bridge are attached as the approved facts pack.\nThe pack lists each accepted change and the page it cites.",
+      actorId: "Alex Chen",
+      exportPacketId: source.exportPacketId,
+      status: "DRAFT",
+    }, repository, () => draftedAt);
+    expect(draft.status).toBe("DRAFT");
+    expect(draft.sentAt).toBeNull();
 
     const sentAt = new Date("2026-10-01T15:03:00.000Z");
     const email = await recordEmailSend(organizationId, project.id, {

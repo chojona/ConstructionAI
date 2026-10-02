@@ -21,12 +21,56 @@ enum ExtractionRunStatus {
   SUPERSEDED
 }
 
+/// V0 company roles. There is no entitlement, DSC, or change-order claimant role.
+enum OrgRole {
+  ORG_ADMIN
+  REVIEWER
+  CONTRIBUTOR
+  VIEWER
+}
+
+enum MembershipStatus {
+  INVITED
+  ACTIVE
+  DISABLED
+}
+
 model Organization {
-  id        String    @id @default(cuid())
-  name      String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  projects  Project[]
+  id           String          @id @default(cuid())
+  name         String
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  projects     Project[]
+  memberships  OrgMembership[]
+}
+
+/// A person. Credentials are per user later; there is no shared password column.
+model User {
+  id           String          @id @default(cuid())
+  email        String          @unique
+  name         String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  memberships  OrgMembership[]
+}
+
+/// Membership of one person in one organization.
+/// The unique pair allows a later multi-org consultant; invite still rejects a second org.
+model OrgMembership {
+  id             String           @id @default(cuid())
+  organizationId String
+  userId         String
+  role           OrgRole
+  status         MembershipStatus @default(INVITED)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, userId])
+  @@index([userId, status])
+  @@index([organizationId, status])
 }
 
 model Project {
@@ -223,9 +267,12 @@ model ProposedFactEvidence {
 }
 
 /// Frozen approved-change packet.
+/// contentHash is the sha256 of the canonical JSON: approved changes, decision ids,
+/// chapters, and appendices. Each chapter or appendix file is included by its own sha256.
 /// Bytes live in object storage at storageKey. payload is only the legacy
 /// database copy until `npm run storage:migrate-packets` clears it.
 /// Decisions linked here are ACCEPTED review decisions only.
+/// A later chapter or appendix attach stores a new packet. It does not rewrite this hash.
 model ExportPacket {
   id          String   @id @default(cuid())
   projectId   String
@@ -259,7 +306,8 @@ model ExportPacketDecision {
 /// Supporting file on an approved pack.
 /// role is an ACC Docs chapter, an RFI PDF chapter, or a Bluebeam Markup Summary appendix.
 /// Raw bytes live in the private object store at storageKey.
-/// sourceId, fetchedAt, and contentHash (sha256 of the raw bytes) are the provenance.
+/// Identity is the sha256 (contentHash) of those bytes, scoped to the project and role.
+/// A second attach of the same bytes returns this row. sourceId and fetchedAt stay from the first write.
 /// pageCites is the page inventory for a markup summary appendix. Other roles leave it empty.
 /// Linked decisions are ACCEPTED review decisions only. This extends ExportPacket.
 model ExportPacketChapter {
@@ -279,7 +327,7 @@ model ExportPacketChapter {
   project   Project                        @relation(fields: [projectId], references: [id], onDelete: Restrict)
   decisions ExportPacketChapterDecision[]
 
-  @@unique([projectId, contentHash, sourceId, role])
+  @@unique([projectId, contentHash, role])
   @@index([projectId, fetchedAt])
 }
 
@@ -302,7 +350,8 @@ enum EmailSendStatus {
 }
 
 /// Human email ledger for one approved pack. Send records intent only.
-/// actorId is free text until a User model exists. No mail transport is attached.
+/// actorId is the User id when the request names a person, otherwise the demo desk's free-text name.
+/// No mail transport is attached.
 model EmailSend {
   id             String          @id @default(cuid())
   projectId      String

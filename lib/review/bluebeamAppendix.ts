@@ -9,8 +9,8 @@ import { extractPdfDocument } from "@/lib/documents/extractPdf";
 import { writePacketBytes } from "@/lib/storage/packetBytes";
 import { requireObjectStore, type ObjectStore } from "@/lib/storage/objectStore";
 import { APPENDIX_PAGE_MISSING_MESSAGE, BLUEBEAM_APPENDIX_ROLE, BLUEBEAM_MARKUP_APPENDIX_TITLE, factPageCites } from "./exportPacketView";
-import { appendixStorageKey } from "./exportPacket";
-import { currentApprovedChangePacket, exportApprovedChangePacket, type Clock } from "./service";
+import { appendixStorageKey, packetAppendixFromStored, packetWithAppendix } from "./exportPacket";
+import { currentApprovedChangePacket, publishApprovedChangePacket, type Clock } from "./service";
 
 const SOURCE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/;
 const MAX_PAGE_CITES = 500;
@@ -41,7 +41,10 @@ export async function attachBluebeamMarkupAppendix(
   const approved = await currentApprovedChangePacket(organizationId, projectId, repository, subjectKey);
   const markup = await readMarkupSummary(rawInput);
   const fromFile = markupSummaryPageCites(markup.text);
-  const fromFact = factPageCites(approved.changes.flatMap((change) => change.evidence));
+  const cited = fromFile.length > 0 || !("contentHash" in approved)
+    ? approved
+    : await currentApprovedChangePacket(organizationId, projectId, repository, subjectKey, { frozen: false });
+  const fromFact = factPageCites(cited.changes.flatMap((change) => change.evidence));
   const pageCites = fromFile.length > 0 ? fromFile : fromFact;
   if (pageCites.length === 0) {
     throw new DomainError("INVALID_INPUT", APPENDIX_PAGE_MISSING_MESSAGE, 400);
@@ -69,7 +72,13 @@ export async function attachBluebeamMarkupAppendix(
     reviewDecisionIds: approved.decisionIds,
   });
   if (!saved) throw new DomainError("NOT_FOUND", "Project not found.", 404);
-  return exportApprovedChangePacket(organizationId, projectId, { subjectKey }, repository, () => fetchedAt);
+  return publishApprovedChangePacket(
+    organizationId,
+    projectId,
+    packetWithAppendix(approved, packetAppendixFromStored(saved)),
+    repository,
+    fetchedAt,
+  );
 }
 
 export function markupSummaryPageCites(text: string): string[] {

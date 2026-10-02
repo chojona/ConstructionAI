@@ -1,4 +1,3 @@
-import { createPrismaClient } from "@/lib/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDocument } from "@/lib/documents/service";
 import { PrismaConstructionRepository } from "@/lib/domain/prismaRepository";
@@ -6,9 +5,7 @@ import { recordProposedFacts } from "@/lib/extractions/proposedFacts";
 import { advanceExtractionRun, createExtractionRun } from "@/lib/extractions/service";
 import { createProject } from "@/lib/projects/service";
 import { getProjectReview, recordReviewDecision } from "@/lib/review/service";
-
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) throw new Error("DATABASE_URL is required for integration tests.");
+import { hasIntegrationDatabase, integrationDb } from "@/tests/support/integrationDb";
 
 const note = "Install pump 500 GPM.";
 const provenance = {
@@ -18,8 +15,8 @@ const provenance = {
   model: "gpt-4.1",
 };
 
-describe("Prisma review workflow", () => {
-  const db = createPrismaClient();
+describe.skipIf(!hasIntegrationDatabase)("Prisma review workflow", () => {
+  const db = integrationDb();
   const repository = new PrismaConstructionRepository(db);
   const suffix = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
   const orgA = `it_review_a_${suffix}`;
