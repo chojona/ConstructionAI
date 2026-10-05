@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { createCanvas, loadImage } from "@napi-rs/canvas";
 import type { PrismaClient } from "@prisma/client";
 import { afterEach, describe, expect, it } from "vitest";
 import { extractConstructionFacts } from "@/lib/extractions/deterministicExtractor";
@@ -84,6 +85,44 @@ describe("demo page preview", () => {
     expect(Buffer.byteLength(revision.text)).not.toBe(stored.byteLength);
     const png = await previewCitedPage(objects, revision);
     expect(png.subarray(0, 8)).toEqual(PNG);
+  });
+
+  it("paints the harbor carpet excerpt instead of a white page", async () => {
+    const revision = revisionById("revision_document_demo_harbor_carpet");
+    const objects = await localStore();
+    const db = memoryDb();
+    await ensureDemoRevision(db.client, demoDocumentId(revision.id), revision, objects, async () => undefined);
+
+    const stored = await objects.get(`demo/${revision.id}.pdf`);
+    const rects = filledRects(stored);
+    expect(rects.length).toBeGreaterThan(40);
+    const span = rects.reduce((box, rect) => ({
+      minX: Math.min(box.minX, rect.x),
+      maxX: Math.max(box.maxX, rect.x + rect.w),
+    }), { minX: Number.POSITIVE_INFINITY, maxX: 0 });
+    expect(span.maxX - span.minX).toBeGreaterThan(200);
+
+    const png = await previewCitedPage(objects, revision);
+    const ink = await pngInk(png);
+    expect(ink.width).toBe(640);
+    expect(ink.dark).toBeGreaterThan(1500);
+    expect(await paintedRectCenters(png, rects)).toBeGreaterThan(rects.length * 0.9);
+  });
+
+  it("stores filled glyph paths for every demo revision before the page is rendered", async () => {
+    for (const project of DEMO_DESK_PROJECTS) {
+      for (const document of project.documents) {
+        for (const revision of document.revisions) {
+          const objects = await localStore();
+          const db = memoryDb();
+          await ensureDemoRevision(db.client, document.id, revision, objects, async () => undefined);
+          const stored = await objects.get(`demo/${revision.id}.pdf`);
+          const rects = filledRects(stored);
+          const letters = revision.text.replace(/\s/g, "").length;
+          expect(rects.length, revision.id).toBeGreaterThan(letters);
+        }
+      }
+    }
   });
 });
 
@@ -171,4 +210,47 @@ function memoryDb(existing?: {
     },
   };
   return { client: client as unknown as PrismaClient, created, updated };
+}
+
+const PAGE_WIDTH = 612;
+const PAGE_HEIGHT = 792;
+
+function filledRects(pdf: Buffer) {
+  const source = pdf.toString("latin1");
+  const rects: Array<{ x: number; y: number; w: number; h: number }> = [];
+  for (const match of source.matchAll(/([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+) re/g)) {
+    rects.push({ x: Number(match[1]), y: Number(match[2]), w: Number(match[3]), h: Number(match[4]) });
+  }
+  return rects;
+}
+
+async function pngInk(png: Buffer) {
+  const img = await loadImage(png);
+  const canvas = createCanvas(img.width, img.height);
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0);
+  const data = ctx.getImageData(0, 0, img.width, img.height).data;
+  let dark = 0;
+  for (let index = 0; index < data.length; index += 4) {
+    if (data[index]! < 250 || data[index + 1]! < 250 || data[index + 2]! < 250) dark += 1;
+  }
+  return { dark, width: img.width, height: img.height };
+}
+
+async function paintedRectCenters(png: Buffer, rects: Array<{ x: number; y: number; w: number; h: number }>) {
+  const img = await loadImage(png);
+  const canvas = createCanvas(img.width, img.height);
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0);
+  const data = ctx.getImageData(0, 0, img.width, img.height).data;
+  let painted = 0;
+  for (const rect of rects) {
+    const scaleX = img.width / PAGE_WIDTH;
+    const scaleY = img.height / PAGE_HEIGHT;
+    const x = Math.round((rect.x + rect.w / 2) * scaleX);
+    const y = Math.round((PAGE_HEIGHT - (rect.y + rect.h / 2)) * scaleY);
+    const index = (y * img.width + x) * 4;
+    if (data[index]! < 128 && data[index + 1]! < 128 && data[index + 2]! < 128) painted += 1;
+  }
+  return painted;
 }
