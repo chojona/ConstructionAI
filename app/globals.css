@@ -180,6 +180,23 @@ details.create-panel[open] > summary { margin-bottom: 18px; }
 .page-documents .workspace-tabs { margin-bottom: 12px; }
 .page-documents .review-block { margin-top: 0; }
 .change-list-pane { min-width: 0; display: grid; gap: 10px; align-content: start; }
+.review-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.review-summary-stat { min-width: 0; display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--color-line); border-radius: 6px; background: #191c23; }
+.review-summary-stat strong { font-size: 16px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.review-summary-stat span { color: var(--color-ink-secondary); font-size: 11px; line-height: 1.3; }
+.fact-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.fact-type-badge, .change-type-badge, .ai-suggested-badge { font-size: 10px; letter-spacing: 0.04em; }
+.fact-type-badge { background: var(--color-info-subtle); color: var(--color-info); }
+.change-type-badge { background: var(--color-surface-subtle); color: var(--color-ink-secondary); }
+.ai-suggested-badge { background: var(--color-warning-subtle); color: var(--color-warning); letter-spacing: 0; }
+.evidence-rail-body .fact-badges { margin: 8px 0 0; }
+.source-citation { margin: 0; color: var(--color-ink-secondary); font-size: 12px; line-height: 1.4; }
+.why-review { display: grid; gap: 4px; margin-top: 14px; }
+.why-review h4 { margin: 0; font-size: 12px; font-weight: 650; }
+.why-review p { margin: 0; color: var(--color-ink-secondary); font-size: 12px; line-height: 1.45; }
+.review-boundary { display: grid; gap: 4px; padding: 12px 17px; border-top: 1px solid var(--color-line); background: var(--color-success-subtle); }
+.review-boundary strong { color: var(--color-success); font-size: 11px; font-weight: 650; }
+.review-boundary p { margin: 0; color: var(--color-ink-secondary); font-size: 12px; line-height: 1.45; }
 .change-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .change-card { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 8px 10px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-surface); }
 .change-card.is-active { border-color: #91a5fa; background: #293249; outline: 1px solid #91a5fa; outline-offset: -1px; }

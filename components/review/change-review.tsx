@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { DecisionChangeList, DecisionEvidence } from "@/components/review/decision-change-list";
+import { FactBadges } from "@/components/review/fact-badges";
 import { PagePreview } from "@/components/review/page-preview";
 import { EvidenceQuotes } from "@/components/review/evidence-quotes";
 import { EmptyChanges } from "@/components/review/changes-empty";
@@ -11,11 +12,21 @@ import { LegacyPageCiteNotice } from "@/components/review/pack-proof";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { AttentionItemDto, FindingDto } from "@/lib/review/dto";
-import { appendixFactBinding, type ApprovedChangePreview, type DeskPackFile } from "@/lib/review/exportPacketView";
 import { changeEvidenceLead, changePageChip, changeRowTitle, type DecidedRowChrome } from "@/lib/review/changeRow";
 import { decisionReturnPath, findingDomId } from "@/lib/review/evidenceLocation";
+import { appendixFactBinding, DESK_EMPTY_MISSING_EVIDENCE, DESK_EMPTY_NO_SELECTION, type ApprovedChangePreview, type DeskPackFile } from "@/lib/review/exportPacketView";
+import { queueBadges, showAiSuggested } from "@/lib/review/factBadge";
 import { defaultDeskKey } from "@/lib/review/factList";
-import { DESK_EMPTY_MISSING_EVIDENCE, DESK_EMPTY_NO_SELECTION } from "@/lib/review/exportPacketView";
+import {
+  ACCEPTED_TODAY_LABEL,
+  NEEDS_REVIEW_LABEL,
+  REJECTED_TODAY_LABEL,
+  REVIEW_BOUNDARY_NOTE,
+  REVIEW_BOUNDARY_TITLE,
+  WHY_REVIEW_TITLE,
+} from "@/lib/review/reviewDeskCopy";
+import type { ReviewSummaryCounts } from "@/lib/review/reviewSummary";
+import { pinnedSourceCitation } from "@/lib/review/sourceCitation";
 
 const reviewerStorageKey = "construction-ai.reviewer-name";
 
@@ -38,6 +49,7 @@ export function ChangeReview({
   chapters = [],
   appendices = [],
   citeNotice = null,
+  summary,
 }: {
   projectId: string;
   items: AttentionItemDto[];
@@ -48,6 +60,7 @@ export function ChangeReview({
   chapters?: readonly DeskPackFile[];
   appendices?: readonly DeskPackFile[];
   citeNotice?: string | null;
+  summary?: ReviewSummaryCounts;
 }) {
   const router = useRouter();
   const [selectedKey, setSelectedKey] = useState("");
@@ -65,7 +78,8 @@ export function ChangeReview({
   const fallbackKey = defaultDeskKey(decided, findingKeys);
   const selectedIsKnown = decided.some((row) => row.key === selectedKey) || items.some((item) => item.finding.subjectKey === selectedKey);
   const activeKey = selectedIsKnown ? selectedKey : fallbackKey;
-  const selected = items.find((item) => item.finding.subjectKey === activeKey)?.finding;
+  const selectedItem = items.find((item) => item.finding.subjectKey === activeKey) ?? null;
+  const selected = selectedItem?.finding;
   const selectedDecided = decided.find((row) => row.key === activeKey) ?? null;
   const appendixFact = appendixFactBinding(approved, selectedDecided);
 
@@ -133,10 +147,23 @@ export function ChangeReview({
     selected.after ? { title: "Current", value: selected.after, tone: "comparison-after" } : null,
   ].filter((side) => side !== null) : [];
   const evidenceLead = selected ? changeEvidenceLead(selected) : null;
+  const sourceCitation = selected && evidenceLead ? pinnedSourceCitation({
+    documentTitle: evidenceLead.documentTitle || selected.documentTitle,
+    revisionLabel: evidenceLead.revisionLabel,
+    revisionId: evidenceLead.revisionId,
+    pageNumber: evidenceLead.page,
+  }) : null;
+  const counts = summary ?? { needsReview: items.length, acceptedToday: 0, rejectedToday: 0 };
+  const reviewReason = selectedItem?.reason.trim() ?? "";
 
   return (
     <div className="change-desk">
       <div className="change-list-pane">
+        <section className="review-summary" aria-label="Review summary">
+          <div className="review-summary-stat"><strong>{counts.needsReview}</strong><span>{NEEDS_REVIEW_LABEL}</span></div>
+          <div className="review-summary-stat"><strong>{counts.acceptedToday}</strong><span>{ACCEPTED_TODAY_LABEL}</span></div>
+          <div className="review-summary-stat"><strong>{counts.rejectedToday}</strong><span>{REJECTED_TODAY_LABEL}</span></div>
+        </section>
         <LegacyPageCiteNotice message={citeNotice} />
         <ExportPacketControl projectId={projectId} changes={approved} actorId={reviewerId} openCount={items.length} chapters={chapters} appendices={appendices} appendixSubjectKey={appendixFact.subjectKey} appendixPageCites={appendixFact.pageCites} />
         {(decided.length > 0 || notes.length > 0) && (
@@ -160,6 +187,7 @@ export function ChangeReview({
                   <div className="change-card-copy">
                     <p className="row-title">{changeRowTitle(finding)}</p>
                     <p className="row-meta">{finding.documentTitle}</p>
+                    <FactBadges badges={queueBadges(finding)} suggested={showAiSuggested(finding.currentDecision)} />
                   </div>
                   <span className="page-chip">{changePageChip(finding)}</span>
                   <Button type="button" size="sm" variant={active ? "default" : "outline"} aria-pressed={active} onClick={() => openReview(finding)}>Review</Button>
@@ -177,14 +205,22 @@ export function ChangeReview({
                 <div className="evidence-rail-lead">
                   <span className="page-chip">{changePageChip(selected)}</span>
                   <p className="evidence-rail-excerpt">{evidenceLead.excerpt}</p>
+                  {sourceCitation ? <p className="source-citation">{sourceCitation}</p> : null}
                   {evidenceLead.page > 0 && (
                     <PagePreview projectId={projectId} revisionId={evidenceLead.revisionId} pageNumber={evidenceLead.page} />
                   )}
                 </div>
               )}
-              <p className="row-meta">{selected.documentTitle} · {selected.revisionLabel}</p>
+              {sourceCitation ? null : <p className="row-meta">{selected.documentTitle} · {selected.revisionLabel}</p>}
+              <FactBadges badges={queueBadges(selected)} suggested={showAiSuggested(selected.currentDecision)} />
               <h3 id="finding-title" tabIndex={-1}>{changeRowTitle(selected)}</h3>
               <p className="finding-summary">{selected.label}</p>
+              {reviewReason ? (
+                <section className="why-review">
+                  <h4>{WHY_REVIEW_TITLE}</h4>
+                  <p>{reviewReason}</p>
+                </section>
+              ) : null}
               {sides.length > 0 && (
                 <div className={sides.length > 1 ? "compare" : "compare compare-single"}>
                   {sides.map((side) => (
@@ -220,6 +256,10 @@ export function ChangeReview({
             </form>
           </>
         ) : selectedDecided ? <DecisionEvidence row={selectedDecided} projectId={projectId} /> : <p className="rail-empty">{DESK_EMPTY_NO_SELECTION}</p>}
+        <footer className="review-boundary">
+          <strong>{REVIEW_BOUNDARY_TITLE}</strong>
+          <p>{REVIEW_BOUNDARY_NOTE}</p>
+        </footer>
       </aside>
     </div>
   );

@@ -13,6 +13,7 @@ import { listHeavyJobSourceObjects } from "@/lib/heavyjob/service";
 import { getProject } from "@/lib/projects/service";
 import { listAttention } from "@/lib/review/attention";
 import { decidedRowChrome } from "@/lib/review/changeRow";
+import { reviewSummaryCounts } from "@/lib/review/reviewSummary";
 import { approvedChangePreview } from "@/lib/review/exportPacket";
 import { deskPackFiles, EXPORT_BLOCKED_MESSAGE, isLegacyPageCiteError } from "@/lib/review/exportPacketView";
 import { uploadRevisionHref } from "@/lib/review/emptyState";
@@ -85,6 +86,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
               : `“${retirement.summary}” was removed from the current values by ${retirement.reviewerId}.`,
           }))}
           uploadHref={uploadRevisionHref(project.id, project.documents)}
+          summary={reviewSummaryCounts({ needsReview: attention.length, decisions: review.decisions })}
         />
       </section>}
       {view !== "changes" && view !== "heavyjob" && <section className="review-block">

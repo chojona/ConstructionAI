@@ -99,7 +99,13 @@ describe("changes desk chrome", () => {
     expect(blocked).toContain("Earthworks specification");
     expect(blocked).toContain("excavation: 1250 CY");
     expect(blocked).toContain("p. 1");
+    expect(blocked).toContain("Needs review");
+    expect(blocked).toContain("Accepted today");
+    expect(blocked).toContain("Rejected today");
+    expect(blocked).toContain("AI-suggested");
+    expect(blocked).toContain("Accepted facts become project truth. AI suggestions never bypass human review.");
     expect(blocked).not.toMatch(/>Approved</);
+    expect(blocked).not.toContain("Avg confidence");
 
     const open = renderToStaticMarkup(createElement(ChangeReview, {
       projectId: "project_demo_review",
@@ -116,6 +122,9 @@ describe("changes desk chrome", () => {
     expect(open).toContain("Export approved pack");
     expect(open).toContain("Appendix on accepted pack only");
     expect(open).toContain("Earthworks specification · Rev 04");
+    expect(open).toContain("QUANTITY");
+    expect(open).not.toContain("AI-suggested");
+    expect(open).toContain("Accepted facts become project truth. AI suggestions never bypass human review.");
     expect(open).toContain("name=\"subjectKey\" value=\"proposed-fact:excavation\"");
     expect(open).toContain(">Rev A · p. 1<");
     expect(open).not.toContain("This accepted fact has no page cite.");

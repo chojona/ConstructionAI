@@ -87,8 +87,18 @@ describe("page preview rail", () => {
     expect(html).toContain('alt="Page 4"');
     expect(html).toContain('href="/revisions/rev_cited"');
     expect(html).toContain("Open full document");
+    expect(html).toContain("Catch basins · Rev B · p. 4");
+    expect(html).toContain("Why this needs review");
+    expect(html).toContain("Quantity changed.");
+    expect(html).toContain("QUANTITY");
+    expect(html).toContain("MODIFIED");
+    expect(html).toContain("AI-suggested");
+    expect(html).toContain("Needs review");
+    expect(html).toContain("Accepted today");
+    expect(html).toContain("Rejected today");
+    expect(html).toContain("Accepted facts become project truth. AI suggestions never bypass human review.");
     expect(html).not.toContain(PAGE_PREVIEW_UNAVAILABLE_MESSAGE);
-    expect(html).not.toMatch(/Ask about this page|pdf-chat|ask the pdf|prompt box/i);
+    expect(html).not.toMatch(/Ask about this page|pdf-chat|ask the pdf|prompt box|Avg confidence|CONFLICT|Edit fact|Process new docs|DIMENSION|PRODUCT/i);
   });
 
   it("keeps the existing empty copy when the fact has no page cite", () => {
