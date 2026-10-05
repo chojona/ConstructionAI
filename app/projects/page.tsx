@@ -2,15 +2,15 @@ import { Plus } from "lucide-react";
 import { CreateProjectForm } from "@/components/forms/create-project-form";
 import { EmptySolidCard } from "@/components/workspace/empty-solid-card";
 import { ProjectCard } from "@/components/workspace/project-card";
+import { authorizePage } from "@/lib/auth/pageAccess";
 import { listProjects } from "@/lib/projects/service";
 import { listAttention } from "@/lib/review/attention";
 import { getProjectReview } from "@/lib/review/service";
-import { currentOrganizationId } from "@/lib/tenancy";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProjectsPage() {
-  const organizationId = currentOrganizationId();
+  const { organizationId } = await authorizePage("read");
   const projects = await listProjects(organizationId);
   const rows = await Promise.all(projects.map(async (project) => {
     const review = await getProjectReview(organizationId, project.id);

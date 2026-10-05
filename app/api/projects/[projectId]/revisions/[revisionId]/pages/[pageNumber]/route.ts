@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authorizeRequest } from "@/lib/auth/membership";
 import { constructionRepository } from "@/lib/domain/prismaRepository";
 import { errorResponse } from "@/lib/http";
 import { previewRevisionPage } from "@/lib/review/pagePreview";
 import { requireObjectStore } from "@/lib/storage/objectStore";
-import { requestOrganizationId } from "@/lib/tenancy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,8 +14,9 @@ export async function GET(
 ) {
   try {
     const { projectId, revisionId, pageNumber } = await context.params;
+    const access = await authorizeRequest(request, "read");
     const png = await previewRevisionPage({
-      organizationId: requestOrganizationId(request),
+      organizationId: access.organizationId,
       projectId,
       revisionId,
       pageNumber: Number(pageNumber),
