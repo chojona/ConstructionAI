@@ -16,6 +16,9 @@ export default async function ProjectsPage() {
     const review = await getProjectReview(organizationId, project.id);
     return { ...project, openCount: listAttention(review.findings).length };
   }));
+  const needAttention = rows.filter((project) => project.openCount > 0).length;
+  const openChanges = rows.reduce((sum, project) => sum + project.openCount, 0);
+  const documents = rows.reduce((sum, project) => sum + project.documentCount, 0);
   return (
     <main className="page">
       <div className="page-heading">
@@ -25,9 +28,27 @@ export default async function ProjectsPage() {
           <CreateProjectForm />
         </details>
       </div>
-      <div className="section-heading"><h2>Active projects</h2><span className="count">{rows.length} total</span></div>
+      <dl className="metrics">
+        <div className="metric">
+          <dt>Active projects</dt>
+          <dd className="metric-value">{rows.length}</dd>
+          <dd className={`metric-note ${needAttention ? "metric-note-attention" : "metric-note-success"}`}>{needAttention ? `${needAttention} need attention` : "All clear"}</dd>
+        </div>
+        <div className="metric">
+          <dt>Open changes</dt>
+          <dd className="metric-value">{openChanges}</dd>
+          <dd className={`metric-note ${openChanges ? "metric-note-attention" : "metric-note-success"}`}>{openChanges ? `Across ${needAttention} ${needAttention === 1 ? "project" : "projects"}` : "Nothing waiting on a decision"}</dd>
+        </div>
+        <div className="metric">
+          <dt>Documents</dt>
+          <dd className="metric-value">{documents}</dd>
+          <dd className="metric-note metric-note-success">{`In ${rows.length} ${rows.length === 1 ? "project" : "projects"}`}</dd>
+        </div>
+      </dl>
+      <div className="section-heading"><h2>Active projects</h2><span className="count">Sorted by attention</span></div>
       {rows.length ? (
         <div className="list project-list">
+          <div className="project-table-head" aria-hidden><span>Project</span><span>Project no.</span><span>Documents</span><span>Status</span></div>
           {rows.sort((a, b) => b.openCount - a.openCount).map((project) => (
             <ProjectCard key={project.id} href={`/projects/${project.id}`} name={project.name} projectNumber={project.projectNumber} documentCount={project.documentCount} openCount={project.openCount} />
           ))}
