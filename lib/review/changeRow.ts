@@ -1,4 +1,13 @@
-type RowEvidence = { pageNumber: number; excerpt?: string; revisionId?: string };
+import { queueBadges, type DeskBadge } from "./factBadge";
+import { pinnedSourceCitation } from "./sourceCitation";
+
+type RowEvidence = {
+  pageNumber: number;
+  excerpt?: string;
+  revisionId?: string;
+  revisionLabel?: string;
+  documentTitle?: string;
+};
 
 type RowFinding = {
   subject: { type: string; changeType?: string };
@@ -33,6 +42,8 @@ export function changeEvidenceLead(finding: RowFinding) {
     page: evidence.pageNumber,
     excerpt: excerpt || "No linked excerpt available.",
     revisionId: evidence.revisionId?.trim() || null,
+    revisionLabel: evidence.revisionLabel?.trim() || null,
+    documentTitle: evidence.documentTitle?.trim() || null,
   };
 }
 
@@ -54,6 +65,8 @@ export interface DecidedRowChrome {
   pageNumber: number | null;
   excerpt: string;
   revisionId: string | null;
+  sourceCitation?: string | null;
+  badges?: readonly DeskBadge[];
 }
 
 /** List and drawer fields open change cards already show: document, revision, and page. */
@@ -67,6 +80,13 @@ export function openRowChrome(finding: RowFinding & { documentTitle: string; rev
     pageNumber,
     excerpt: lead?.excerpt ?? "",
     revisionId: lead?.revisionId ?? null,
+    sourceCitation: lead ? pinnedSourceCitation({
+      documentTitle: lead.documentTitle || finding.documentTitle,
+      revisionLabel: lead.revisionLabel,
+      revisionId: lead.revisionId,
+      pageNumber,
+    }) : null,
+    badges: queueBadges(finding),
   };
 }
 

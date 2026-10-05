@@ -14,7 +14,7 @@ describe("change rows", () => {
     };
     expect(changeRowTitle(finding)).toBe("Quantity changed");
     expect(changePageChip(finding)).toBe("p. 1");
-    expect(changeEvidenceLead(finding)).toEqual({ page: 1, excerpt: "No linked excerpt available.", revisionId: null });
+    expect(changeEvidenceLead(finding)).toEqual({ page: 1, excerpt: "No linked excerpt available.", revisionId: null, revisionLabel: null, documentTitle: null });
   });
 
   it("prefers the after excerpt for the evidence lead", () => {
@@ -24,7 +24,7 @@ describe("change rows", () => {
       after: { category: "quantity" as const, evidence: [{ pageNumber: 3, excerpt: "after text" }] },
       evidence: [],
     };
-    expect(changeEvidenceLead(finding)).toEqual({ page: 3, excerpt: "after text", revisionId: null });
+    expect(changeEvidenceLead(finding)).toEqual({ page: 3, excerpt: "after text", revisionId: null, revisionLabel: null, documentTitle: null });
   });
 
   it("keeps document, revision, and page on accepted and rejected rows", () => {
@@ -48,6 +48,11 @@ describe("change rows", () => {
       pageNumber: 1,
       excerpt: "Structural excavation 5100 CY.",
       revisionId: "rev_b",
+      sourceCitation: null,
+      badges: [
+        { kind: "fact", label: "QUANTITY" },
+        { kind: "change", label: "MODIFIED" },
+      ],
     });
     expect(accepted).toMatchObject(open);
     expect(rejected).toMatchObject(open);
@@ -64,5 +69,19 @@ describe("change rows", () => {
     expect(html).toContain("excavation: 1250 CY");
     expect(html.match(/Special provisions/g)?.length).toBeGreaterThanOrEqual(2);
     expect(html).not.toMatch(/>Approved</);
+    expect(html).not.toContain("AI-suggested");
+  });
+
+  it("cites the pinned revision on the evidence, not the comparison label", () => {
+    const chrome = openRowChrome({
+      subject: { type: "revision_change", changeType: "MODIFIED" },
+      documentTitle: "Special provisions",
+      revisionLabel: "Rev A → Rev B",
+      before: { category: "quantity", evidence: [{ pageNumber: 1, excerpt: "before", revisionId: "rev_a", revisionLabel: "Rev A", documentTitle: "Special provisions" }] },
+      after: { category: "quantity", evidence: [{ pageNumber: 4, excerpt: "after", revisionId: "rev_b", revisionLabel: "Rev B", documentTitle: "Special provisions" }] },
+      evidence: [],
+    });
+    expect(chrome.sourceCitation).toBe("Special provisions · Rev B · p. 4");
+    expect(chrome.sourceCitation).not.toContain("→");
   });
 });

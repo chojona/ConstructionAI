@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -66,6 +67,15 @@ const acceptedFinding = {
 };
 
 describe("changes desk chrome", () => {
+  it("keeps Figma Product UI V1 canvas and brand tokens", () => {
+    const css = readFileSync(new URL("../../app/globals.css", import.meta.url), "utf8");
+    expect(css).toContain("--color-canvas: #f2f4f1");
+    expect(css).toContain("--color-brand: #d79a32");
+    expect(css).not.toContain("#17191f");
+    expect(css).not.toContain("#5269c9");
+    expect(css).not.toContain("#191c23");
+  });
+
   it("locks PE Desk export labels and empty-state copy", () => {
     expect(ADD_ACC_EXPORT_LABEL).toBe("Add pack chapter");
     expect(ACC_EXPORT_CHAPTER_TITLE).toBe("ACC export");
@@ -99,7 +109,13 @@ describe("changes desk chrome", () => {
     expect(blocked).toContain("Earthworks specification");
     expect(blocked).toContain("excavation: 1250 CY");
     expect(blocked).toContain("p. 1");
+    expect(blocked).toContain("Needs review");
+    expect(blocked).toContain("Accepted today");
+    expect(blocked).toContain("Rejected today");
+    expect(blocked).toContain("AI-suggested");
+    expect(blocked).toContain("Accepted facts become project truth. AI suggestions never bypass human review.");
     expect(blocked).not.toMatch(/>Approved</);
+    expect(blocked).not.toContain("Avg confidence");
 
     const open = renderToStaticMarkup(createElement(ChangeReview, {
       projectId: "project_demo_review",
@@ -116,6 +132,9 @@ describe("changes desk chrome", () => {
     expect(open).toContain("Export approved pack");
     expect(open).toContain("Appendix on accepted pack only");
     expect(open).toContain("Earthworks specification · Rev 04");
+    expect(open).toContain("QUANTITY");
+    expect(open).not.toContain("AI-suggested");
+    expect(open).toContain("Accepted facts become project truth. AI suggestions never bypass human review.");
     expect(open).toContain("name=\"subjectKey\" value=\"proposed-fact:excavation\"");
     expect(open).toContain(">Rev A · p. 1<");
     expect(open).not.toContain("This accepted fact has no page cite.");
