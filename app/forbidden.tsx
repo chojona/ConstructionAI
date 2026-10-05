@@ -7,7 +7,7 @@ export default function Forbidden() {
       <p className="eyebrow">Access denied</p>
       <h1>You do not have access to this organization.</h1>
       <p className="lede">Active membership is required.</p>
-      <div className="status-actions"><Button asChild><Link href="/projects">Return to projects</Link></Button></div>
+      <div className="status-actions"><Button asChild><Link href="/login">Sign in</Link></Button></div>
     </main>
   );
 }
