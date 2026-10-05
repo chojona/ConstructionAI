@@ -299,7 +299,7 @@ describe("server-rendered desks", () => {
     delete process.env.AUTH_TRUST_USER_HEADER;
     try {
       await expect(ProjectPage(projectProps("heavyjob"))).rejects.toMatchObject({
-        digest: expect.stringMatching(/^NEXT_REDIRECT;replace;\/login;/),
+        digest: "NEXT_HTTP_ERROR_FALLBACK;401",
       });
       expect(listHeavyJobSourceObjects).not.toHaveBeenCalled();
       await expect(loadAppShell()).resolves.toEqual({ projects: [] });

@@ -15,7 +15,7 @@ export interface ShellProject {
 
 /** Projects for the workspace shell. A denied or unsigned caller gets no
  *  organization rows. forbidden() cannot run in the root layout, so the page
- *  gate renders the 403 or sends the caller to sign in.
+ *  gate renders the 403 or the 401 sign-in page.
  */
 export async function loadAppShell(): Promise<{ projects: ShellProject[] }> {
   try {

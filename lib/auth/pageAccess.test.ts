@@ -125,11 +125,11 @@ describe("authorizePage", () => {
     const seeded = lookup([member({ organizationId: "org_demo", userId: DEMO_USER_ID, role: "ORG_ADMIN" })]);
     try {
       await expect(authorizePage("read", seeded, sessionsFor("missing", "user_a"))).rejects.toMatchObject({
-        digest: expect.stringMatching(/^NEXT_REDIRECT;replace;\/login;/),
+        digest: "NEXT_HTTP_ERROR_FALLBACK;401",
       });
       cookieState.set(SESSION_COOKIE, "not-a-session");
       await expect(authorizePage("read", seeded, sessionsFor("page-session-token", DEMO_USER_ID))).rejects.toMatchObject({
-        digest: expect.stringMatching(/^NEXT_REDIRECT;replace;\/login;/),
+        digest: "NEXT_HTTP_ERROR_FALLBACK;401",
       });
     } finally {
       if (previous === undefined) delete process.env.AUTH_TRUST_USER_HEADER;

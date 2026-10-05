@@ -1,5 +1,5 @@
 import { cookies, headers } from "next/headers";
-import { forbidden, redirect } from "next/navigation";
+import { forbidden, unauthorized } from "next/navigation";
 import { isDomainError } from "@/lib/domain/errors";
 import type { SessionLookup } from "./credentials";
 import { authorizeRequest, type AccessRequest, type OrgAccess } from "./membership";
@@ -13,8 +13,8 @@ export async function pageAccessRequest(): Promise<AccessRequest> {
 
 /** Same OrgMembership gate as authorizeRequest, for server-rendered desks.
  *  The session cookie is the caller. A denied member becomes the 403 page.
- *  An unsigned page goes to /login. The root layout cannot call forbidden();
- *  it uses authorizeRequest and omits organization data instead.
+ *  An unsigned page becomes the 401 page. The root layout cannot call
+ *  forbidden(); it uses authorizeRequest and omits organization data instead.
  */
 export async function authorizePage(
   permission: OrgPermission = "read",
@@ -25,7 +25,7 @@ export async function authorizePage(
     return await authorizeRequest(await pageAccessRequest(), permission, lookup, sessions);
   } catch (error) {
     if (isDomainError(error) && error.code === "FORBIDDEN") forbidden();
-    if (isDomainError(error) && error.code === "UNAUTHENTICATED") redirect("/login");
+    if (isDomainError(error) && error.code === "UNAUTHENTICATED") unauthorized();
     throw error;
   }
 }
