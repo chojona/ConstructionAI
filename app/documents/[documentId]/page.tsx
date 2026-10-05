@@ -8,8 +8,8 @@ import { documentIdentity } from "@/lib/documents/documentDesk";
 import { getDocument } from "@/lib/documents/service";
 import { describeReading } from "@/lib/documents/revisionExperience";
 import { DomainError } from "@/lib/domain/errors";
+import { authorizePage } from "@/lib/auth/pageAccess";
 import { getProjectReview } from "@/lib/review/service";
-import { currentOrganizationId } from "@/lib/tenancy";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +29,7 @@ export default async function DocumentPage({
 }) {
   const { documentId } = await params;
   const { upload } = await searchParams;
-  const organizationId = currentOrganizationId();
+  const { organizationId } = await authorizePage("read");
   let document;
   try {
     document = await getDocument(organizationId, documentId);
