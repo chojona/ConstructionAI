@@ -75,7 +75,8 @@ export function ChangeReview({
     const page = changeEvidenceLead(item.finding)?.page;
     return { key: item.finding.subjectKey, pageNumber: page && page > 0 ? page : null };
   });
-  const fallbackKey = defaultDeskKey(decided, findingKeys);
+  const openCitedKey = findingKeys.find((row) => row.pageNumber)?.key ?? "";
+  const fallbackKey = openCitedKey || defaultDeskKey(decided, findingKeys);
   const selectedIsKnown = decided.some((row) => row.key === selectedKey) || items.some((item) => item.finding.subjectKey === selectedKey);
   const activeKey = selectedIsKnown ? selectedKey : fallbackKey;
   const selectedItem = items.find((item) => item.finding.subjectKey === activeKey) ?? null;
@@ -206,6 +207,12 @@ export function ChangeReview({
                   <span className="page-chip">{changePageChip(selected)}</span>
                   <p className="evidence-rail-excerpt">{evidenceLead.excerpt}</p>
                   {sourceCitation ? <p className="source-citation">{sourceCitation}</p> : null}
+                  {reviewReason ? (
+                    <section className="why-review">
+                      <h4>{WHY_REVIEW_TITLE}</h4>
+                      <p>{reviewReason}</p>
+                    </section>
+                  ) : null}
                   {evidenceLead.page > 0 && (
                     <PagePreview projectId={projectId} revisionId={evidenceLead.revisionId} pageNumber={evidenceLead.page} />
                   )}
@@ -215,7 +222,7 @@ export function ChangeReview({
               <FactBadges badges={queueBadges(selected)} suggested={showAiSuggested(selected.currentDecision)} />
               <h3 id="finding-title" tabIndex={-1}>{changeRowTitle(selected)}</h3>
               <p className="finding-summary">{selected.label}</p>
-              {reviewReason ? (
+              {!evidenceLead && reviewReason ? (
                 <section className="why-review">
                   <h4>{WHY_REVIEW_TITLE}</h4>
                   <p>{reviewReason}</p>

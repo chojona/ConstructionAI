@@ -101,6 +101,30 @@ describe("page preview rail", () => {
     expect(html).not.toMatch(/Ask about this page|pdf-chat|ask the pdf|prompt box|Avg confidence|CONFLICT|Edit fact|Process new docs|DIMENSION|PRODUCT/i);
   });
 
+  it("shows the severity reason on first paint when decided facts are also listed", () => {
+    const html = renderToStaticMarkup(createElement(ChangeReview, {
+      projectId: "project_1",
+      uploadHref: "/projects/project_1?view=documents",
+      items: [cited],
+      decided: [decidedRow(1, "rev_accepted")],
+    }));
+    expect(html).toContain("Why this needs review");
+    expect(html).toContain("Quantity changed.");
+    expect(html.indexOf("Why this needs review")).toBeLessThan(html.indexOf("page-preview"));
+    expect(html).toContain("Catch basins · Rev B · p. 4");
+    expect(html).toContain("Earthworks specification");
+  });
+
+  it("omits the review reason block when the severity reason is blank", () => {
+    const html = renderToStaticMarkup(createElement(ChangeReview, {
+      projectId: "project_1",
+      uploadHref: "/projects/project_1?view=documents",
+      items: [{ ...cited, reason: "   " }],
+    }));
+    expect(html).not.toContain("Why this needs review");
+    expect(html).toContain("Catch basins · Rev B · p. 4");
+  });
+
   it("keeps the existing empty copy when the fact has no page cite", () => {
     const html = renderToStaticMarkup(createElement(ChangeReview, {
       projectId: "project_1",
