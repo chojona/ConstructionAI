@@ -8,6 +8,8 @@ import { ProjectOverviewLead } from "@/components/workspace/project-overview";
 import { ProjectContext } from "@/components/workspace/project-context";
 import { parseProjectView, ProjectNavigation } from "@/components/workspace/project-navigation";
 import { CreateDocumentForm } from "@/components/forms/create-document-form";
+import { parseRegisterQuery, toRegisterDocument } from "@/lib/documents/documentRegister";
+import { listDocumentRegister } from "@/lib/documents/service";
 import { DomainError } from "@/lib/domain/errors";
 import { toHeavyJobSourceObjectDto } from "@/lib/heavyjob/dto";
 import { listHeavyJobSourceObjects } from "@/lib/heavyjob/service";
@@ -44,19 +46,30 @@ async function loadPackFiles(organizationId: string, projectId: string) {
   }
 }
 
-export default async function ProjectPage({ params, searchParams }: { params: Promise<{ projectId: string }>; searchParams: Promise<{ view?: string }> }) {
-  const { view: requestedView } = await searchParams;
-  const view = parseProjectView(requestedView);
+export default async function ProjectPage({ params, searchParams }: { params: Promise<{ projectId: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const requested = await searchParams;
+  const view = parseProjectView(typeof requested.view === "string" ? requested.view : undefined);
   const { projectId } = await params;
   const { organizationId } = await authorizePage("read");
+  const showDocuments = view !== "changes" && view !== "heavyjob";
   let project;
   let review;
+  let register;
   try {
-    project = await getProject(organizationId, projectId);
-    review = await getProjectReview(organizationId, projectId);
+    [project, review, register] = await Promise.all([
+      getProject(organizationId, projectId),
+      getProjectReview(organizationId, projectId),
+      showDocuments ? listDocumentRegister(organizationId, projectId) : Promise.resolve([]),
+    ]);
   }
   catch (error) { if (error instanceof DomainError && error.code === "NOT_FOUND") notFound(); throw error; }
   const attention = listAttention(review.findings);
+  const deskDocuments = register.map((document) => toRegisterDocument(document, attention.map((item) => ({
+    sources: item.finding.sources,
+    subject: item.finding.subject.type === "revision_change"
+      ? { type: item.finding.subject.type, revisedRevisionId: item.finding.subject.revisedRevisionId }
+      : { type: item.finding.subject.type },
+  })), new Date()));
   const approved = approvedChangePreview(review.findings);
   const overview = projectOverviewModel({
     projectId: project.id,
@@ -112,7 +125,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       </section>}
       {view !== "changes" && view !== "heavyjob" && <section className="review-block">
         <div className="section-heading"><h2>Documents</h2><span className="count">{project.documents.length} total</span></div>
-        <DocumentsDesk documents={project.documents} />
+        <DocumentsDesk documents={deskDocuments} query={parseRegisterQuery(requested)} />
       </section>}
       {view === "heavyjob" && <HeavyJobSourceBrowser objects={heavyJobObjects} />}
     </main>

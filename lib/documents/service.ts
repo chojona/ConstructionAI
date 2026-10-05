@@ -20,6 +20,16 @@ export async function createDocument(
   return document;
 }
 
+export async function listDocumentRegister(
+  organizationId: string,
+  projectId: string,
+  repository: ConstructionRepository = constructionRepository,
+) {
+  const documents = await repository.listDocumentRegister(organizationId, projectId);
+  if (!documents) throw new DomainError("NOT_FOUND", "Project not found.", 404);
+  return documents;
+}
+
 export async function getDocument(
   organizationId: string,
   documentId: string,

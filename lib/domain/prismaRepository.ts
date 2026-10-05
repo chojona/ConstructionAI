@@ -26,6 +26,7 @@ import type {
 } from "./repository";
 import type {
   DocumentDetail,
+  DocumentRegisterRecord,
   ExtractionRunRecord,
   ProjectDetail,
   ProjectReviewSource,
@@ -94,6 +95,43 @@ export class PrismaConstructionRepository implements ConstructionRepository {
         revisionCount: _count.revisions,
       })),
     };
+  }
+
+  async listDocumentRegister(organizationId: string, projectId: string): Promise<DocumentRegisterRecord[] | null> {
+    const project = await this.db.project.findFirst({
+      where: { id: projectId, organizationId },
+      select: {
+        documents: {
+          orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+          select: {
+            id: true,
+            title: true,
+            documentType: true,
+            revisions: {
+              orderBy: [{ revisionOrder: "desc" }, { id: "asc" }],
+              select: {
+                id: true,
+                revisionLabel: true,
+                revisionOrder: true,
+                status: true,
+                createdAt: true,
+                _count: { select: { pages: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!project) return null;
+    return project.documents.map((document) => ({
+      id: document.id,
+      title: document.title,
+      documentType: document.documentType,
+      revisions: document.revisions.map(({ _count, ...revision }) => ({
+        ...revision,
+        pageCount: _count.pages,
+      })),
+    }));
   }
 
   async createDocument(input: {
