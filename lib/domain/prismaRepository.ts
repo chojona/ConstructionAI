@@ -430,6 +430,7 @@ export class PrismaConstructionRepository implements ConstructionRepository {
           revisionLabel: revision.revisionLabel,
           revisionOrder: revision.revisionOrder,
           sha256: revision.sha256,
+          createdAt: revision.createdAt,
         });
         for (const run of revision.extractionRuns) {
           source.runs.push({

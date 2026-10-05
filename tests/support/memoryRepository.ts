@@ -278,6 +278,7 @@ export class MemoryRepository implements ConstructionRepository {
         revisionLabel: item.revisionLabel,
         revisionOrder: item.revisionOrder,
         sha256: item.sha256,
+        createdAt: item.createdAt,
       }));
     const revisionIds = new Set(revisions.map((item) => item.id));
     const runs = this.extractionRuns

@@ -48,6 +48,7 @@ export interface ProjectReview {
   decisions: ReviewDecisionRecord[];
   findings: ProjectFinding[];
   state: EffectiveProjectState;
+  revisionCreatedAt: Date[];
 }
 
 export async function getProjectReview(
@@ -67,6 +68,9 @@ export async function getProjectReview(
         facts: loaded.source.facts,
         decisions: loaded.decisions,
       }),
+      revisionCreatedAt: loaded.source.revisions.flatMap((revision) => (
+        revision.createdAt && !Number.isNaN(revision.createdAt.getTime()) ? [revision.createdAt] : []
+      )),
     };
   });
 }
