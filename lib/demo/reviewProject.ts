@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
-import { buildTextPdf } from "@/lib/documents/minimalPdf";
+import { buildDrawnTextPdf } from "@/lib/documents/drawnTextPdf";
 import { CONSTRUCTION_FACTS_FIXTURES } from "@/lib/extractions/eval/fixtures";
 import { deterministicConstructionFactsModel } from "@/lib/extractions/deterministicExtractor";
 import { runConstructionFactsExtraction } from "@/lib/extractions/constructionFacts";
@@ -434,7 +434,8 @@ export async function ensureDemoRevision(
 }
 
 async function storeDemoRevisionPdf(objects: ObjectStore, revision: DemoRevisionSeed) {
-  const bytes = buildTextPdf([revision.text]);
+  // Filled paths stay visible in page preview when the host has no Helvetica.
+  const bytes = buildDrawnTextPdf([revision.text]);
   const storageKey = `demo/${revision.id}.pdf`;
   try {
     await objects.put(storageKey, bytes);
