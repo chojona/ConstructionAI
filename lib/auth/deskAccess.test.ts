@@ -88,11 +88,22 @@ beforeEach(() => {
   listActiveMemberships.mockImplementation(async (userId: string) =>
     rows.filter((row) => row.userId === userId && row.status === "ACTIVE"));
   getProject.mockReset();
-  getProject.mockResolvedValue({ id: "project_1", name: "River", projectNumber: "NS-1", documents: [] });
+  getProject.mockResolvedValue({
+    id: "project_1",
+    name: "River",
+    projectNumber: "NS-1",
+    documents: [],
+    updatedAt: new Date("2026-10-01T00:00:00.000Z"),
+  });
   listProjects.mockReset();
   listProjects.mockResolvedValue([{ id: "project_1", name: "River", projectNumber: "NS-1", documentCount: 0 }]);
   getProjectReview.mockReset();
-  getProjectReview.mockResolvedValue({ findings: [], state: { retirements: [] } });
+  getProjectReview.mockResolvedValue({
+    findings: [],
+    decisions: [],
+    revisionCreatedAt: [],
+    state: { retirements: [] },
+  });
   currentApprovedChangePacket.mockReset();
   listHeavyJobSourceObjects.mockReset();
   listHeavyJobSourceObjects.mockResolvedValue([]);

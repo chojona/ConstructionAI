@@ -4,6 +4,7 @@ import { HeavyJobSourceBrowser } from "@/components/heavyjob/source-object-brows
 import { ChangeReview } from "@/components/review/change-review";
 import { ScrollToFinding } from "@/components/review/scroll-to-finding";
 import { DocumentsDesk } from "@/components/workspace/documents-desk";
+import { ProjectOverviewLead } from "@/components/workspace/project-overview";
 import { ProjectContext } from "@/components/workspace/project-context";
 import { parseProjectView, ProjectNavigation } from "@/components/workspace/project-navigation";
 import { CreateDocumentForm } from "@/components/forms/create-document-form";
@@ -18,6 +19,7 @@ import { approvedChangePreview } from "@/lib/review/exportPacket";
 import { deskPackFiles, EXPORT_BLOCKED_MESSAGE, isLegacyPageCiteError } from "@/lib/review/exportPacketView";
 import { uploadRevisionHref } from "@/lib/review/emptyState";
 import { toAttentionDto } from "@/lib/review/dto";
+import { projectOverviewModel } from "@/lib/review/projectOverview";
 import { authorizePage } from "@/lib/auth/pageAccess";
 import { currentApprovedChangePacket, getProjectReview } from "@/lib/review/service";
 
@@ -56,6 +58,20 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   catch (error) { if (error instanceof DomainError && error.code === "NOT_FOUND") notFound(); throw error; }
   const attention = listAttention(review.findings);
   const approved = approvedChangePreview(review.findings);
+  const overview = projectOverviewModel({
+    projectId: project.id,
+    attention: attention.map((item) => ({
+      severity: item.severity,
+      summary: item.finding.label,
+      subjectKey: item.finding.subjectKey,
+    })),
+    decisions: review.decisions,
+    documentCount: project.documents.length,
+    revisionCreatedAt: review.revisionCreatedAt,
+    approvedCount: approved.length,
+    now: new Date(),
+    projectUpdatedAt: project.updatedAt,
+  });
   const packFiles = approved.length > 0 ? await loadPackFiles(organizationId, projectId) : { chapters: [], appendices: [], citeNotice: null };
   const heavyJobObjects = view === "heavyjob"
     ? (await listHeavyJobSourceObjects(organizationId, projectId)).map(toHeavyJobSourceObjectDto)
@@ -65,9 +81,14 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       <ScrollToFinding />
       <ProjectContext projectId={project.id}><Link href="/projects">Projects</Link><span>/</span><span>{project.name}</span></ProjectContext>
       <div className="page-heading">
-        <div><p className="eyebrow">{project.projectNumber?.trim() || "No project number"}</p><h1>{project.name}</h1><p className="lede">{view === "heavyjob" ? "Stored HeavyJob snapshots for this project." : "Review source changes, resolve exceptions, and keep the project moving."}</p></div>
+        <div>
+          <p className="eyebrow">{project.projectNumber?.trim() || "No project number"}</p>
+          <div className="title-row"><h1>{project.name}</h1><p className="updated-label">{overview.updatedLabel}</p></div>
+          <p className="lede">{view === "heavyjob" ? "Stored HeavyJob snapshots for this project." : "Review source changes, resolve exceptions, and keep the project moving."}</p>
+        </div>
         {view !== "heavyjob" && <details className="create-panel panel" id="add-document"><summary className="primary-summary">Add document</summary><CreateDocumentForm projectId={project.id} /></details>}
       </div>
+      {view !== "heavyjob" && <ProjectOverviewLead model={overview} />}
       <ProjectNavigation projectId={project.id} active={view} openCount={attention.length} />
       {view !== "documents" && view !== "heavyjob" && <section>
         <div className="section-heading"><h2>Changes <span className="heading-sub">Needs attention</span></h2><span className="count">{attention.length} open</span></div>

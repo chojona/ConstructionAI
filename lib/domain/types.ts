@@ -133,6 +133,8 @@ export interface ProjectRevisionContext {
   revisionOrder: number;
   /** sha256 of the stored revision bytes, when the repository loaded them. */
   sha256?: string;
+  /** When the repository loaded it. Counts revisions added this month. */
+  createdAt?: Date;
 }
 
 export interface ProjectRunContext {
