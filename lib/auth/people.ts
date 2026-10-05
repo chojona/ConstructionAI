@@ -2,6 +2,7 @@ import { z } from "zod";
 import { DomainError } from "@/lib/domain/errors";
 import { assertRole, type OrgAccess } from "./membership";
 import { membershipStore } from "./prismaMembership";
+import { acceptPath, hashToken, INVITE_TTL_MS, newSecret } from "./sessionToken";
 import {
   type PeopleStore,
   type PersonMembership,
@@ -23,9 +24,22 @@ export interface InvitedMember {
   name: string | null;
   role: MembershipRecord["role"];
   status: MembershipRecord["status"];
+  /** Raw token returned once. Only the hash is stored. */
+  acceptToken: string;
+  acceptPath: string;
 }
 
-function invitedMember(user: PersonRecord, membership: MembershipRecord): InvitedMember {
+async function issueAcceptToken(store: PeopleStore, membershipId: string) {
+  const acceptToken = newSecret();
+  await store.saveAcceptToken(membershipId, hashToken(acceptToken), new Date(Date.now() + INVITE_TTL_MS));
+  return { acceptToken, acceptPath: acceptPath(acceptToken) };
+}
+
+function invitedMember(
+  user: PersonRecord,
+  membership: MembershipRecord,
+  issued: { acceptToken: string; acceptPath: string },
+): InvitedMember {
   return {
     id: membership.id,
     organizationId: membership.organizationId,
@@ -34,6 +48,8 @@ function invitedMember(user: PersonRecord, membership: MembershipRecord): Invite
     name: user.name,
     role: membership.role,
     status: membership.status,
+    acceptToken: issued.acceptToken,
+    acceptPath: issued.acceptPath,
   };
 }
 
@@ -74,7 +90,7 @@ export async function inviteMember(
       role: input.role,
       status: "INVITED",
     });
-    return invitedMember(existing, membership);
+    return invitedMember(existing, membership, await issueAcceptToken(store, membership.id));
   }
 
   const user = await store.createUser({ email: input.email, name: input.name });
@@ -84,7 +100,24 @@ export async function inviteMember(
     role: input.role,
     status: "INVITED",
   });
-  return invitedMember(user, membership);
+  return invitedMember(user, membership, await issueAcceptToken(store, membership.id));
+}
+
+/** Replace the accept token for a membership that is still invited. */
+export async function refreshAcceptToken(
+  access: OrgAccess,
+  membershipId: string,
+  store: PeopleStore = membershipStore,
+): Promise<{ acceptToken: string; acceptPath: string }> {
+  assertRole(access.role, "manage_people");
+  const membership = await store.findMembershipById(membershipId);
+  if (!membership || membership.organizationId !== access.organizationId) {
+    throw new DomainError("NOT_FOUND", "Membership not found.", 404);
+  }
+  if (membership.status !== "INVITED") {
+    throw new DomainError("INVALID_INPUT", "Only an invited person can receive a new accept link.", 400);
+  }
+  return issueAcceptToken(store, membership.id);
 }
 
 export async function disableMember(

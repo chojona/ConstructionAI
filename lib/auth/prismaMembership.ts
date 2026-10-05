@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import type { CredentialStore, CredentialUser, InviteRecord } from "./credentials";
 import type {
   MembershipRecord,
   MembershipStatus,
@@ -25,7 +26,7 @@ function toMembership(row: {
   };
 }
 
-export class PrismaMembershipStore implements PeopleStore {
+export class PrismaMembershipStore implements PeopleStore, CredentialStore {
   constructor(private readonly db: PrismaClient = prisma) {}
 
   async findMembership(userId: string, organizationId: string) {
@@ -77,6 +78,67 @@ export class PrismaMembershipStore implements PeopleStore {
 
   async countActiveRole(organizationId: string, role: OrgRole) {
     return this.db.orgMembership.count({ where: { organizationId, role, status: "ACTIVE" } });
+  }
+
+  async saveAcceptToken(membershipId: string, tokenHash: string, expiresAt: Date) {
+    await this.db.orgMembership.update({
+      where: { id: membershipId },
+      data: { acceptTokenHash: tokenHash, acceptTokenExpiresAt: expiresAt },
+    });
+  }
+
+  async findUserCredential(email: string): Promise<CredentialUser | null> {
+    const user = await this.db.user.findUnique({ where: { email } });
+    if (!user) return null;
+    return { id: user.id, email: user.email, name: user.name, passwordHash: user.passwordHash };
+  }
+
+  async setPasswordHash(userId: string, passwordHash: string, name?: string | null) {
+    await this.db.user.update({
+      where: { id: userId },
+      data: { passwordHash, ...(name !== undefined ? { name } : {}) },
+    });
+  }
+
+  async findInvite(tokenHash: string): Promise<InviteRecord | null> {
+    const row = await this.db.orgMembership.findUnique({
+      where: { acceptTokenHash: tokenHash },
+      include: { user: true, organization: true },
+    });
+    if (!row) return null;
+    return {
+      membership: toMembership(row),
+      email: row.user.email,
+      name: row.user.name,
+      organizationName: row.organization.name,
+      expiresAt: row.acceptTokenExpiresAt,
+    };
+  }
+
+  async acceptInvite(membershipId: string) {
+    const row = await this.db.orgMembership.update({
+      where: { id: membershipId },
+      data: { status: "ACTIVE", acceptTokenHash: null, acceptTokenExpiresAt: null },
+    });
+    return toMembership(row);
+  }
+
+  async createSession(tokenHash: string, userId: string, expiresAt: Date) {
+    await this.db.session.create({ data: { tokenHash, userId, expiresAt } });
+  }
+
+  async deleteSession(tokenHash: string) {
+    await this.db.session.deleteMany({ where: { tokenHash } });
+  }
+
+  async findValidSession(tokenHash: string) {
+    const row = await this.db.session.findUnique({ where: { tokenHash } });
+    if (!row) return null;
+    if (row.expiresAt.getTime() <= Date.now()) {
+      await this.db.session.delete({ where: { id: row.id } }).catch(() => undefined);
+      return null;
+    }
+    return { userId: row.userId };
   }
 
   async listPeople(organizationId: string): Promise<PersonMembership[]> {

@@ -1,14 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEMO_USER_ID } from "./demoUser";
+import { hashToken, SESSION_COOKIE } from "./sessionToken";
 import type { MembershipLookup, MembershipRecord } from "./roles";
 
-const { headerState } = vi.hoisted(() => ({
+const { headerState, cookieState } = vi.hoisted(() => ({
   headerState: new Map<string, string>(),
+  cookieState: new Map<string, string>(),
 }));
 
 vi.mock("next/headers", () => ({
   headers: async () => ({
     get: (name: string) => headerState.get(name.toLowerCase()) ?? null,
+  }),
+  cookies: async () => ({
+    get: (name: string) => {
+      const value = cookieState.get(name);
+      return value === undefined ? undefined : { name, value };
+    },
   }),
 }));
 
@@ -34,11 +42,23 @@ function lookup(rows: MembershipRecord[]): MembershipLookup {
     async listActiveMemberships(userId) {
       return rows.filter((row) => row.userId === userId && row.status === "ACTIVE");
     },
+    async listMembershipsForUser(userId) {
+      return rows.filter((row) => row.userId === userId);
+    },
+  };
+}
+
+function sessionsFor(token: string, userId: string) {
+  return {
+    async findValidSession(tokenHash: string) {
+      return tokenHash === hashToken(token) ? { userId } : null;
+    },
   };
 }
 
 beforeEach(() => {
   headerState.clear();
+  cookieState.clear();
   process.env.__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS = "1";
 });
 
@@ -79,29 +99,52 @@ describe("authorizePage", () => {
     await expect(authorizePage("read", members)).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;403" });
   });
 
-  it("follows a seeded demo membership and does not bootstrap over it", async () => {
+  it("authorizes the user stored on the session cookie, not a forged user header", async () => {
+    const previous = process.env.AUTH_TRUST_USER_HEADER;
+    delete process.env.AUTH_TRUST_USER_HEADER;
+    const token = "page-session-token";
+    cookieState.set(SESSION_COOKIE, token);
+    setHeaders({ "x-user-id": "user_b", "x-organization-id": "org_a" });
+    try {
+      await expect(authorizePage("read", members, sessionsFor(token, "user_a"))).resolves.toMatchObject({
+        organizationId: "org_a",
+        userId: "user_a",
+        role: "VIEWER",
+        named: true,
+      });
+    } finally {
+      if (previous === undefined) delete process.env.AUTH_TRUST_USER_HEADER;
+      else process.env.AUTH_TRUST_USER_HEADER = previous;
+    }
+  });
+
+  it("sends an unsigned page to sign in and does not open the seeded desk", async () => {
+    const previous = process.env.AUTH_TRUST_USER_HEADER;
+    delete process.env.AUTH_TRUST_USER_HEADER;
     process.env.APP_ORGANIZATION_ID = "org_demo";
-    const seeded = lookup([member({ organizationId: "org_demo", userId: DEMO_USER_ID, role: "VIEWER" })]);
-    await expect(authorizePage("read", seeded)).resolves.toMatchObject({
-      organizationId: "org_demo",
-      userId: DEMO_USER_ID,
-      role: "VIEWER",
-      named: false,
-    });
+    const seeded = lookup([member({ organizationId: "org_demo", userId: DEMO_USER_ID, role: "ORG_ADMIN" })]);
+    try {
+      await expect(authorizePage("read", seeded, sessionsFor("missing", "user_a"))).rejects.toMatchObject({
+        digest: "NEXT_HTTP_ERROR_FALLBACK;401",
+      });
+      cookieState.set(SESSION_COOKIE, "not-a-session");
+      await expect(authorizePage("read", seeded, sessionsFor("page-session-token", DEMO_USER_ID))).rejects.toMatchObject({
+        digest: "NEXT_HTTP_ERROR_FALLBACK;401",
+      });
+    } finally {
+      if (previous === undefined) delete process.env.AUTH_TRUST_USER_HEADER;
+      else process.env.AUTH_TRUST_USER_HEADER = previous;
+    }
+  });
+
+  it("denies a session whose membership is still invited", async () => {
+    const token = "invited-session";
+    cookieState.set(SESSION_COOKIE, token);
     const invited = lookup([
       member({ organizationId: "org_demo", userId: DEMO_USER_ID, role: "ORG_ADMIN", status: "INVITED" }),
     ]);
-    await expect(authorizePage("read", invited)).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;403" });
-  });
-
-  it("keeps the unnamed demo desk on the process organization only", async () => {
-    process.env.APP_ORGANIZATION_ID = "org_demo";
-    await expect(authorizePage("read", lookup([]))).resolves.toMatchObject({
-      organizationId: "org_demo",
-      role: "ORG_ADMIN",
-      named: false,
+    await expect(authorizePage("read", invited, sessionsFor(token, DEMO_USER_ID))).rejects.toMatchObject({
+      digest: "NEXT_HTTP_ERROR_FALLBACK;403",
     });
-    setHeaders({ "x-organization-id": "org_b" });
-    await expect(authorizePage("read", lookup([]))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;403" });
   });
 });

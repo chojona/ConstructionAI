@@ -1,4 +1,4 @@
-import { headers } from "next/headers";
+import { pageAccessRequest } from "@/lib/auth/pageAccess";
 import { authorizeRequest } from "@/lib/auth/membership";
 import { isDomainError } from "@/lib/domain/errors";
 import { listProjects } from "@/lib/projects/service";
@@ -13,12 +13,13 @@ export interface ShellProject {
   openCount: number;
 }
 
-/** Projects for the workspace shell. A denied caller gets no organization rows.
- *  forbidden() cannot run in the root layout, so the page gate renders the 403.
+/** Projects for the workspace shell. A denied or unsigned caller gets no
+ *  organization rows. forbidden() cannot run in the root layout, so the page
+ *  gate renders the 403 or the 401 sign-in page.
  */
 export async function loadAppShell(): Promise<{ projects: ShellProject[] }> {
   try {
-    const access = await authorizeRequest({ headers: await headers() }, "read");
+    const access = await authorizeRequest(await pageAccessRequest(), "read");
     const projects = await listProjects(access.organizationId);
     const cards = await Promise.all(projects.map(async (project) => {
       const review = await getProjectReview(access.organizationId, project.id);
@@ -32,7 +33,9 @@ export async function loadAppShell(): Promise<{ projects: ShellProject[] }> {
     }));
     return { projects: cards };
   } catch (error) {
-    if (isDomainError(error) && error.code === "FORBIDDEN") return { projects: [] };
+    if (isDomainError(error) && (error.code === "FORBIDDEN" || error.code === "UNAUTHENTICATED")) {
+      return { projects: [] };
+    }
     throw error;
   }
 }

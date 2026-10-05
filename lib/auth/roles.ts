@@ -49,12 +49,12 @@ export interface PersonMembership {
 export interface MembershipLookup {
   findMembership(userId: string, organizationId: string): Promise<MembershipRecord | null>;
   listActiveMemberships(userId: string): Promise<MembershipRecord[]>;
+  listMembershipsForUser(userId: string): Promise<MembershipRecord[]>;
 }
 
 export interface PeopleStore extends MembershipLookup {
   findUserByEmail(email: string): Promise<PersonRecord | null>;
   createUser(input: { email: string; name: string | null }): Promise<PersonRecord>;
-  listMembershipsForUser(userId: string): Promise<MembershipRecord[]>;
   createMembership(input: {
     organizationId: string;
     userId: string;
@@ -65,4 +65,5 @@ export interface PeopleStore extends MembershipLookup {
   setStatus(id: string, status: MembershipStatus): Promise<MembershipRecord>;
   countActiveRole(organizationId: string, role: OrgRole): Promise<number>;
   listPeople(organizationId: string): Promise<PersonMembership[]>;
+  saveAcceptToken(membershipId: string, tokenHash: string, expiresAt: Date): Promise<void>;
 }

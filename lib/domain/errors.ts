@@ -1,5 +1,6 @@
 export type DomainErrorCode =
   | "NOT_FOUND"
+  | "UNAUTHENTICATED"
   | "FORBIDDEN"
   | "INVALID_INPUT"
   | "EMPTY_FILE"
