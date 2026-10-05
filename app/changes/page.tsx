@@ -8,13 +8,13 @@ import { changePageChip, changeRowTitle } from "@/lib/review/changeRow";
 import { queueBadges, showAiSuggested } from "@/lib/review/factBadge";
 import { portfolioUploadHref } from "@/lib/review/emptyState";
 import { findingDomId } from "@/lib/review/evidenceLocation";
+import { authorizePage } from "@/lib/auth/pageAccess";
 import { getProjectReview } from "@/lib/review/service";
-import { currentOrganizationId } from "@/lib/tenancy";
 
 export const dynamic = "force-dynamic";
 
 export default async function ChangesPage() {
-  const organizationId = currentOrganizationId();
+  const { organizationId } = await authorizePage("read");
   const projects = await listProjects(organizationId);
   const groups = await Promise.all(projects.map(async (project) => ({ project, items: listAttention((await getProjectReview(organizationId, project.id)).findings) })));
   const count = groups.reduce((total, group) => total + group.items.length, 0);

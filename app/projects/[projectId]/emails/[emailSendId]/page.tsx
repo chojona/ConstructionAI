@@ -12,7 +12,7 @@ import {
   emailStatusLabel,
   storedExportPacketPath,
 } from "@/lib/email/emailSendView";
-import { currentOrganizationId } from "@/lib/tenancy";
+import { authorizePage } from "@/lib/auth/pageAccess";
 
 export const dynamic = "force-dynamic";
 
@@ -31,9 +31,10 @@ export default async function EmailSendLedgerPage({
   params: Promise<{ projectId: string; emailSendId: string }>;
 }) {
   const { projectId, emailSendId } = await params;
+  const { organizationId } = await authorizePage("read");
   let email;
   try {
-    email = await readEmailSend(currentOrganizationId(), projectId, emailSendId);
+    email = await readEmailSend(organizationId, projectId, emailSendId);
   } catch (error) {
     if (error instanceof DomainError && error.code === "NOT_FOUND") notFound();
     throw error;

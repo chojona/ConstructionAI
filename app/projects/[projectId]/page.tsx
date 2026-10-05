@@ -18,8 +18,8 @@ import { approvedChangePreview } from "@/lib/review/exportPacket";
 import { deskPackFiles, EXPORT_BLOCKED_MESSAGE, isLegacyPageCiteError } from "@/lib/review/exportPacketView";
 import { uploadRevisionHref } from "@/lib/review/emptyState";
 import { toAttentionDto } from "@/lib/review/dto";
+import { authorizePage } from "@/lib/auth/pageAccess";
 import { currentApprovedChangePacket, getProjectReview } from "@/lib/review/service";
-import { currentOrganizationId } from "@/lib/tenancy";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +46,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const { view: requestedView } = await searchParams;
   const view = parseProjectView(requestedView);
   const { projectId } = await params;
-  const organizationId = currentOrganizationId();
+  const { organizationId } = await authorizePage("read");
   let project;
   let review;
   try {

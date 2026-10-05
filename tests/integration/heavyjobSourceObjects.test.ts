@@ -17,6 +17,11 @@ describe.skipIf(!hasIntegrationDatabase)("HeavyJob source objects", () => {
   const suffix = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
   const orgA = `it_hj_org_a_${suffix}`;
   const orgB = `it_hj_org_b_${suffix}`;
+  const userA = `it_hj_user_a_${suffix}`;
+  const userB = `it_hj_user_b_${suffix}`;
+  const userInvited = `it_hj_user_invited_${suffix}`;
+  const userDisabled = `it_hj_user_disabled_${suffix}`;
+  const userIds = [userA, userB, userInvited, userDisabled];
   let projectId = "";
 
   beforeAll(async () => {
@@ -24,6 +29,17 @@ describe.skipIf(!hasIntegrationDatabase)("HeavyJob source objects", () => {
       data: [
         { id: orgA, name: "HeavyJob Builder A" },
         { id: orgB, name: "HeavyJob Builder B" },
+      ],
+    });
+    await db.user.createMany({
+      data: userIds.map((id) => ({ id, email: `${id}@example.com` })),
+    });
+    await db.orgMembership.createMany({
+      data: [
+        { organizationId: orgA, userId: userA, role: "VIEWER", status: "ACTIVE" },
+        { organizationId: orgB, userId: userB, role: "ORG_ADMIN", status: "ACTIVE" },
+        { organizationId: orgA, userId: userInvited, role: "REVIEWER", status: "INVITED" },
+        { organizationId: orgA, userId: userDisabled, role: "REVIEWER", status: "DISABLED" },
       ],
     });
     const project = await db.project.create({
@@ -36,6 +52,8 @@ describe.skipIf(!hasIntegrationDatabase)("HeavyJob source objects", () => {
     const projectIds = [projectId, HEAVYJOB_DEMO_PROJECT_ID].filter(Boolean);
     await db.heavyJobSourceObject.deleteMany({ where: { projectId: { in: projectIds } } });
     await db.project.deleteMany({ where: { id: { in: projectIds } } });
+    await db.orgMembership.deleteMany({ where: { organizationId: { in: [orgA, orgB] } } });
+    await db.user.deleteMany({ where: { id: { in: userIds } } });
     await db.organization.deleteMany({ where: { id: { in: [orgA, orgB] } } });
     await db.$disconnect();
   });
@@ -86,7 +104,7 @@ describe.skipIf(!hasIntegrationDatabase)("HeavyJob source objects", () => {
   it("serves the project snapshots from the read API", async () => {
     const response = await GET(
       new NextRequest(`http://localhost/api/projects/${projectId}/heavyjob-objects?objectType=quantity`, {
-        headers: { "x-organization-id": orgA },
+        headers: { "x-user-id": userA, "x-organization-id": orgA },
       }),
       { params: Promise.resolve({ projectId }) },
     );
@@ -104,17 +122,44 @@ describe.skipIf(!hasIntegrationDatabase)("HeavyJob source objects", () => {
     expect(body.objects.every((object) => typeof object.raw.installedQuantity === "number")).toBe(true);
     expect(body.objects.every((object) => typeof object.raw.consumedQuantity === "number")).toBe(true);
 
-    const hidden = await GET(
+    const crossOrg = await GET(
       new NextRequest(`http://localhost/api/projects/${projectId}/heavyjob-objects`, {
-        headers: { "x-organization-id": orgB },
+        headers: { "x-user-id": userA, "x-organization-id": orgB },
       }),
       { params: Promise.resolve({ projectId }) },
     );
-    expect(hidden.status).toBe(404);
+    expect(crossOrg.status).toBe(403);
+    await expect(crossOrg.json()).resolves.toMatchObject({ error: { code: "FORBIDDEN" } });
+
+    const otherOrg = await GET(
+      new NextRequest(`http://localhost/api/projects/${projectId}/heavyjob-objects`, {
+        headers: { "x-user-id": userB, "x-organization-id": orgB },
+      }),
+      { params: Promise.resolve({ projectId }) },
+    );
+    expect(otherOrg.status).toBe(404);
+
+    const unnamed = await GET(
+      new NextRequest(`http://localhost/api/projects/${projectId}/heavyjob-objects`, {
+        headers: { "x-organization-id": orgA },
+      }),
+      { params: Promise.resolve({ projectId }) },
+    );
+    expect(unnamed.status).toBe(403);
+
+    for (const userId of [userInvited, userDisabled]) {
+      const denied = await GET(
+        new NextRequest(`http://localhost/api/projects/${projectId}/heavyjob-objects`, {
+          headers: { "x-user-id": userId, "x-organization-id": orgA },
+        }),
+        { params: Promise.resolve({ projectId }) },
+      );
+      expect(denied.status).toBe(403);
+    }
 
     const invalid = await GET(
       new NextRequest(`http://localhost/api/projects/${projectId}/heavyjob-objects?objectType=entitlement`, {
-        headers: { "x-organization-id": orgA },
+        headers: { "x-user-id": userA, "x-organization-id": orgA },
       }),
       { params: Promise.resolve({ projectId }) },
     );

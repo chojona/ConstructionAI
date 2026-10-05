@@ -8,8 +8,8 @@ import { documentIdentity } from "@/lib/documents/documentDesk";
 import { getDocument, getRevision, listRevisionAnalysis } from "@/lib/documents/service";
 import { DomainError } from "@/lib/domain/errors";
 import { parseEvidenceTarget, safeReturnPath } from "@/lib/review/evidenceLocation";
+import { authorizePage } from "@/lib/auth/pageAccess";
 import { getProjectReview } from "@/lib/review/service";
-import { currentOrganizationId } from "@/lib/tenancy";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +31,7 @@ export default async function RevisionPage({
   const query = await searchParams;
   const returnTo = safeReturnPath(query.return);
   const target = parseEvidenceTarget(query);
-  const organizationId = currentOrganizationId();
+  const { organizationId } = await authorizePage("read");
 
   let revision;
   try {

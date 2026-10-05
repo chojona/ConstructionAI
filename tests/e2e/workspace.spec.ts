@@ -130,7 +130,8 @@ test("empty changes view explains the gap and opens the first upload", async ({ 
     await page.goto("/projects");
     const row = page.locator(".project-list").getByRole("link", { name: new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) });
     await expect(row).toContainText("No project number");
-    await expect(row).toContainText("0 docs · All clear");
+    await expect(row).toContainText("0 docs");
+    await expect(row).toContainText("All clear");
     await row.click();
     await expect(page.getByRole("combobox", { name: "Project" })).toHaveValue(project.id);
     await expect(page.getByText("No open changes")).toBeVisible();

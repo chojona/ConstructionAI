@@ -47,13 +47,17 @@ async function onlyActiveOrganization(lookup: MembershipLookup, userId: string) 
   throw new DomainError("FORBIDDEN", active.length === 0 ? NO_ACCESS : "Choose an organization.", 403);
 }
 
-/** Resolve the person and organization for a gated API route.
+interface HeaderSource {
+  get(name: string): string | null;
+}
+
+/** Resolve the person and organization for a gated route or server page.
  *  x-user-id is the phase-1 person. The organization header is only a claim that
  *  must match an active membership. Omitting the person keeps the demo desk on
  *  APP_ORGANIZATION_ID, using the seeded member when that row exists.
  */
 export async function authorizeRequest(
-  request: NextRequest,
+  request: NextRequest | { headers: HeaderSource },
   permission: OrgPermission,
   lookup: MembershipLookup = membershipStore,
 ): Promise<OrgAccess> {
