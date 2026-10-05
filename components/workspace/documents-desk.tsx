@@ -32,11 +32,11 @@ export function DocumentsDesk({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const signature = registerQueryKey(query);
-  const [seen, setSeen] = useState(signature);
+  const propKey = registerQueryKey(query);
+  const [seenProp, setSeenProp] = useState(propKey);
   const [local, setLocal] = useState(query);
-  if (seen !== signature) {
-    setSeen(signature);
+  if (seenProp !== propKey) {
+    setSeenProp(propKey);
     setLocal(query);
   }
 
@@ -61,7 +61,8 @@ export function DocumentsDesk({
   function commit(next: RegisterQuery) {
     setLocal(next);
     const serialized = registerQueryString(new URLSearchParams(window.location.search), next);
-    router.replace(serialized ? `${pathname}?${serialized}` : pathname, { scroll: false });
+    const href = serialized ? `${pathname}?${serialized}` : pathname;
+    window.history.replaceState(null, "", href);
   }
 
   function select(row: RegisterRow) {
@@ -202,9 +203,9 @@ function DocumentRegisterPanel({ document }: { document: RegisterDocumentDto | n
           <div className="evidence-rail-body">
             {type ? <p className="row-meta">{type}</p> : null}
             <h3>{document.title}</h3>
-            <p className="row-meta">{latest ? `Rev ${latest.revisionLabel}` : "No revisions yet"}</p>
             {document.issuedLabel ? <p className="register-issued">{document.issuedLabel}</p> : null}
             <dl className="register-counts">
+              <div><dt>Latest rev</dt><dd>{latest?.revisionLabel ?? "—"}</dd></div>
               <div><dt>Open changes</dt><dd>{document.openChangeCount}</dd></div>
               <div><dt>Revisions</dt><dd>{document.revisions.length}</dd></div>
               <div><dt>Pages</dt><dd>{latest?.pageCount ?? 0}</dd></div>
