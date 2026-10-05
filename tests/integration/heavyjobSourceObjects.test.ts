@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 import { GET } from "@/app/api/projects/[projectId]/heavyjob-objects/route";
+import { PrismaMembershipStore } from "@/lib/auth/prismaMembership";
+import { hashToken, newSecret, SESSION_COOKIE, SESSION_TTL_MS } from "@/lib/auth/sessionToken";
 import {
   HEAVYJOB_DEMO_PROJECT_ID,
   HEAVYJOB_FIXTURE_FETCHED_AT,
@@ -14,6 +16,7 @@ import { hasIntegrationDatabase, integrationDb } from "@/tests/support/integrati
 describe.skipIf(!hasIntegrationDatabase)("HeavyJob source objects", () => {
   const db = integrationDb();
   const repository = new PrismaHeavyJobSourceRepository(db);
+  const sessions = new PrismaMembershipStore(db);
   const suffix = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
   const orgA = `it_hj_org_a_${suffix}`;
   const orgB = `it_hj_org_b_${suffix}`;
@@ -22,9 +25,20 @@ describe.skipIf(!hasIntegrationDatabase)("HeavyJob source objects", () => {
   const userInvited = `it_hj_user_invited_${suffix}`;
   const userDisabled = `it_hj_user_disabled_${suffix}`;
   const userIds = [userA, userB, userInvited, userDisabled];
+  const sessionTokens = new Map<string, string>();
   let projectId = "";
+  let previousTrustHeader: string | undefined;
+
+  function signedIn(userId: string, organizationId: string) {
+    return {
+      cookie: `${SESSION_COOKIE}=${sessionTokens.get(userId)}`,
+      "x-organization-id": organizationId,
+    };
+  }
 
   beforeAll(async () => {
+    previousTrustHeader = process.env.AUTH_TRUST_USER_HEADER;
+    delete process.env.AUTH_TRUST_USER_HEADER;
     await db.organization.createMany({
       data: [
         { id: orgA, name: "HeavyJob Builder A" },
@@ -46,12 +60,20 @@ describe.skipIf(!hasIntegrationDatabase)("HeavyJob source objects", () => {
       data: { organizationId: orgA, name: "River Road", projectNumber: "NS-214" },
     });
     projectId = project.id;
+    for (const userId of userIds) {
+      const token = newSecret();
+      await sessions.createSession(hashToken(token), userId, new Date(Date.now() + SESSION_TTL_MS));
+      sessionTokens.set(userId, token);
+    }
   });
 
   afterAll(async () => {
+    if (previousTrustHeader === undefined) delete process.env.AUTH_TRUST_USER_HEADER;
+    else process.env.AUTH_TRUST_USER_HEADER = previousTrustHeader;
     const projectIds = [projectId, HEAVYJOB_DEMO_PROJECT_ID].filter(Boolean);
     await db.heavyJobSourceObject.deleteMany({ where: { projectId: { in: projectIds } } });
     await db.project.deleteMany({ where: { id: { in: projectIds } } });
+    await db.session.deleteMany({ where: { userId: { in: userIds } } });
     await db.orgMembership.deleteMany({ where: { organizationId: { in: [orgA, orgB] } } });
     await db.user.deleteMany({ where: { id: { in: userIds } } });
     await db.organization.deleteMany({ where: { id: { in: [orgA, orgB] } } });
@@ -104,7 +126,7 @@ describe.skipIf(!hasIntegrationDatabase)("HeavyJob source objects", () => {
   it("serves the project snapshots from the read API", async () => {
     const response = await GET(
       new NextRequest(`http://localhost/api/projects/${projectId}/heavyjob-objects?objectType=quantity`, {
-        headers: { "x-user-id": userA, "x-organization-id": orgA },
+        headers: signedIn(userA, orgA),
       }),
       { params: Promise.resolve({ projectId }) },
     );
@@ -124,7 +146,7 @@ describe.skipIf(!hasIntegrationDatabase)("HeavyJob source objects", () => {
 
     const crossOrg = await GET(
       new NextRequest(`http://localhost/api/projects/${projectId}/heavyjob-objects`, {
-        headers: { "x-user-id": userA, "x-organization-id": orgB },
+        headers: signedIn(userA, orgB),
       }),
       { params: Promise.resolve({ projectId }) },
     );
@@ -133,24 +155,34 @@ describe.skipIf(!hasIntegrationDatabase)("HeavyJob source objects", () => {
 
     const otherOrg = await GET(
       new NextRequest(`http://localhost/api/projects/${projectId}/heavyjob-objects`, {
-        headers: { "x-user-id": userB, "x-organization-id": orgB },
+        headers: signedIn(userB, orgB),
       }),
       { params: Promise.resolve({ projectId }) },
     );
     expect(otherOrg.status).toBe(404);
 
-    const unnamed = await GET(
+    const unsigned = await GET(
       new NextRequest(`http://localhost/api/projects/${projectId}/heavyjob-objects`, {
         headers: { "x-organization-id": orgA },
       }),
       { params: Promise.resolve({ projectId }) },
     );
-    expect(unnamed.status).toBe(403);
+    expect(unsigned.status).toBe(401);
+    await expect(unsigned.json()).resolves.toMatchObject({ error: { code: "UNAUTHENTICATED" } });
+
+    const forged = await GET(
+      new NextRequest(`http://localhost/api/projects/${projectId}/heavyjob-objects`, {
+        headers: { "x-user-id": userA, "x-organization-id": orgA },
+      }),
+      { params: Promise.resolve({ projectId }) },
+    );
+    expect(forged.status).toBe(401);
+    await expect(forged.json()).resolves.toMatchObject({ error: { code: "UNAUTHENTICATED" } });
 
     for (const userId of [userInvited, userDisabled]) {
       const denied = await GET(
         new NextRequest(`http://localhost/api/projects/${projectId}/heavyjob-objects`, {
-          headers: { "x-user-id": userId, "x-organization-id": orgA },
+          headers: signedIn(userId, orgA),
         }),
         { params: Promise.resolve({ projectId }) },
       );
@@ -159,7 +191,7 @@ describe.skipIf(!hasIntegrationDatabase)("HeavyJob source objects", () => {
 
     const invalid = await GET(
       new NextRequest(`http://localhost/api/projects/${projectId}/heavyjob-objects?objectType=entitlement`, {
-        headers: { "x-user-id": userA, "x-organization-id": orgA },
+        headers: signedIn(userA, orgA),
       }),
       { params: Promise.resolve({ projectId }) },
     );
