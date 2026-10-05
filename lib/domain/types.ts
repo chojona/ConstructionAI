@@ -28,6 +28,23 @@ export interface DocumentSummary extends DocumentRecord {
   revisionCount: number;
 }
 
+/** Revision facts the documents register reads. Status on the register is derived from these rows. */
+export interface DocumentRegisterRevision {
+  id: string;
+  revisionLabel: string;
+  revisionOrder: number;
+  status: RevisionStatus;
+  createdAt: Date;
+  pageCount: number;
+}
+
+export interface DocumentRegisterRecord {
+  id: string;
+  title: string;
+  documentType: string | null;
+  revisions: DocumentRegisterRevision[];
+}
+
 export interface ProjectDetail extends ProjectRecord {
   documents: DocumentSummary[];
 }

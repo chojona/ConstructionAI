@@ -1,6 +1,7 @@
 import type {
   DocumentDetail,
   DocumentRecord,
+  DocumentRegisterRecord,
   ExtractionRunRecord,
   ExtractionRunStatus,
   ProjectDetail,
@@ -218,6 +219,7 @@ export interface ConstructionRepository {
   }): Promise<ProjectRecord>;
   listProjects(organizationId: string): Promise<ProjectSummary[]>;
   getProject(organizationId: string, projectId: string): Promise<ProjectDetail | null>;
+  listDocumentRegister(organizationId: string, projectId: string): Promise<DocumentRegisterRecord[] | null>;
   createDocument(input: {
     organizationId: string;
     projectId: string;

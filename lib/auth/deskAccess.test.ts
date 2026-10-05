@@ -13,6 +13,7 @@ const {
   getDocument,
   getRevision,
   listRevisionAnalysis,
+  listDocumentRegister,
   readEmailSend,
 } = vi.hoisted(() => ({
   headerState: new Map<string, string>(),
@@ -26,6 +27,7 @@ const {
   getDocument: vi.fn(),
   getRevision: vi.fn(),
   listRevisionAnalysis: vi.fn(),
+  listDocumentRegister: vi.fn(),
   readEmailSend: vi.fn(),
 }));
 
@@ -42,7 +44,7 @@ vi.mock("@/lib/auth/prismaMembership", () => ({
 vi.mock("@/lib/projects/service", () => ({ getProject, listProjects }));
 vi.mock("@/lib/review/service", () => ({ getProjectReview, currentApprovedChangePacket }));
 vi.mock("@/lib/heavyjob/service", () => ({ listHeavyJobSourceObjects }));
-vi.mock("@/lib/documents/service", () => ({ getDocument, getRevision, listRevisionAnalysis }));
+vi.mock("@/lib/documents/service", () => ({ getDocument, getRevision, listRevisionAnalysis, listDocumentRegister }));
 vi.mock("@/lib/email/service", () => ({ readEmailSend }));
 
 import ChangesPage from "@/app/changes/page";
@@ -131,6 +133,8 @@ beforeEach(() => {
   });
   listRevisionAnalysis.mockReset();
   listRevisionAnalysis.mockResolvedValue([]);
+  listDocumentRegister.mockReset();
+  listDocumentRegister.mockResolvedValue([]);
   readEmailSend.mockReset();
   readEmailSend.mockResolvedValue({
     id: "email_1",
@@ -164,12 +168,17 @@ describe("server-rendered desks", () => {
     expect(getProject).toHaveBeenCalledWith("org_a", "project_1");
     expect(listHeavyJobSourceObjects).toHaveBeenCalledWith("org_a", "project_1");
 
+    await ProjectPage(projectProps("documents"));
+    expect(listDocumentRegister).toHaveBeenCalledWith("org_a", "project_1");
+
     getProject.mockClear();
     listHeavyJobSourceObjects.mockClear();
+    listDocumentRegister.mockClear();
     setHeaders({ "x-user-id": "user_a", "x-organization-id": "org_b" });
-    await expectDenied(() => ProjectPage(projectProps("heavyjob")));
+    await expectDenied(() => ProjectPage(projectProps("documents")));
     expect(getProject).not.toHaveBeenCalled();
     expect(listHeavyJobSourceObjects).not.toHaveBeenCalled();
+    expect(listDocumentRegister).not.toHaveBeenCalled();
   });
 
   it("denies an invited or disabled member the project desk", async () => {

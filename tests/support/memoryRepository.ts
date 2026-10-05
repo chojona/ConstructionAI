@@ -22,6 +22,7 @@ import { PACK_CITE_UNPINNED_MESSAGE, canonicalPackPageCite, type PackPageCite } 
 import type {
   DocumentDetail,
   DocumentRecord,
+  DocumentRegisterRecord,
   ExtractionRunRecord,
   ProjectDetail,
   ProjectRecord,
@@ -79,6 +80,30 @@ export class MemoryRepository implements ConstructionRepository {
         revisionCount: this.revisions.filter((revision) => revision.documentId === document.id).length,
       })),
     };
+  }
+
+  async listDocumentRegister(organizationId: string, projectId: string): Promise<DocumentRegisterRecord[] | null> {
+    const project = this.projects.find((item) => item.id === projectId && item.organizationId === organizationId);
+    if (!project) return null;
+    return this.documents
+      .filter((document) => document.projectId === project.id)
+      .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime() || left.id.localeCompare(right.id))
+      .map((document) => ({
+        id: document.id,
+        title: document.title,
+        documentType: document.documentType,
+        revisions: this.revisions
+          .filter((revision) => revision.documentId === document.id)
+          .sort((left, right) => right.revisionOrder - left.revisionOrder || left.id.localeCompare(right.id))
+          .map((revision) => ({
+            id: revision.id,
+            revisionLabel: revision.revisionLabel,
+            revisionOrder: revision.revisionOrder,
+            status: revision.status,
+            createdAt: revision.createdAt,
+            pageCount: this.pages.filter((page) => page.documentRevisionId === revision.id).length,
+          })),
+      }));
   }
 
   async createDocument(input: { organizationId: string; projectId: string; title: string; documentType?: string }) {
