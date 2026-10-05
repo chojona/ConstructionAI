@@ -3,7 +3,11 @@ import path from "node:path";
 
 const shared = {
   resolve: { alias: { "@": path.resolve(import.meta.dirname) } },
-  test: { environment: "node" as const, restoreMocks: true },
+  test: {
+    environment: "node" as const,
+    restoreMocks: true,
+    env: { AUTH_TRUST_USER_HEADER: "1" },
+  },
 };
 
 export default defineConfig({

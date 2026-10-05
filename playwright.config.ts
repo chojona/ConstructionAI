@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const authFile = "tests/e2e/.auth/state.json";
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: false,
@@ -9,5 +11,13 @@ export default defineConfig({
     url: "http://127.0.0.1:3100",
     reuseExistingServer: true,
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    { name: "setup", testMatch: /auth\.setup\.ts/ },
+    {
+      name: "chromium",
+      dependencies: ["setup"],
+      testIgnore: /auth\.setup\.ts/,
+      use: { ...devices["Desktop Chrome"], storageState: authFile },
+    },
+  ],
 });

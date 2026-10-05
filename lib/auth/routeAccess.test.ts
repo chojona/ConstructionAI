@@ -2,16 +2,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import type { MembershipRecord } from "./roles";
 
-const { findMembership, listActiveMemberships, exportApprovedChangePacket, recordReviewDecision, getProjectReview } = vi.hoisted(() => ({
+const { findMembership, listActiveMemberships, listMembershipsForUser, exportApprovedChangePacket, recordReviewDecision, getProjectReview } = vi.hoisted(() => ({
   findMembership: vi.fn(),
   listActiveMemberships: vi.fn(),
+  listMembershipsForUser: vi.fn(),
   exportApprovedChangePacket: vi.fn(),
   recordReviewDecision: vi.fn(),
   getProjectReview: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/prismaMembership", () => ({
-  membershipStore: { findMembership, listActiveMemberships },
+  membershipStore: { findMembership, listActiveMemberships, listMembershipsForUser },
 }));
 
 vi.mock("@/lib/review/service", () => ({
@@ -54,6 +55,8 @@ describe("project export and approve routes", () => {
       rows.find((row) => row.userId === userId && row.organizationId === organizationId) ?? null);
     listActiveMemberships.mockImplementation(async (userId: string) =>
       rows.filter((row) => row.userId === userId && row.status === "ACTIVE"));
+    listMembershipsForUser.mockImplementation(async (userId: string) =>
+      rows.filter((row) => row.userId === userId));
     exportApprovedChangePacket.mockReset();
     exportApprovedChangePacket.mockResolvedValue({ ok: true });
     recordReviewDecision.mockReset();

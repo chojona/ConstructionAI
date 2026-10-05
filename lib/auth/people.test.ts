@@ -64,6 +64,12 @@ class MemoryPeople implements PeopleStore {
       row.organizationId === organizationId && row.role === role && row.status === "ACTIVE").length;
   }
 
+  acceptTokens: { membershipId: string; tokenHash: string; expiresAt: Date }[] = [];
+
+  async saveAcceptToken(membershipId: string, tokenHash: string, expiresAt: Date) {
+    this.acceptTokens.push({ membershipId, tokenHash, expiresAt });
+  }
+
   async listPeople(organizationId: string): Promise<PersonMembership[]> {
     return this.memberships.filter((row) => row.organizationId === organizationId).map((row) => {
       const user = this.users.find((item) => item.id === row.userId);
@@ -108,6 +114,9 @@ describe("invite and disable", () => {
       status: "INVITED",
       organizationId: "org_a",
     });
+    expect(invited.acceptToken.length).toBeGreaterThan(20);
+    expect(invited.acceptPath).toContain(encodeURIComponent(invited.acceptToken));
+    expect(store.acceptTokens).toHaveLength(1);
     await expect(authorizeRequest(new NextRequest("http://localhost/api/projects", {
       headers: { "x-user-id": invited.userId, "x-organization-id": "org_a" },
     }), "read", store)).rejects.toMatchObject({ code: "FORBIDDEN" });

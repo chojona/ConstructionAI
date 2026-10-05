@@ -3,8 +3,11 @@ import type { MembershipRecord } from "./roles";
 
 const {
   headerState,
+  cookieState,
   findMembership,
   listActiveMemberships,
+  listMembershipsForUser,
+  findValidSession,
   getProject,
   listProjects,
   getProjectReview,
@@ -17,8 +20,11 @@ const {
   readEmailSend,
 } = vi.hoisted(() => ({
   headerState: new Map<string, string>(),
+  cookieState: new Map<string, string>(),
   findMembership: vi.fn(),
   listActiveMemberships: vi.fn(),
+  listMembershipsForUser: vi.fn(),
+  findValidSession: vi.fn(),
   getProject: vi.fn(),
   listProjects: vi.fn(),
   getProjectReview: vi.fn(),
@@ -35,10 +41,16 @@ vi.mock("next/headers", () => ({
   headers: async () => ({
     get: (name: string) => headerState.get(name.toLowerCase()) ?? null,
   }),
+  cookies: async () => ({
+    get: (name: string) => {
+      const value = cookieState.get(name);
+      return value === undefined ? undefined : { name, value };
+    },
+  }),
 }));
 
 vi.mock("@/lib/auth/prismaMembership", () => ({
-  membershipStore: { findMembership, listActiveMemberships },
+  membershipStore: { findMembership, listActiveMemberships, listMembershipsForUser, findValidSession },
 }));
 
 vi.mock("@/lib/projects/service", () => ({ getProject, listProjects }));
@@ -55,6 +67,7 @@ import EmailPage from "@/app/projects/[projectId]/emails/[emailSendId]/page";
 import RevisionPage from "@/app/revisions/[revisionId]/page";
 import { ProjectContext } from "@/components/workspace/project-context";
 import { DEMO_USER_ID } from "./demoUser";
+import { hashToken, SESSION_COOKIE } from "./sessionToken";
 import { loadAppShell } from "@/lib/workspace/appShellData";
 
 const rows: MembershipRecord[] = [];
@@ -63,6 +76,7 @@ const previousInterrupt = process.env.__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS;
 
 function setHeaders(values: Record<string, string> = {}) {
   headerState.clear();
+  cookieState.clear();
   for (const [key, value] of Object.entries(values)) headerState.set(key.toLowerCase(), value);
 }
 
@@ -89,6 +103,9 @@ beforeEach(() => {
     rows.find((row) => row.userId === userId && row.organizationId === organizationId) ?? null);
   listActiveMemberships.mockImplementation(async (userId: string) =>
     rows.filter((row) => row.userId === userId && row.status === "ACTIVE"));
+  listMembershipsForUser.mockImplementation(async (userId: string) =>
+    rows.filter((row) => row.userId === userId));
+  findValidSession.mockResolvedValue(null);
   getProject.mockReset();
   getProject.mockResolvedValue({
     id: "project_1",
@@ -256,21 +273,40 @@ describe("server-rendered desks", () => {
     expect(listProjects).not.toHaveBeenCalled();
   });
 
-  it("keeps the unnamed demo desk on a seeded membership and refuses other organizations", async () => {
+  it("opens the desk for the user on the session cookie, not a forged user header", async () => {
+    const token = "desk-session-token";
+    rows.push(member("VIEWER", "user_cookie"));
+    rows.push(member("ORG_ADMIN", "user_b", "org_b"));
+    setHeaders({ "x-user-id": "user_b", "x-organization-id": "org_a" });
+    cookieState.set(SESSION_COOKIE, token);
+    findValidSession.mockImplementation(async (tokenHash: string) =>
+      tokenHash === hashToken(token) ? { userId: "user_cookie" } : null);
+    const previous = process.env.AUTH_TRUST_USER_HEADER;
+    delete process.env.AUTH_TRUST_USER_HEADER;
+    try {
+      await ProjectPage(projectProps("heavyjob"));
+      expect(listHeavyJobSourceObjects).toHaveBeenCalledWith("org_a", "project_1");
+    } finally {
+      if (previous === undefined) delete process.env.AUTH_TRUST_USER_HEADER;
+      else process.env.AUTH_TRUST_USER_HEADER = previous;
+    }
+  });
+
+  it("does not open the seeded demo desk when the page has no session", async () => {
     process.env.APP_ORGANIZATION_ID = "org_demo";
     rows.push(member("VIEWER", DEMO_USER_ID, "org_demo"));
-    await ProjectPage(projectProps("heavyjob"));
-    expect(listHeavyJobSourceObjects).toHaveBeenCalledWith("org_demo", "project_1");
-
-    rows.length = 0;
-    rows.push(member("ORG_ADMIN", DEMO_USER_ID, "org_demo", "DISABLED"));
-    listHeavyJobSourceObjects.mockClear();
-    await expectDenied(() => ProjectPage(projectProps("heavyjob")));
-    expect(listHeavyJobSourceObjects).not.toHaveBeenCalled();
-
-    rows.length = 0;
-    setHeaders({ "x-organization-id": "org_b" });
-    await expectDenied(() => ProjectsPage());
-    expect(listProjects).not.toHaveBeenCalled();
+    const previous = process.env.AUTH_TRUST_USER_HEADER;
+    delete process.env.AUTH_TRUST_USER_HEADER;
+    try {
+      await expect(ProjectPage(projectProps("heavyjob"))).rejects.toMatchObject({
+        digest: expect.stringMatching(/^NEXT_REDIRECT;replace;\/login;/),
+      });
+      expect(listHeavyJobSourceObjects).not.toHaveBeenCalled();
+      await expect(loadAppShell()).resolves.toEqual({ projects: [] });
+      expect(listProjects).not.toHaveBeenCalled();
+    } finally {
+      if (previous === undefined) delete process.env.AUTH_TRUST_USER_HEADER;
+      else process.env.AUTH_TRUST_USER_HEADER = previous;
+    }
   });
 });

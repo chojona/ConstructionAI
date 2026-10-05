@@ -1,8 +1,7 @@
-import type { NextRequest } from "next/server";
 import { DomainError } from "@/lib/domain/errors";
-import { currentOrganizationId } from "@/lib/tenancy";
-import { DEMO_USER_ID } from "./demoUser";
+import type { SessionLookup } from "./credentials";
 import { membershipStore } from "./prismaMembership";
+import { hashToken, SESSION_COOKIE, trustsUserHeader } from "./sessionToken";
 import {
   roleAllows,
   type MembershipLookup,
@@ -11,11 +10,16 @@ import {
   type OrgRole,
 } from "./roles";
 
+export interface AccessRequest {
+  headers: { get(name: string): string | null };
+  cookies: { get(name: string): { value: string } | undefined };
+}
+
 export interface OrgAccess {
   organizationId: string;
   userId: string;
   role: OrgRole;
-  /** True when the caller sent x-user-id. Ledger rows then store that User id. */
+  /** True when the caller is a signed-in user (session or the temporary trusted header). */
   named: boolean;
 }
 
@@ -44,47 +48,53 @@ function assertMembership(
 async function onlyActiveOrganization(lookup: MembershipLookup, userId: string) {
   const active = await lookup.listActiveMemberships(userId);
   if (active.length === 1) return active[0]!.organizationId;
-  throw new DomainError("FORBIDDEN", active.length === 0 ? NO_ACCESS : "Choose an organization.", 403);
+  if (active.length > 1) throw new DomainError("FORBIDDEN", "Choose an organization.", 403);
+  const memberships = await lookup.listMembershipsForUser(userId);
+  if (memberships.some((membership) => membership.status === "DISABLED")) {
+    throw new DomainError("FORBIDDEN", "This account is disabled for the organization.", 403);
+  }
+  if (memberships.some((membership) => membership.status === "INVITED")) {
+    throw new DomainError("FORBIDDEN", "Accept the invitation before using the organization.", 403);
+  }
+  throw new DomainError("FORBIDDEN", NO_ACCESS, 403);
 }
 
-interface HeaderSource {
-  get(name: string): string | null;
+async function resolveUserId(request: AccessRequest, sessions: SessionLookup): Promise<string | null> {
+  const token = request.cookies.get(SESSION_COOKIE)?.value?.trim() || "";
+  if (token) {
+    const session = await sessions.findValidSession(hashToken(token));
+    if (session) return session.userId;
+  }
+  if (trustsUserHeader()) {
+    const headerUser = request.headers.get("x-user-id")?.trim() || "";
+    if (headerUser) return headerUser;
+  }
+  return null;
 }
 
-/** Resolve the person and organization for a gated route or server page.
- *  x-user-id is the phase-1 person. The organization header is only a claim that
- *  must match an active membership. Omitting the person keeps the demo desk on
- *  APP_ORGANIZATION_ID, using the seeded member when that row exists.
+/** Resolve the person and organization for a gated API route or server page.
+ *  A session cookie is the caller. x-organization-id is only a claim that must
+ *  match an active membership. x-user-id is honored only when
+ *  AUTH_TRUST_USER_HEADER=1 (temporary tests and local scripts). A request with
+ *  neither a session nor that header is rejected.
  */
 export async function authorizeRequest(
-  request: NextRequest | { headers: HeaderSource },
+  request: AccessRequest,
   permission: OrgPermission,
   lookup: MembershipLookup = membershipStore,
+  sessions: SessionLookup = membershipStore,
 ): Promise<OrgAccess> {
-  const namedUserId = request.headers.get("x-user-id")?.trim() || "";
+  const userId = await resolveUserId(request, sessions);
+  if (!userId) throw new DomainError("UNAUTHENTICATED", "Sign in to continue.", 401);
+
   const headerOrg = request.headers.get("x-organization-id")?.trim() || "";
-
-  if (namedUserId) {
-    const organizationId = headerOrg || await onlyActiveOrganization(lookup, namedUserId);
-    const membership = await lookup.findMembership(namedUserId, organizationId);
-    assertMembership(membership, permission);
-    return { organizationId, userId: namedUserId, role: membership.role, named: true };
-  }
-
-  const organizationId = headerOrg || currentOrganizationId();
-  const membership = await lookup.findMembership(DEMO_USER_ID, organizationId);
-  if (membership) {
-    assertMembership(membership, permission);
-    return { organizationId, userId: DEMO_USER_ID, role: membership.role, named: false };
-  }
-  if (organizationId !== currentOrganizationId()) {
-    throw new DomainError("FORBIDDEN", NO_ACCESS, 403);
-  }
-  assertRole("ORG_ADMIN", permission);
-  return { organizationId, userId: DEMO_USER_ID, role: "ORG_ADMIN", named: false };
+  const organizationId = headerOrg || await onlyActiveOrganization(lookup, userId);
+  const membership = await lookup.findMembership(userId, organizationId);
+  assertMembership(membership, permission);
+  return { organizationId, userId, role: membership.role, named: true };
 }
 
-/** Named people are stored by User id. The demo desk still records the typed name. */
+/** Signed-in people are stored by User id. */
 export function withLedgerActor(access: OrgAccess, body: unknown): unknown {
   if (!access.named || !body || typeof body !== "object" || Array.isArray(body)) return body;
   return { ...body, actorId: access.userId };

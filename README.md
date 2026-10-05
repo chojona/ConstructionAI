@@ -17,9 +17,9 @@ npm run dev
 
 Open [http://localhost:3000/projects](http://localhost:3000/projects).
 
-Uploaded document files and approved pack bytes use one object store. Leave the bucket variables unset for a local demo and files stay under `DOCUMENT_STORAGE_DIR` (default `./data/documents`). The original filename is retained only as display metadata. The seeded organization id is `org_demo`. `APP_ORGANIZATION_ID` selects the organization used by the server-rendered desk. Seed also creates an active org admin, `user_demo` (`alex.chen@northstar.example`), in that organization.
+Uploaded document files and approved pack bytes use one object store. Leave the bucket variables unset for a local demo and files stay under `DOCUMENT_STORAGE_DIR` (default `./data/documents`). The original filename is retained only as display metadata. The seeded organization id is `org_demo`. `APP_ORGANIZATION_ID` selects the organization created by seed. Seed also creates an active org admin, `user_demo` (`alex.chen@northstar.example`), in that organization. Set `DEMO_USER_PASSWORD` (at least 10 characters) before seeding to store that person's password. There is no shared product password.
 
-Project, document, review, export, and email routes check organization membership. Send `x-user-id` for a person. That person can only act in an organization where their membership is active, and the role must allow the action (Viewer cannot Approve or export; Reviewer can). Callers that omit `x-user-id` still run as that demo admin until each person has a login. A different `x-organization-id` is denied on those routes unless the demo user is an active member. Org admins invite with `POST /api/org/memberships` and disable with `POST /api/org/memberships/{membershipId}/disable`. HeavyJob reads still accept `x-organization-id` as tenancy context.
+Sign in at [http://localhost:3000/login](http://localhost:3000/login). Project, document, review, export, and email routes require that session cookie. The caller can only act in an organization where their membership is active, and the role must allow the action (Viewer cannot Approve or export; Reviewer can). A request with no session is rejected. `AUTH_TRUST_USER_HEADER=1` is a temporary switch for tests and local scripts: those callers may send `x-user-id` instead of a session. It does not restore an unnamed demo admin. A different `x-organization-id` is denied unless that signed-in person is an active member. Org admins invite with `POST /api/org/memberships`. The response includes a one-time `acceptToken` and `acceptPath` (`/accept?token=…`). Opening that path and choosing a password moves the invited membership from `INVITED` to `ACTIVE` and signs that user in. `POST /api/org/memberships/{membershipId}/accept-token` issues a replacement link while the membership is still invited. Disable with `POST /api/org/memberships/{membershipId}/disable`. Server-rendered desks read that same session cookie. A page with no session redirects to `/login`. HeavyJob reads still accept `x-organization-id` as tenancy context.
 
 ## Deploy to Vercel with Neon
 
@@ -27,7 +27,7 @@ Vercel detects the Next.js app automatically; `vercel.json` pins the framework p
 
 - `DATABASE_URL`: Neon pooled connection string. The app passes it to the PostgreSQL driver adapter.
 - `DIRECT_DATABASE_URL`: Neon direct (non-pooled) connection string. Prisma Migrate reads it from `prisma.config.ts`.
-- `APP_ORGANIZATION_ID`: organization id used by the UI, such as `org_demo` after seeding.
+- `APP_ORGANIZATION_ID`: organization id created by seed, such as `org_demo`.
 - `DOCUMENT_STORAGE_DIR`: optional local directory. Default `./data/documents`. Used only when no bucket credentials are set.
 - `DOCUMENT_STORAGE_BUCKET`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, and `AWS_ENDPOINT_URL_S3`: Neon object storage used in production for documents and pack files. The bucket stays private. Path-style requests are on when an endpoint is set, which Neon requires.
 - `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_ACCESS_KEY_ID`, and `OBJECT_STORAGE_SECRET_ACCESS_KEY`: optional override for the same store. When these are set they win over the Neon names.
@@ -42,7 +42,7 @@ npx prisma migrate deploy
 npm run db:seed
 ```
 
-The Vercel build runs `prisma migrate deploy` and `npm run db:seed` before `next build`. Migrate uses `DIRECT_DATABASE_URL` when it is set and `DATABASE_URL` otherwise. Seed upserts the organization selected by `APP_ORGANIZATION_ID`, or `org_demo` when that variable is unset, and an active org-admin membership for `alex.chen@northstar.example`. It loads HeavyJob fixture snapshots onto the demo project `project_heavyjob_demo`. For `org_demo`, seed also loads the demo portfolio. Running `npm run db:seed` again adds any missing rows, stores each demo revision PDF in the shared object store, and leaves review decisions and existing membership role or status that are already stored. `prisma generate` still runs during dependency installation.
+The Vercel build runs `prisma migrate deploy` and `npm run db:seed` before `next build`. Migrate uses `DIRECT_DATABASE_URL` when it is set and `DATABASE_URL` otherwise. Seed upserts the organization selected by `APP_ORGANIZATION_ID`, or `org_demo` when that variable is unset, and an active org-admin membership for `alex.chen@northstar.example`. When `DEMO_USER_PASSWORD` is set, seed stores a password hash for that person. It loads HeavyJob fixture snapshots onto the demo project `project_heavyjob_demo`. For `org_demo`, seed also loads the demo portfolio. Running `npm run db:seed` again adds any missing rows, stores each demo revision PDF in the shared object store, and leaves review decisions and existing membership role or status that are already stored. `prisma generate` still runs during dependency installation.
 
 After seeding, open:
 

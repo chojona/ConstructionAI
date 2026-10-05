@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 import { DEMO_USER_ID } from "./demoUser";
 import { authorizeRequest, withLedgerActor } from "./membership";
+import { hashToken, SESSION_COOKIE } from "./sessionToken";
 import { ORG_ROLES, ROLE_PERMISSIONS, type MembershipLookup, type MembershipRecord } from "./roles";
 
 const previousOrg = process.env.APP_ORGANIZATION_ID;
@@ -30,6 +31,9 @@ function lookup(rows: MembershipRecord[]): MembershipLookup {
     },
     async listActiveMemberships(userId) {
       return rows.filter((row) => row.userId === userId && row.status === "ACTIVE");
+    },
+    async listMembershipsForUser(userId) {
+      return rows.filter((row) => row.userId === userId);
     },
   };
 }
@@ -102,6 +106,9 @@ describe("authorizeRequest", () => {
       code: "FORBIDDEN",
       message: "This account is disabled for the organization.",
     });
+    await expect(authorizeRequest(request({ "x-user-id": "user_off" }), "read", members)).rejects.toMatchObject({
+      message: "This account is disabled for the organization.",
+    });
   });
 
   it("denies an invited member until they are active", async () => {
@@ -150,36 +157,61 @@ describe("authorizeRequest", () => {
     }), "manage_people", members)).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("does not treat a named demo id as the bootstrap admin when no membership exists", async () => {
+  it("does not treat a named demo id as an admin when no membership exists", async () => {
     process.env.APP_ORGANIZATION_ID = "org_demo";
     await expect(authorizeRequest(request({ "x-user-id": DEMO_USER_ID }), "read", lookup([]))).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
   });
 
-  it("keeps the unnamed demo desk on the process organization", async () => {
-    process.env.APP_ORGANIZATION_ID = "org_demo";
-    await expect(authorizeRequest(request(), "export", lookup([]))).resolves.toMatchObject({
-      organizationId: "org_demo",
-      userId: DEMO_USER_ID,
-      role: "ORG_ADMIN",
-      named: false,
-    });
-    await expect(authorizeRequest(request({ "x-organization-id": "org_b" }), "read", lookup([]))).rejects.toMatchObject({
-      code: "FORBIDDEN",
-    });
-  });
-
-  it("follows the seeded demo membership instead of the bootstrap admin", async () => {
+  it("rejects a request that has no session and no trusted user header", async () => {
     process.env.APP_ORGANIZATION_ID = "org_demo";
     const seeded = lookup([
-      member({ organizationId: "org_demo", userId: DEMO_USER_ID, role: "VIEWER" }),
+      member({ organizationId: "org_demo", userId: DEMO_USER_ID, role: "ORG_ADMIN" }),
     ]);
-    await expect(authorizeRequest(request(), "read", seeded)).resolves.toMatchObject({ role: "VIEWER", named: false });
-    await expect(authorizeRequest(request(), "export", seeded)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(authorizeRequest(request(), "export", seeded)).rejects.toMatchObject({
+      code: "UNAUTHENTICATED",
+      httpStatus: 401,
+      message: "Sign in to continue.",
+    });
+    await expect(authorizeRequest(request({ "x-organization-id": "org_b" }), "read", seeded)).rejects.toMatchObject({
+      code: "UNAUTHENTICATED",
+    });
   });
 
-  it("stores the User id on a named ledger write and the typed name on the demo desk", () => {
+  it("ignores x-user-id unless the temporary header trust is enabled", async () => {
+    const previous = process.env.AUTH_TRUST_USER_HEADER;
+    delete process.env.AUTH_TRUST_USER_HEADER;
+    try {
+      await expect(authorizeRequest(request({
+        "x-user-id": "user_a",
+        "x-organization-id": "org_a",
+      }), "read", members)).rejects.toMatchObject({ code: "UNAUTHENTICATED" });
+    } finally {
+      if (previous === undefined) delete process.env.AUTH_TRUST_USER_HEADER;
+      else process.env.AUTH_TRUST_USER_HEADER = previous;
+    }
+  });
+
+  it("authorizes the user stored on a valid session cookie", async () => {
+    const token = "session-token-value";
+    const sessions = {
+      async findValidSession(tokenHash: string) {
+        return tokenHash === hashToken(token) ? { userId: "user_a" } : null;
+      },
+    };
+    const signedIn = new NextRequest("http://localhost/api/projects/project_1/export", {
+      headers: { cookie: `${SESSION_COOKIE}=${token}`, "x-organization-id": "org_a" },
+    });
+    await expect(authorizeRequest(signedIn, "read", members, sessions)).resolves.toMatchObject({
+      organizationId: "org_a",
+      userId: "user_a",
+      role: "REVIEWER",
+      named: true,
+    });
+  });
+
+  it("stores the User id on a named ledger write and leaves an unnamed body unchanged", () => {
     const named = { organizationId: "org_a", userId: "user_a", role: "REVIEWER" as const, named: true };
     expect(withLedgerActor(named, { actorId: "Alex Chen", status: "SENT" })).toMatchObject({ actorId: "user_a" });
     const demo = { ...named, named: false };

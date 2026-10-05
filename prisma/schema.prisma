@@ -44,26 +44,31 @@ model Organization {
   memberships  OrgMembership[]
 }
 
-/// A person. Credentials are per user later; there is no shared password column.
+/// A person. Each user has their own password hash. There is no shared product password.
 model User {
   id           String          @id @default(cuid())
   email        String          @unique
   name         String?
+  passwordHash String?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
   memberships  OrgMembership[]
+  sessions     Session[]
 }
 
 /// Membership of one person in one organization.
 /// The unique pair allows a later multi-org consultant; invite still rejects a second org.
+/// acceptTokenHash is set while status is INVITED and cleared on accept.
 model OrgMembership {
-  id             String           @id @default(cuid())
-  organizationId String
-  userId         String
-  role           OrgRole
-  status         MembershipStatus @default(INVITED)
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id                   String           @id @default(cuid())
+  organizationId       String
+  userId               String
+  role                 OrgRole
+  status               MembershipStatus @default(INVITED)
+  acceptTokenHash      String?          @unique
+  acceptTokenExpiresAt DateTime?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   user         User         @relation(fields: [userId], references: [id], onDelete: Restrict)
@@ -71,6 +76,19 @@ model OrgMembership {
   @@unique([organizationId, userId])
   @@index([userId, status])
   @@index([organizationId, status])
+}
+
+/// Server-side session. The cookie holds the raw token; only the hash is stored.
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Project {
