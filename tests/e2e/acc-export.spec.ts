@@ -51,7 +51,7 @@ test("attaches a PDF on an approved pack", async ({ page, request }) => {
 
 test("attaches a markup summary on an approved pack", async ({ page, request }) => {
   await page.goto(`/projects/${projectId}?view=changes`);
-  const bytes = buildTextPdf(["Markup Summary", "Page: 2", "Page: 14"]);
+  const bytes = buildTextPdf(["Markup Summary", "Page: 1", "Page: 14"]);
   const appendix = page.getByRole("form", { name: "Pack appendix" });
   await expect(appendix.getByLabel("File: PDF")).toBeVisible();
   await expect(appendix.getByRole("button", { name: "Add pack appendix" })).toBeVisible();
@@ -68,7 +68,9 @@ test("attaches a markup summary on an approved pack", async ({ page, request }) 
   await expect(proof.getByText("Fetched")).toBeVisible();
   await expect(proof.getByText("sha256")).toBeVisible();
   await expect(proof.getByText(/^[a-f0-9]{12}$/).first()).toBeVisible();
-  await expect(proof.getByText("Rev A · p. 2")).toBeVisible();
+  await expect(proof.getByText("Rev A · p. 1", { exact: true })).toBeVisible();
+  await expect(proof.getByText("Unpinned · p. 14 · not in Rev A")).toBeVisible();
+  await expect(proof.getByText("Rev A · p. 14")).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole("form", { name: "Pack appendix" }).locator(".packet-proof").getByText("bb-summary-17")).toBeVisible();
   const response = await request.get(`/api/projects/${projectId}/export`);
@@ -80,8 +82,8 @@ test("attaches a markup summary on an approved pack", async ({ page, request }) 
       sourceId: "bb-summary-17",
       filename: "markup-summary.pdf",
       pageCites: [
-        expect.objectContaining({ revisionLabel: "A", page: "2", contentHash: "a".repeat(64) }),
-        expect.objectContaining({ revisionLabel: "A", page: "14", contentHash: "a".repeat(64) }),
+        expect.objectContaining({ revisionLabel: "A", page: "1" }),
+        expect.objectContaining({ status: "Unpinned", label: "14", display: "p. 14", reason: "not in Rev A", revisionLabel: "A" }),
       ],
     }),
   ]);
@@ -126,7 +128,7 @@ test("blank source id shows the upload marker on chapter and appendix proof", as
   await appendix.getByLabel("File: PDF").setInputFiles({
     name: "blank-markup.pdf",
     mimeType: "application/pdf",
-    buffer: buildTextPdf(["Markup Summary", "Page: 2"]),
+    buffer: buildTextPdf(["Markup Summary", "Page: 1"]),
   });
   await appendix.getByRole("button", { name: "Add pack appendix" }).click();
   const appendixProof = appendix.locator(".packet-proof");
@@ -135,7 +137,8 @@ test("blank source id shows the upload marker on chapter and appendix proof", as
   await expect(appendixRow.getByText(/^upload:[a-f0-9]{64}$/)).toBeVisible();
   await expect(appendixRow.locator("time")).toHaveAttribute("datetime", /^\d{4}-\d{2}-\d{2}T/);
   await expect(appendixRow.getByText(/^[a-f0-9]{12}$/)).toBeVisible();
-  await expect(appendixRow.getByText("Rev A · p. 2")).toBeVisible();
+  await expect(appendixRow.getByText("Rev A · p. 1", { exact: true })).toBeVisible();
+  await expect(appendixRow.getByText("Unpinned")).toHaveCount(0);
   await expect(appendixRow.getByText("Source id")).toBeVisible();
   await expect(appendixRow.getByText("Fetched")).toBeVisible();
   await expect(appendixRow.getByText("sha256")).toBeVisible();

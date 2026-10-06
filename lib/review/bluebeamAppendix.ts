@@ -8,7 +8,7 @@ import { displayFilename } from "@/lib/documents/storage";
 import { extractPdfDocument } from "@/lib/documents/extractPdf";
 import { writePacketBytes } from "@/lib/storage/packetBytes";
 import { requireObjectStore, type ObjectStore } from "@/lib/storage/objectStore";
-import { APPENDIX_PAGE_MISSING_MESSAGE, BLUEBEAM_APPENDIX_ROLE, BLUEBEAM_MARKUP_APPENDIX_TITLE, bindMarkupPageCites, factPageCites, isLegacyPageCiteError } from "./exportPacketView";
+import { BLUEBEAM_APPENDIX_ROLE, BLUEBEAM_MARKUP_APPENDIX_TITLE, appendixPageMissingMessage, bindMarkupPageCites, factPageCites, isLegacyPageCiteError, isUnpinnedAppendixCite, type MarkupRevisionPages, type PackPageCite } from "./exportPacketView";
 import { appendixStorageKey, packetAppendixFromStored, packetWithAppendix } from "./exportPacket";
 import { currentApprovedChangePacket, publishApprovedChangePacket, type Clock } from "./service";
 
@@ -57,9 +57,10 @@ export async function attachBluebeamMarkupAppendix(
       allowLegacyPageCites: true,
     });
   const fromFact = factPageCites(cited.changes.flatMap((change) => change.evidence));
-  const pageCites = bindMarkupPageCites(fromFile, fromFact);
-  if (pageCites.length === 0) {
-    throw new DomainError("INVALID_INPUT", APPENDIX_PAGE_MISSING_MESSAGE, 400);
+  const revisions = await markupRevisionPages(organizationId, fromFact, repository);
+  const pageCites = bindMarkupPageCites(fromFile, fromFact, revisions);
+  if (fromFile.length > 0 && pageCites.every(isUnpinnedAppendixCite)) {
+    throw new DomainError("INVALID_INPUT", appendixPageMissingMessage(pageCites), 400);
   }
   if (pageCites.length > MAX_PAGE_CITES) {
     throw new DomainError("INVALID_INPUT", "The markup summary has too many page cites.", 400);
@@ -214,6 +215,36 @@ function cleanCite(raw: string) {
   const value = raw.replace(/\s+/g, " ").trim();
   if (!value || value.length > 80 || /[\u0000-\u001f]/.test(value)) return null;
   return value;
+}
+
+async function markupRevisionPages(
+  organizationId: string,
+  cites: readonly PackPageCite[],
+  repository: ConstructionRepository,
+): Promise<MarkupRevisionPages[]> {
+  const ids = [...new Set(cites.map((cite) => cite.revisionId))];
+  const loaded = await Promise.all(ids.map(async (revisionId): Promise<MarkupRevisionPages | null> => {
+    const revision = await repository.getRevision(organizationId, revisionId);
+    if (!revision) return null;
+    const cite = cites.find((item) => item.revisionId === revisionId);
+    return {
+      revisionId: revision.id,
+      revisionLabel: cite?.revisionLabel || revision.revisionLabel,
+      contentHash: cite?.contentHash ?? revision.sha256,
+      pages: revision.pages.map((page) => ({
+        id: page.id,
+        pageNumber: page.pageNumber,
+        sheetNumber: storedSheetNumber(page),
+      })),
+    };
+  }));
+  return loaded.filter((item): item is MarkupRevisionPages => item !== null);
+}
+
+function storedSheetNumber(page: object) {
+  if (!("sheetNumber" in page)) return null;
+  const sheet = page.sheetNumber;
+  return typeof sheet === "string" && sheet.trim() ? sheet.trim() : null;
 }
 
 function unique(cites: string[]) {
