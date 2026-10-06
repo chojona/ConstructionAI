@@ -152,9 +152,9 @@ describe("pack page cites", () => {
 
     const sheets = bindMarkupPageCites(["C-101", "A-201", "S-3.1"], [onA], [revA]);
     expect(sheets).toEqual([
-      unpinned("C-101", "Sheet C-101", "sheet not matched", "rev_a", "A"),
-      unpinned("A-201", "Sheet A-201", "sheet not matched", "rev_a", "A"),
-      unpinned("S-3.1", "Sheet S-3.1", "sheet not matched", "rev_a", "A"),
+      unpinned("C-101", "Sheet C-101", "not matched", "rev_a", "A"),
+      unpinned("A-201", "Sheet A-201", "not matched", "rev_a", "A"),
+      unpinned("S-3.1", "Sheet S-3.1", "not matched", "rev_a", "A"),
     ]);
     expect(JSON.stringify(sheets)).not.toContain("\"page\":\"C-101\"");
     expect(JSON.stringify(sheets)).not.toContain("p. C-101");
@@ -198,7 +198,8 @@ describe("pack page cites", () => {
       }],
     }));
     expect(html).toContain("Rev A · p. 2");
-    expect(html).toContain("Unpinned · Sheet C-101 · sheet not matched");
+    expect(html).toContain("Unpinned · Sheet C-101 · not matched");
+    expect(html).not.toContain("sheet not matched");
     expect(html).toContain("Unpinned · p. 14 · not in Rev A");
     expect(html).toContain("data-pin-status=\"Unpinned\"");
     expect(html).not.toContain("p. C-101");

@@ -192,7 +192,7 @@ function markupLabels(revisionId: string, documentPageId: string, contentHash: s
       status: "Unpinned",
       label: "C-101",
       display: "Sheet C-101",
-      reason: "sheet not matched",
+      reason: "not matched",
       revisionId,
       revisionLabel: "A",
     },

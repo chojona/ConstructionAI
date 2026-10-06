@@ -130,7 +130,7 @@ describe("Bluebeam markup summary appendix", () => {
       sourceId: "bb-unmatched",
     }, repository, objects, clock)).rejects.toMatchObject({
       code: "INVALID_INPUT",
-      message: `${APPENDIX_PAGE_MISSING_MESSAGE} p. 14 not in Rev A. Sheet C-101 sheet not matched.`,
+      message: `${APPENDIX_PAGE_MISSING_MESSAGE} p. 14 not in Rev A. Sheet C-101 not matched.`,
     });
 
     const after = await exportApprovedChangePacket("org_a", project.id, {}, repository, clock);
@@ -305,7 +305,7 @@ describe("Bluebeam markup summary appendix", () => {
       filename: "summary.csv",
       storageKey: `export-packets/${project.id}/appendices/${contentHash}.csv`,
       pageCites: [
-        unpinnedMarkup(project.revisionId, "C-101", "sheet not matched"),
+        unpinnedMarkup(project.revisionId, "C-101", "not matched"),
         pinnedPage(project.revisionId, "1", project.pageId),
       ],
     });
@@ -322,7 +322,7 @@ describe("Bluebeam markup summary appendix", () => {
       fetchedAt: "2026-10-02T04:30:00.000Z",
       sha256: contentHash.slice(0, 12),
       pageCites: [
-        unpinnedMarkup(project.revisionId, "C-101", "sheet not matched"),
+        unpinnedMarkup(project.revisionId, "C-101", "not matched"),
         pinnedPage(project.revisionId, "1", project.pageId),
       ],
     });
@@ -474,7 +474,7 @@ describe("Bluebeam markup summary appendix", () => {
     expect(packet.appendices?.[0]?.pageCites).toEqual([
       pinnedPage(project.revisionId, "2", sheetPage.id),
       unpinnedMarkup(project.revisionId, "14", "not in Rev A"),
-      unpinnedMarkup(project.revisionId, "A-201", "sheet not matched"),
+      unpinnedMarkup(project.revisionId, "A-201", "not matched"),
     ]);
     const cites = packet.appendices?.[0]?.pageCites ?? [];
     expect(cites.filter((cite) => "page" in cite && cite.page === "C-101")).toEqual([]);

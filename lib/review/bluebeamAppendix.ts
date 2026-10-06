@@ -59,7 +59,7 @@ export async function attachBluebeamMarkupAppendix(
   const fromFact = factPageCites(cited.changes.flatMap((change) => change.evidence));
   const revisions = await markupRevisionPages(organizationId, fromFact, repository);
   const pageCites = bindMarkupPageCites(fromFile, fromFact, revisions);
-  if (pageCites.length === 0 || pageCites.every(isUnpinnedAppendixCite)) {
+  if (fromFile.length > 0 && pageCites.every(isUnpinnedAppendixCite)) {
     throw new DomainError("INVALID_INPUT", appendixPageMissingMessage(pageCites), 400);
   }
   if (pageCites.length > MAX_PAGE_CITES) {

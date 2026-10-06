@@ -99,7 +99,7 @@ export interface MarkupUnpinnedCite {
 export type AppendixPageCite = PackPageCite | MarkupUnpinnedCite;
 
 const INTEGER_PAGE = /^[1-9]\d*$/;
-const SHEET_NOT_MATCHED = "sheet not matched";
+const SHEET_NOT_MATCHED = "not matched";
 const PAGE_NOT_MATCHED = "page not matched";
 
 const REVISION_PIN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,199}$/;
