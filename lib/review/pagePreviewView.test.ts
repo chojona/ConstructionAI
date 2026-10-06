@@ -3,10 +3,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { ChangeReview } from "@/components/review/change-review";
 import { DecisionEvidence } from "@/components/review/decision-change-list";
-import { PagePreview } from "@/components/review/page-preview";
+import { PagePreview, PagePreviewNotice } from "@/components/review/page-preview";
 import type { AttentionItemDto } from "@/lib/review/dto";
 import type { DecidedRowChrome } from "./changeRow";
-import { PAGE_PREVIEW_UNAVAILABLE_MESSAGE } from "./pagePreviewCopy";
+import { PAGE_PREVIEW_TEXT_UNAVAILABLE_MESSAGE, PAGE_PREVIEW_UNAVAILABLE_MESSAGE, previewFailureMessage } from "./pagePreviewCopy";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh() { return undefined; } }),
@@ -160,5 +160,21 @@ describe("page preview rail", () => {
     }));
     expect(missing).not.toContain("page-preview");
     expect(missing).toContain("No linked excerpt for this item.");
+  });
+
+  it("shows the text-draw failure instead of a blank page", () => {
+    expect(previewFailureMessage({
+      error: { code: "PAGE_PREVIEW_TEXT_UNAVAILABLE", message: "ignored" },
+    })).toBe(PAGE_PREVIEW_TEXT_UNAVAILABLE_MESSAGE);
+    expect(previewFailureMessage({ error: { code: "PAGE_PREVIEW_UNAVAILABLE" } })).toBe(PAGE_PREVIEW_UNAVAILABLE_MESSAGE);
+
+    const html = renderToStaticMarkup(createElement(PagePreviewNotice, {
+      message: PAGE_PREVIEW_TEXT_UNAVAILABLE_MESSAGE,
+    }));
+    expect(html).toContain("page-preview-unavailable");
+    expect(html).toContain("draw this page");
+    expect(html).toContain("extracted text is still available");
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("page-preview-scroll");
   });
 });
