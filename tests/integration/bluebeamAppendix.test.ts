@@ -4,7 +4,6 @@ import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createPrismaClient } from "@/lib/db";
 import { buildTextPdf } from "@/lib/documents/minimalPdf";
 import { createDocument } from "@/lib/documents/service";
 import { PrismaConstructionRepository } from "@/lib/domain/prismaRepository";
@@ -14,9 +13,7 @@ import { createProject } from "@/lib/projects/service";
 import { attachBluebeamMarkupAppendix } from "@/lib/review/bluebeamAppendix";
 import { recordReviewDecision } from "@/lib/review/service";
 import { LocalObjectStore } from "@/lib/storage/objectStore";
-
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) throw new Error("DATABASE_URL is required for integration tests.");
+import { hasIntegrationDatabase, integrationDb } from "@/tests/support/integrationDb";
 
 const approvedExcerpt = "A CAT 336 excavator shall be used for the trench.";
 const rejectedExcerpt = "A dozer shall be used.";
@@ -27,8 +24,8 @@ const provenance = {
   model: "gpt-4.1",
 };
 
-describe("Prisma Bluebeam markup appendix", () => {
-  const db = createPrismaClient();
+describe.skipIf(!hasIntegrationDatabase)("Prisma Bluebeam markup appendix", () => {
+  const db = integrationDb();
   const storageRoot = mkdtempSync(path.join(tmpdir(), "bluebeam-appendix-"));
   const objects = new LocalObjectStore(storageRoot);
   const repository = new PrismaConstructionRepository(db, objects);
