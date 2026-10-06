@@ -97,6 +97,15 @@ export function latestRevision<T extends { id: string; revisionOrder: number }>(
   }, null);
 }
 
+/** Same latest-revision rule as the register. A revision missing from the list is included so a lone upload is current. */
+export function revisionIsLatest(
+  revision: { id: string; revisionOrder: number },
+  revisions: readonly { id: string; revisionOrder: number }[],
+): boolean {
+  const family = revisions.some((item) => item.id === revision.id) ? revisions : [...revisions, revision];
+  return latestRevision(family)?.id === revision.id;
+}
+
 /** Type filter values are the document types that exist. Missing types are omitted, never bucketed. */
 export function documentTypeOptions(documents: readonly { documentType: string | null | undefined }[]): string[] {
   const values = new Set<string>();

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import type { ExtractionRunRecord, RevisionRecord } from "@/lib/domain/types";
+import { documentRegisterStatus, registerStatusClass, revisionIsLatest } from "@/lib/documents/documentRegister";
 import {
   changeKind,
   changeSummary,
@@ -57,9 +58,12 @@ export function RevisionInspection({
   returnTo: string | null;
   navigation?: ReactNode;
 }) {
-  const reading = describeReading(revision.status, revision.failureCode, revision.failureMessage);
+  const isLatest = revisionIsLatest(revision, siblings);
+  const status = documentRegisterStatus(isLatest, revision.status) ?? "Failed";
+  const reading = describeReading(revision.status, revision.failureCode, revision.failureMessage, isLatest);
   const signals = revisionSignals(revision.id, findings);
   const ordered = [...siblings].sort((left, right) => left.revisionOrder - right.revisionOrder || left.id.localeCompare(right.id));
+  const uploadTotal = ordered.some((item) => item.id === revision.id) ? ordered.length : ordered.length + 1;
   const index = ordered.findIndex((item) => item.id === revision.id);
   const older = index > 0 ? ordered[index - 1] : null;
   const newer = index >= 0 && index < ordered.length - 1 ? ordered[index + 1] : null;
@@ -72,7 +76,7 @@ export function RevisionInspection({
   return (
     <>
       <div className="revision-identity">
-        <p className="revision-position">Revision {revision.revisionOrder} of {ordered.length}</p>
+        <p className="revision-position">Upload {revision.revisionOrder} of {uploadTotal}</p>
         <h1>{revision.revisionLabel}</h1>
         <nav className="revision-neighbors" aria-label="Other revisions">
           {older ? <Link href={`/revisions/${older.id}`}>Older · {older.revisionLabel}</Link> : <span>Oldest revision</span>}
@@ -100,10 +104,10 @@ export function RevisionInspection({
         </div>
       </dl>
 
-      <section className={`state-panel state-${reading.tone}`} aria-labelledby="reading-status">
+      <section className={`state-panel state-${reading.tone}${status === "Superseded" ? " is-superseded" : ""}`} aria-labelledby="reading-status">
         <div className="state-panel-head">
           <h2 id="reading-status">Reading</h2>
-          <span className={`status-label ${toneClass[reading.tone]}`}>{reading.label}</span>
+          <span className={`status-label ${registerStatusClass(status)}`}>{status}</span>
         </div>
         <p>{reading.summary}</p>
         {reading.action ? (

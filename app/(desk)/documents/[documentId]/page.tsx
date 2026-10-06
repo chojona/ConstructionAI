@@ -5,6 +5,7 @@ import { ProjectContext } from "@/components/workspace/project-context";
 import { ProjectNavigation } from "@/components/workspace/project-navigation";
 import { UploadRevisionForm } from "@/components/forms/upload-revision-form";
 import { documentIdentity } from "@/lib/documents/documentDesk";
+import { documentRegisterStatus, latestRevision, registerStatusClass } from "@/lib/documents/documentRegister";
 import { getDocument } from "@/lib/documents/service";
 import { describeReading } from "@/lib/documents/revisionExperience";
 import { DomainError } from "@/lib/domain/errors";
@@ -50,8 +51,10 @@ export default async function DocumentPage({
     if (!(error instanceof DomainError && error.code === "NOT_FOUND")) throw error;
   }
 
-  const latest = document.revisions[0];
-  const reading = latest ? describeReading(latest.status, latest.failureCode, latest.failureMessage) : null;
+  const latest = latestRevision(document.revisions);
+  const status = latest ? documentRegisterStatus(true, latest.status) : null;
+  const reading = latest && status ? describeReading(latest.status, latest.failureCode, latest.failureMessage, true) : null;
+  const statusNote = status === "Failed" || status === "Processing" ? reading?.summary : null;
   const identity = documentIdentity(document.documentType, document.project.name);
 
   return (
@@ -71,7 +74,7 @@ export default async function DocumentPage({
             {document.revisions.length === 0
               ? "Upload a PDF to start the revision history."
               : `${document.revisions.length} ${document.revisions.length === 1 ? "revision" : "revisions"} kept, newest first.`}
-            {latest && reading ? ` Latest is ${latest.revisionLabel}, uploaded ${date(latest.createdAt)}: ${reading.summary}` : ""}
+            {latest && status ? ` ${latest.revisionLabel} is ${status}, uploaded ${date(latest.createdAt)}.` : ""}
           </p>
         </div>
         <details className="create-panel panel" id="upload" open={upload === "1"}>
@@ -83,9 +86,10 @@ export default async function DocumentPage({
       {latest ? (
         <section className="document-context">
           <div>
-            <p className="eyebrow">Latest uploaded revision</p>
+            {status ? <span className={`status-label ${registerStatusClass(status)}`}>{status}</span> : null}
             <h2>{latest.revisionLabel}</h2>
-            <p>{latest.originalFilename} · Uploaded {date(latest.createdAt)}{reading ? ` · ${reading.label}` : ""}</p>
+            <p>{latest.originalFilename} · Uploaded {date(latest.createdAt)}</p>
+            {statusNote ? <p className="status-note">{statusNote}</p> : null}
           </div>
           <Link href={`/projects/${document.project.id}?view=changes`}>Review project changes</Link>
         </section>

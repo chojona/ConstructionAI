@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { RevisionStatus } from "@/lib/domain/types";
 import {
   documentRegisterStatus,
+  revisionIsLatest,
   documentTypeOptions,
   emptyRegisterQuery,
   filterRegisterRows,
@@ -31,6 +32,16 @@ describe("documentRegisterStatus", () => {
     for (const status of ["PROCESSED", "PROCESSING", "UPLOADED", "FAILED"] as const satisfies readonly RevisionStatus[]) {
       expect(documentRegisterStatus(false, status)).toBe("Superseded");
     }
+  });
+
+  it("treats the highest upload order as latest, including a revision missing from the list", () => {
+    const older = { id: "a", revisionOrder: 1 };
+    const newer = { id: "b", revisionOrder: 2 };
+    expect(revisionIsLatest(newer, [older, newer])).toBe(true);
+    expect(revisionIsLatest(older, [older, newer])).toBe(false);
+    expect(revisionIsLatest(newer, [])).toBe(true);
+    expect(revisionIsLatest({ id: "b", revisionOrder: 2 }, [{ id: "a", revisionOrder: 2 }])).toBe(true);
+    expect(revisionIsLatest({ id: "a", revisionOrder: 2 }, [{ id: "b", revisionOrder: 2 }])).toBe(false);
   });
 
   it("uses only Current, Processing, Failed, and Superseded", () => {

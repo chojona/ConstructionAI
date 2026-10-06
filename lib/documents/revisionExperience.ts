@@ -1,5 +1,6 @@
 import type { ExtractionRunStatus, RevisionStatus } from "@/lib/domain/types";
 import type { EvidenceLocation } from "@/lib/review/evidenceLocation";
+import { documentRegisterStatus, type DocumentRegisterStatus } from "@/lib/documents/documentRegister";
 
 export type ExperienceTone = "ready" | "waiting" | "failed" | "idle";
 
@@ -10,54 +11,64 @@ export interface ExperienceCopy {
   action: string | null;
 }
 
+function toneForRegisterStatus(status: DocumentRegisterStatus): ExperienceTone {
+  if (status === "Current") return "ready";
+  if (status === "Failed") return "failed";
+  if (status === "Superseded") return "idle";
+  return "waiting";
+}
+
 export function describeReading(
   status: RevisionStatus,
   failureCode: string | null,
   failureMessage: string | null,
+  isLatest: boolean,
 ): ExperienceCopy {
+  const label = documentRegisterStatus(isLatest, status) ?? "Failed";
+  const tone = toneForRegisterStatus(label);
   if (status === "FAILED") {
     if (failureCode === "SCANNED_OR_EMPTY") {
       return {
-        label: "Needs a new file",
-        tone: "failed",
+        label,
+        tone,
         summary: "This PDF has no selectable text, so nothing could be read from it.",
         action: "Upload a PDF that was exported with text, not a scan.",
       };
     }
     if (failureCode === "MALFORMED_PDF") {
       return {
-        label: "Needs a new file",
-        tone: "failed",
+        label,
+        tone,
         summary: "This file could not be read as a PDF.",
         action: "Check the file and upload it again.",
       };
     }
     return {
-      label: "Needs a new file",
-      tone: "failed",
+      label,
+      tone,
       summary: failureMessage?.trim() || "This revision could not be read.",
       action: "Upload a replacement PDF.",
     };
   }
   if (status === "PROCESSED") {
     return {
-      label: "Ready",
-      tone: "ready",
+      label,
+      tone,
       summary: "The PDF was read and its pages are available.",
       action: null,
     };
   }
   if (status === "PROCESSING") {
     return {
-      label: "Reading",
-      tone: "waiting",
+      label,
+      tone,
       summary: "The PDF is being read. Pages will show up when that finishes.",
       action: null,
     };
   }
   return {
-    label: "Uploaded",
-    tone: "waiting",
+    label,
+    tone,
     summary: "The file is saved and waiting to be read.",
     action: null,
   };
