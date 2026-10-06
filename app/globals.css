@@ -95,11 +95,6 @@ kbd { margin-left: auto; font: 600 10px var(--font-sans); color: var(--color-ink
 .nav-copy { display: flex; min-width: 0; flex-direction: column; line-height: 1.2; }
 .nav-copy small { color: var(--color-ink-secondary); font-size: 10px; font-weight: 450; }
 .nav-row.is-active .nav-copy small { color: var(--color-ink-secondary); }
-.admin-nav { margin-top: auto; display: grid; gap: 4px; padding: 16px 0 8px; }
-.admin-nav + .sidebar-footer { margin-top: 0; padding-top: 8px; }
-.admin-link { display: flex; align-items: center; gap: 10px; min-height: 32px; padding: 4px 10px; border-radius: 8px; color: var(--color-ink-secondary); font-size: 12px; font-weight: 600; }
-.admin-link:hover { color: var(--color-ink); }
-.admin-link.is-active { color: var(--color-brand); }
 .sidebar-footer { margin-top: auto; padding: 24px 8px 0; color: var(--color-ink-secondary); font-size: 10px; }
 .sidebar-footer small { display: block; padding-top: 5px; font-size: 10px; color: var(--color-ink-secondary); }
 .status-dot { display: inline-block; width: 5px; height: 5px; background: var(--color-success); border-radius: 50%; margin-right: 7px; vertical-align: middle; }
@@ -454,11 +449,7 @@ button.queue-heading:hover { color: var(--color-brand-hover); }
   .app-shell.is-collapsed .nav-heading,
   .app-shell.is-collapsed .nav-label,
   .app-shell.is-collapsed .nav-copy,
-  .app-shell.is-collapsed .sidebar-footer,
-  .app-shell.is-collapsed .admin-nav .nav-heading,
-  .app-shell.is-collapsed .admin-link span { display: none; }
-  .app-shell.is-collapsed .admin-nav { padding: 8px 0 0; }
-  .app-shell.is-collapsed .admin-link { justify-content: center; width: 36px; height: 36px; padding: 0; }
+  .app-shell.is-collapsed .sidebar-footer { display: none; }
   .app-shell.is-collapsed .search-trigger { width: 36px; justify-content: center; margin: 12px 0 8px; padding: 7px; }
   .app-shell.is-collapsed .nav-row { justify-content: center; width: 36px; padding: 8px 0; }
   .app-shell.is-collapsed .sidebar-collapse {
@@ -494,7 +485,6 @@ button.queue-heading:hover { color: var(--color-brand-hover); }
   .sidebar-collapse { display: none; }
   .sidebar > .nav-stack { display: flex; grid-column: 1 / -1; gap: 8px; }
   .nav-heading, .sidebar-footer { display: none; }
-  .admin-nav { grid-column: 1 / -1; margin-top: 0; padding: 0; }
   .app-shell.is-collapsed .brand-copy,
   .app-shell.is-collapsed .nav-label,
   .app-shell.is-collapsed .nav-copy { display: revert; }

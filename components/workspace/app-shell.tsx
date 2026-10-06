@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowRight, FolderKanban, HardHat, Layers3, PanelLeftClose, PanelLeftOpen, Search, Users, X } from "lucide-react";
+import { ArrowRight, FolderKanban, HardHat, Layers3, PanelLeftClose, PanelLeftOpen, Search, X } from "lucide-react";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { projectNumberLabel } from "@/lib/projects/card";
 import { readSidebarCollapsed, writeSidebarCollapsed } from "@/lib/workspace/sidebarState";
@@ -29,7 +29,7 @@ type Project = {
   openCount: number;
 };
 
-export function AppShell({ projects, canManagePeople, children }: { projects: Project[]; canManagePeople: boolean; children: React.ReactNode }) {
+export function AppShell({ projects, signedIn, canManagePeople, children }: { projects: Project[]; signedIn: boolean; canManagePeople: boolean; children: React.ReactNode }) {
   const pathname = usePathname();
   const collapsed = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -82,17 +82,15 @@ export function AppShell({ projects, canManagePeople, children }: { projects: Pr
           <Link className={`nav-row ${pathname === "/projects" ? "is-active" : ""}`} aria-current={pathname === "/projects" ? "page" : undefined} aria-label="Projects" href="/projects"><FolderKanban size={16} aria-hidden /><span className="nav-label">Projects</span></Link>
           <Link className={`nav-row ${pathname === "/changes" ? "is-active" : ""}`} aria-current={pathname === "/changes" ? "page" : undefined} aria-label="Changes" href="/changes"><Layers3 size={16} aria-hidden /><span className="nav-copy">Changes<small>Needs attention</small></span></Link>
         </nav>
-        {canManagePeople ? (
-          <nav className="admin-nav" aria-label="Organization">
-            <p className="nav-heading">Organization</p>
-            <Link className={`admin-link${pathname === "/people" ? " is-active" : ""}`} href="/people" aria-current={pathname === "/people" ? "page" : undefined} aria-label="People">
-              <Users size={16} aria-hidden /><span>People</span>
-            </Link>
-          </nav>
-        ) : null}
         <div className="sidebar-footer">
-          <Link href="/login">Sign in</Link>
-          <SignOutButton />
+          {signedIn ? (
+            <>
+              {canManagePeople ? <Link href="/people" aria-current={pathname === "/people" ? "page" : undefined}>People</Link> : null}
+              <SignOutButton />
+            </>
+          ) : (
+            <Link href="/login">Sign in</Link>
+          )}
           <span className="status-dot" />Source intelligence<small>Decisions grounded in documents</small>
         </div>
       </aside>

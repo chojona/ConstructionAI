@@ -76,21 +76,38 @@ function mainNav(html: string) {
   return html.split('aria-label="Main"')[1]?.split("</nav>")[0] ?? "";
 }
 
+function footer(html: string) {
+  return html.split('class="sidebar-footer"')[1]?.split("</div>")[0] ?? "";
+}
+
 describe("people desk chrome", () => {
-  it("keeps People out of the primary workspace nav", () => {
-    const admin = renderToStaticMarkup(createElement(AppShell, { projects: [], canManagePeople: true }, "desk"));
+  it("puts People in the signed-in org-admin footer, above Sign out", () => {
+    const admin = renderToStaticMarkup(createElement(AppShell, { projects: [], signedIn: true, canManagePeople: true }, "desk"));
     const main = mainNav(admin);
+    const adminFooter = footer(admin);
     expect(main).toContain("Projects");
     expect(main).toContain("Changes");
     expect(main).not.toContain("People");
     expect(main).not.toContain("/people");
-    expect(admin).toContain('aria-label="Organization"');
+    expect(admin).not.toContain("admin-nav");
+    expect(admin).not.toContain('aria-label="Organization"');
+    expect(adminFooter.indexOf(">People<")).toBeGreaterThan(-1);
+    expect(adminFooter.indexOf(">People<")).toBeLessThan(adminFooter.indexOf(">Sign out<"));
+    expect(adminFooter).not.toContain(">Sign in<");
     expect(admin.match(/href="\/people"/g)).toHaveLength(2);
 
-    const memberShell = renderToStaticMarkup(createElement(AppShell, { projects: [], canManagePeople: false }, "desk"));
+    const memberShell = renderToStaticMarkup(createElement(AppShell, { projects: [], signedIn: true, canManagePeople: false }, "desk"));
+    const memberFooter = footer(memberShell);
     expect(memberShell).not.toContain('href="/people"');
-    expect(memberShell).not.toContain('aria-label="Organization"');
+    expect(memberFooter).toContain(">Sign out<");
+    expect(memberFooter).not.toContain(">Sign in<");
     expect(mainNav(memberShell)).toContain("Projects");
+
+    const signedOut = renderToStaticMarkup(createElement(AppShell, { projects: [], signedIn: false, canManagePeople: false }, "desk"));
+    const signedOutFooter = footer(signedOut);
+    expect(signedOutFooter).toContain(">Sign in<");
+    expect(signedOutFooter).not.toContain(">Sign out<");
+    expect(signedOut).not.toContain('href="/people"');
   });
 
   it("formats the updated column in UTC", () => {

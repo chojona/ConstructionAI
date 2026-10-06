@@ -18,7 +18,7 @@ export interface ShellProject {
  *  organization rows. forbidden() cannot run in the root layout, so the page
  *  gate renders the 403 or the 401 sign-in page.
  */
-export async function loadAppShell(): Promise<{ projects: ShellProject[]; canManagePeople: boolean }> {
+export async function loadAppShell(): Promise<{ projects: ShellProject[]; signedIn: boolean; canManagePeople: boolean }> {
   try {
     const access = await authorizeRequest(await pageAccessRequest(), "read");
     const projects = await listProjects(access.organizationId);
@@ -32,10 +32,10 @@ export async function loadAppShell(): Promise<{ projects: ShellProject[]; canMan
         openCount: listAttention(review.findings).length,
       };
     }));
-    return { projects: cards, canManagePeople: roleAllows(access.role, "manage_people") };
+    return { projects: cards, signedIn: true, canManagePeople: roleAllows(access.role, "manage_people") };
   } catch (error) {
     if (isDomainError(error) && (error.code === "FORBIDDEN" || error.code === "UNAUTHENTICATED")) {
-      return { projects: [], canManagePeople: false };
+      return { projects: [], signedIn: false, canManagePeople: false };
     }
     throw error;
   }
