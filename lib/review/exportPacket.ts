@@ -9,7 +9,7 @@ import {
   EXPORT_BLOCKED_MESSAGE,
   LETTING_NOTICE_NOT_EVIDENCE,
   PACK_CITE_UNPINNED_MESSAGE,
-  canonicalPackPageCite,
+  canonicalAppendixPageCite,
   isLettingNotice,
   isPinnedEvidenceCite,
   legacyAppendixPages,
@@ -17,7 +17,7 @@ import {
   RFI_PDF_CHAPTER_TITLE,
   type AccChapterRole,
   type ApprovedChangePreview,
-  type PackPageCite,
+  type AppendixPageCite,
 } from "./exportPacketView";
 
 export {
@@ -91,7 +91,7 @@ export interface ExportPacketAppendix {
   storageKey: string;
   filename: string;
   byteSize: number;
-  pageCites: PackPageCite[];
+  pageCites: AppendixPageCite[];
 }
 
 export interface ExportPacketCanonical {
@@ -272,7 +272,7 @@ function isAppendix(value: unknown): value is ExportPacketAppendix {
     && appendix.byteSize >= 0
     && Array.isArray(appendix.pageCites)
     && appendix.pageCites.length > 0
-    && appendix.pageCites.every((cite) => canonicalPackPageCite(cite) !== null);
+    && appendix.pageCites.every((cite) => canonicalAppendixPageCite(cite) !== null);
 }
 
 function canonicalChapter(chapter: ExportPacketChapter): ExportPacketChapter {
@@ -290,8 +290,8 @@ function canonicalChapter(chapter: ExportPacketChapter): ExportPacketChapter {
 
 function canonicalAppendix(appendix: ExportPacketAppendix): ExportPacketAppendix {
   const pageCites = appendix.pageCites.flatMap((cite) => {
-    const pinned = canonicalPackPageCite(cite);
-    return pinned ? [pinned] : [];
+    const row = canonicalAppendixPageCite(cite);
+    return row ? [row] : [];
   });
   if (pageCites.length === 0 || pageCites.length !== appendix.pageCites.length) {
     throw new DomainError("INVALID_INPUT", PACK_CITE_UNPINNED_MESSAGE, 400);
@@ -368,9 +368,9 @@ export function packetAppendixFromStored(row: {
   storageKey: string;
   filename: string;
   byteSize: number;
-  pageCites: readonly PackPageCite[];
+  pageCites: readonly AppendixPageCite[];
 }): ExportPacketAppendix {
-  const pageCites = row.pageCites.map((cite) => canonicalPackPageCite(cite));
+  const pageCites = row.pageCites.map((cite) => canonicalAppendixPageCite(cite));
   if (pageCites.some((cite) => cite === null)) {
     throw new DomainError("MALFORMED_OUTPUT", "Stored pack appendix could not be read.", 500);
   }
@@ -383,7 +383,7 @@ export function packetAppendixFromStored(row: {
     storageKey: row.storageKey,
     filename: row.filename,
     byteSize: row.byteSize,
-    pageCites: pageCites.filter((cite): cite is PackPageCite => cite !== null),
+    pageCites: pageCites.filter((cite): cite is AppendixPageCite => cite !== null),
   };
   if (row.role !== BLUEBEAM_APPENDIX_ROLE || row.title !== BLUEBEAM_MARKUP_APPENDIX_TITLE || !isAppendix(appendix)) {
     throw new DomainError("MALFORMED_OUTPUT", "Stored pack appendix could not be read.", 500);
@@ -513,6 +513,7 @@ function pageChips(finding: ProjectFinding) {
       pageNumber: item.pageNumber,
       excerpt: item.excerpt,
       documentPageId: item.documentPageId,
+      documentTitle: item.documentTitle,
     });
   }
   return chips;

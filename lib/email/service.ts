@@ -23,7 +23,7 @@ import {
   packetFromStored,
   type ApprovedChangePacket,
 } from "@/lib/review/exportPacket";
-import { EXPORT_BLOCKED_MESSAGE } from "@/lib/review/exportPacketView";
+import { citeWithDocumentTitle, documentTitlesFromChanges, EXPORT_BLOCKED_MESSAGE } from "@/lib/review/exportPacketView";
 import { currentApprovedChangePacket } from "@/lib/review/service";
 
 const MAX_RECIPIENTS = 20;
@@ -221,13 +221,14 @@ function chaptersFromPacket(packet: ApprovedChangePacket): EmailPackFilePreview[
 }
 
 function appendicesFromPacket(packet: ApprovedChangePacket): EmailAppendixPreview[] {
+  const titles = documentTitlesFromChanges(packet.changes);
   return (packet.appendices ?? []).map((appendix) => ({
     title: appendix.title,
     filename: appendix.filename,
     sourceId: appendix.sourceId,
     fetchedAt: appendix.fetchedAt,
     contentHash: appendix.contentHash,
-    pageCites: [...appendix.pageCites],
+    pageCites: appendix.pageCites.map((cite) => citeWithDocumentTitle(cite, titles)),
   }));
 }
 

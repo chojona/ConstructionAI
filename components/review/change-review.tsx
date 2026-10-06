@@ -2,7 +2,10 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
+import { ApprovalSignoffText } from "@/components/review/approval-signoff";
+import { CiteChip } from "@/components/review/cite-chip";
 import { DecisionChangeList, DecisionEvidence } from "@/components/review/decision-change-list";
+import type { ApprovalSignoff } from "@/lib/auth/approvalSignoff";
 import { FactBadges } from "@/components/review/fact-badges";
 import { PagePreview } from "@/components/review/page-preview";
 import { EvidenceQuotes } from "@/components/review/evidence-quotes";
@@ -12,7 +15,8 @@ import { LegacyPageCiteNotice } from "@/components/review/pack-proof";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { AttentionItemDto, FindingDto } from "@/lib/review/dto";
-import { changeEvidenceLead, changePageChip, changeRowTitle, type DecidedRowChrome } from "@/lib/review/changeRow";
+import { changeEvidenceLead, changePageCite, changeRowTitle, type DecidedRowChrome } from "@/lib/review/changeRow";
+import { knownDocRevLine } from "@/lib/review/citeLabel";
 import { decisionReturnPath, findingDomId } from "@/lib/review/evidenceLocation";
 import { appendixFactBinding, DESK_EMPTY_MISSING_EVIDENCE, DESK_EMPTY_NO_SELECTION, type ApprovedChangePreview, type DeskPackFile } from "@/lib/review/exportPacketView";
 import { queueBadges, showAiSuggested } from "@/lib/review/factBadge";
@@ -26,8 +30,6 @@ import {
   WHY_REVIEW_TITLE,
 } from "@/lib/review/reviewDeskCopy";
 import type { ReviewSummaryCounts } from "@/lib/review/reviewSummary";
-import { pinnedSourceCitation } from "@/lib/review/sourceCitation";
-
 const reviewerStorageKey = "construction-ai.reviewer-name";
 
 function readStoredReviewer() {
@@ -50,17 +52,19 @@ export function ChangeReview({
   appendices = [],
   citeNotice = null,
   summary,
+  signoffs = [],
 }: {
   projectId: string;
   items: AttentionItemDto[];
   uploadHref: string;
   approved?: readonly ApprovedChangePreview[];
   decided?: readonly DecidedRowChrome[];
-  notes?: readonly { key: string; text: string }[];
+  notes?: readonly { key: string; before: string; name: string; disabled: boolean; after: string }[];
   chapters?: readonly DeskPackFile[];
   appendices?: readonly DeskPackFile[];
   citeNotice?: string | null;
   summary?: ReviewSummaryCounts;
+  signoffs?: readonly (ApprovalSignoff & { subjectKey: string })[];
 }) {
   const router = useRouter();
   const [selectedKey, setSelectedKey] = useState("");
@@ -148,11 +152,10 @@ export function ChangeReview({
     selected.after ? { title: "Current", value: selected.after, tone: "comparison-after" } : null,
   ].filter((side) => side !== null) : [];
   const evidenceLead = selected ? changeEvidenceLead(selected) : null;
-  const sourceCitation = selected && evidenceLead ? pinnedSourceCitation({
-    documentTitle: evidenceLead.documentTitle || selected.documentTitle,
-    revisionLabel: evidenceLead.revisionLabel,
-    revisionId: evidenceLead.revisionId,
-    pageNumber: evidenceLead.page,
+  const selectedCite = selected ? changePageCite(selected) : null;
+  const unpinnedDocRev = selected && selectedCite?.status === "Unpinned" ? knownDocRevLine({
+    documentTitle: evidenceLead?.documentTitle || selected.documentTitle,
+    revisionLabel: evidenceLead?.revisionLabel || selected.revisionLabel,
   }) : null;
   const counts = summary ?? { needsReview: items.length, acceptedToday: 0, rejectedToday: 0 };
   const reviewReason = selectedItem?.reason.trim() ?? "";
@@ -166,7 +169,7 @@ export function ChangeReview({
           <div className="review-summary-stat"><strong>{counts.rejectedToday}</strong><span>{REJECTED_TODAY_LABEL}</span></div>
         </section>
         <LegacyPageCiteNotice message={citeNotice} />
-        <ExportPacketControl projectId={projectId} changes={approved} actorId={reviewerId} openCount={items.length} chapters={chapters} appendices={appendices} appendixSubjectKey={appendixFact.subjectKey} appendixPageCites={appendixFact.pageCites} />
+        <ExportPacketControl projectId={projectId} changes={approved} actorId={reviewerId} openCount={items.length} chapters={chapters} appendices={appendices} appendixSubjectKey={appendixFact.subjectKey} appendixPageCites={appendixFact.pageCites} signoffs={signoffs} />
         {(decided.length > 0 || notes.length > 0) && (
           <>
             {decided.length > 0 && (
@@ -175,7 +178,7 @@ export function ChangeReview({
                 <DecisionChangeList rows={decided} activeKey={activeKey} onSelect={openDecided} />
               </>
             )}
-            {notes.length > 0 && <div className="retired">{notes.map((note) => <p key={note.key}>{note.text}</p>)}</div>}
+            {notes.length > 0 && <div className="retired">{notes.map((note) => <p key={note.key}>{note.before}<ApprovalSignoffText name={note.name} disabled={note.disabled} />{note.after}</p>)}</div>}
           </>
         )}
         {items.length === 0 ? <EmptyChanges href={uploadHref} /> : (
@@ -183,6 +186,7 @@ export function ChangeReview({
             {items.map((item) => {
               const finding = item.finding;
               const active = finding.subjectKey === selected?.subjectKey;
+              const pageCite = changePageCite(finding);
               return (
                 <li key={finding.subjectKey} id={findingDomId(finding.subjectKey)} className={`change-card${active ? " is-active" : ""}`}>
                   <div className="change-card-copy">
@@ -190,7 +194,7 @@ export function ChangeReview({
                     <p className="row-meta">{finding.documentTitle}</p>
                     <FactBadges badges={queueBadges(finding)} suggested={showAiSuggested(finding.currentDecision)} />
                   </div>
-                  <span className="page-chip">{changePageChip(finding)}</span>
+                  <CiteChip label={pageCite.label} status={pageCite.status} />
                   <Button type="button" size="sm" variant={active ? "default" : "outline"} aria-pressed={active} onClick={() => openReview(finding)}>Review</Button>
                 </li>
               );
@@ -202,11 +206,11 @@ export function ChangeReview({
         {selected ? (
           <>
             <div className="evidence-rail-body">
-              {evidenceLead && (
+              {evidenceLead && selectedCite && (
                 <div className="evidence-rail-lead">
-                  <span className="page-chip">{changePageChip(selected)}</span>
+                  <CiteChip label={selectedCite.label} status={selectedCite.status} />
+                  {unpinnedDocRev ? <p className="row-meta">{unpinnedDocRev}</p> : null}
                   <p className="evidence-rail-excerpt">{evidenceLead.excerpt}</p>
-                  {sourceCitation ? <p className="source-citation">{sourceCitation}</p> : null}
                   {reviewReason ? (
                     <section className="why-review">
                       <h4>{WHY_REVIEW_TITLE}</h4>
@@ -214,11 +218,11 @@ export function ChangeReview({
                     </section>
                   ) : null}
                   {evidenceLead.page > 0 && (
-                    <PagePreview projectId={projectId} revisionId={evidenceLead.revisionId} pageNumber={evidenceLead.page} />
+                    <PagePreview projectId={projectId} revisionId={evidenceLead.revisionId} pageNumber={evidenceLead.page} excerpt={evidenceLead.excerpt} />
                   )}
                 </div>
               )}
-              {sourceCitation ? null : <p className="row-meta">{selected.documentTitle} · {selected.revisionLabel}</p>}
+              {!evidenceLead && unpinnedDocRev ? <p className="row-meta">{unpinnedDocRev}</p> : null}
               <FactBadges badges={queueBadges(selected)} suggested={showAiSuggested(selected.currentDecision)} />
               <h3 id="finding-title" tabIndex={-1}>{changeRowTitle(selected)}</h3>
               <p className="finding-summary">{selected.label}</p>

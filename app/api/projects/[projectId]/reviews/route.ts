@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { errorResponse } from "@/lib/http";
+import { errorResponse, readJsonBody } from "@/lib/http";
 import { toFindingDto, toReviewDecisionDto } from "@/lib/review/dto";
 import { authorizeRequest } from "@/lib/auth/membership";
 import { getProjectReview, recordReviewDecision } from "@/lib/review/service";
@@ -34,7 +34,7 @@ export async function POST(
       access.organizationId,
       projectId,
       access.named ? access.userId : request.headers.get("x-reviewer-id"),
-      await request.json(),
+      await readJsonBody(request),
     );
     return NextResponse.json({ decision: toReviewDecisionDto(decision) }, { status: 201 });
   } catch (error) {

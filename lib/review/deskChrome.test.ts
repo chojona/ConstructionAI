@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -19,6 +19,14 @@ import {
   PACK_APPENDIX_FILE_LABEL,
   RFI_PDF_CHAPTER_TITLE,
 } from "./exportPacketView";
+
+function readAppCss() {
+  const app = new URL("../../app/", import.meta.url);
+  const styles = readdirSync(new URL("styles/", app))
+    .filter((name) => name.endsWith(".css"))
+    .map((name) => readFileSync(new URL(`styles/${name}`, app), "utf8"));
+  return [readFileSync(new URL("globals.css", app), "utf8"), ...styles].join("\n");
+}
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh() { return undefined; } }),
@@ -61,14 +69,14 @@ const acceptedFinding = {
   label: "excavation: 1250 CY",
   subject: { type: "proposed_fact" as const },
   before: null,
-  after: { category: "quantity" as const, evidence: [{ pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY." }] },
+  after: { category: "quantity" as const, evidence: [{ pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY.", revisionId: "rev", revisionLabel: "Rev 04", documentTitle: "Earthworks specification" }] },
   evidence: [],
   currentDecision: { decision: "ACCEPTED" },
 };
 
 describe("changes desk chrome", () => {
   it("keeps Figma Product UI V1 canvas and brand tokens", () => {
-    const css = readFileSync(new URL("../../app/globals.css", import.meta.url), "utf8");
+    const css = readAppCss();
     expect(css).toContain("--color-canvas: #f2f4f1");
     expect(css).toContain("--color-brand: #d79a32");
     expect(css).not.toContain("#17191f");
@@ -100,7 +108,7 @@ describe("changes desk chrome", () => {
         subjectKey: acceptedFinding.subjectKey,
         decision: "ACCEPTED",
         summary: acceptedFinding.label,
-        evidence: [{ revisionId: "rev", revisionLabel: "A", pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY." }],
+        evidence: [{ revisionId: "rev", revisionLabel: "A", pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY.", documentTitle: "Earthworks specification" }],
       }],
       decided: decidedRowChrome([acceptedFinding]),
     }));
@@ -125,7 +133,7 @@ describe("changes desk chrome", () => {
         subjectKey: acceptedFinding.subjectKey,
         decision: "ACCEPTED",
         summary: acceptedFinding.label,
-        evidence: [{ revisionId: "rev", revisionLabel: "A", pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY." }],
+        evidence: [{ revisionId: "rev", revisionLabel: "A", pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY.", documentTitle: "Earthworks specification" }],
       }],
       decided: decidedRowChrome([acceptedFinding]),
     }));
@@ -136,7 +144,8 @@ describe("changes desk chrome", () => {
     expect(open).not.toContain("AI-suggested");
     expect(open).toContain("Accepted facts become project truth. AI suggestions never bypass human review.");
     expect(open).toContain("name=\"subjectKey\" value=\"proposed-fact:excavation\"");
-    expect(open).toContain(">Rev A · p. 1<");
+    expect(open).toContain(">Earthworks specification · Rev A · p. 1<");
+    expect(open).not.toContain("Rev Rev");
     expect(open).not.toContain("This accepted fact has no page cite.");
     expect(open).not.toContain("name=\"page");
   });
