@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowRight, FolderKanban, HardHat, Layers3, PanelLeftClose, PanelLeftOpen, Search, X } from "lucide-react";
+import { ArrowRight, FolderKanban, HardHat, Layers3, PanelLeftClose, PanelLeftOpen, Search, Users, X } from "lucide-react";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import type { OrgRole } from "@/lib/auth/roles";
 import { projectNumberLabel } from "@/lib/projects/card";
 import { readSidebarCollapsed, writeSidebarCollapsed } from "@/lib/workspace/sidebarState";
 
@@ -29,7 +30,15 @@ type Project = {
   openCount: number;
 };
 
-export function AppShell({ projects, children }: { projects: Project[]; children: React.ReactNode }) {
+export function AppShell({
+  projects,
+  session,
+  children,
+}: {
+  projects: Project[];
+  session: { signedIn: boolean; role: OrgRole | null };
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const collapsed = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -38,6 +47,7 @@ export function AppShell({ projects, children }: { projects: Project[]; children
   const commands = [
     { href: "/projects", name: "Projects", detail: "Workspace" },
     { href: "/changes", name: "Changes", detail: "Needs attention" },
+    ...(session.role === "ORG_ADMIN" ? [{ href: "/people", name: "People", detail: "Org admin" }] : []),
     ...projects.map((project) => ({ href: `/projects/${project.id}`, name: project.name, detail: projectNumberLabel(project.projectNumber) })),
   ].filter((command) => `${command.name} ${command.detail}`.toLowerCase().includes(query.toLowerCase()));
 
@@ -82,8 +92,19 @@ export function AppShell({ projects, children }: { projects: Project[]; children
           <Link className={`nav-row ${pathname === "/changes" ? "is-active" : ""}`} aria-current={pathname === "/changes" ? "page" : undefined} aria-label="Changes" href="/changes"><Layers3 size={16} aria-hidden /><span className="nav-copy">Changes<small>Needs attention</small></span></Link>
         </nav>
         <div className="sidebar-footer">
-          <Link href="/login">Sign in</Link>
-          <SignOutButton />
+          {session.signedIn ? (
+            <>
+              {session.role === "ORG_ADMIN" ? (
+                <Link href="/people" className="footer-people" aria-current={pathname === "/people" ? "page" : undefined}>
+                  <Users size={12} aria-hidden />
+                  People
+                </Link>
+              ) : null}
+              <SignOutButton />
+            </>
+          ) : (
+            <Link href="/login">Sign in</Link>
+          )}
           <span className="status-dot" />Source intelligence<small>Decisions grounded in documents</small>
         </div>
       </aside>

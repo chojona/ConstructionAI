@@ -64,6 +64,17 @@ class MemoryAuth implements PeopleStore, CredentialStore {
     return row;
   }
 
+  async setRole(id: string, role: OrgRole) {
+    const row = this.memberships.find((item) => item.id === id);
+    if (!row) throw new Error(`missing ${id}`);
+    row.role = role;
+    return row;
+  }
+
+  async userHasPassword(userId: string) {
+    return Boolean(this.users.find((user) => user.id === userId)?.passwordHash);
+  }
+
   async countActiveRole(organizationId: string, role: OrgRole) {
     return this.memberships.filter((row) =>
       row.organizationId === organizationId && row.role === role && row.status === "ACTIVE").length;
@@ -80,6 +91,7 @@ class MemoryAuth implements PeopleStore, CredentialStore {
         name: user?.name ?? null,
         role: row.role,
         status: row.status,
+        updatedAt: new Date(0),
       };
     });
   }

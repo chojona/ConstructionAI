@@ -263,13 +263,17 @@ describe("server-rendered desks", () => {
 
     const shell = await loadAppShell();
     expect(shell.projects.map((project) => project.id)).toEqual(["project_1"]);
+    expect(shell.session).toEqual({ signedIn: true, role: "VIEWER" });
     expect(listProjects).toHaveBeenCalledWith("org_a");
   });
 
   it("leaves the shell empty when the caller is not a member", async () => {
     rows.push(member("ORG_ADMIN", "user_b", "org_b"));
     setHeaders({ "x-user-id": "user_b", "x-organization-id": "org_a" });
-    await expect(loadAppShell()).resolves.toEqual({ projects: [] });
+    await expect(loadAppShell()).resolves.toEqual({
+      projects: [],
+      session: { signedIn: true, role: null },
+    });
     expect(listProjects).not.toHaveBeenCalled();
   });
 
@@ -302,7 +306,10 @@ describe("server-rendered desks", () => {
         digest: "NEXT_HTTP_ERROR_FALLBACK;401",
       });
       expect(listHeavyJobSourceObjects).not.toHaveBeenCalled();
-      await expect(loadAppShell()).resolves.toEqual({ projects: [] });
+      await expect(loadAppShell()).resolves.toEqual({
+        projects: [],
+        session: { signedIn: false, role: null },
+      });
       expect(listProjects).not.toHaveBeenCalled();
     } finally {
       if (previous === undefined) delete process.env.AUTH_TRUST_USER_HEADER;

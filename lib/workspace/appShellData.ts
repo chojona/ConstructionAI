@@ -1,5 +1,6 @@
 import { pageAccessRequest } from "@/lib/auth/pageAccess";
 import { authorizeRequest } from "@/lib/auth/membership";
+import type { OrgRole } from "@/lib/auth/roles";
 import { isDomainError } from "@/lib/domain/errors";
 import { listProjects } from "@/lib/projects/service";
 import { listAttention } from "@/lib/review/attention";
@@ -13,11 +14,17 @@ export interface ShellProject {
   openCount: number;
 }
 
+export interface ShellSession {
+  signedIn: boolean;
+  role: OrgRole | null;
+}
+
 /** Projects for the workspace shell. A denied or unsigned caller gets no
  *  organization rows. forbidden() cannot run in the root layout, so the page
- *  gate renders the 403 or the 401 sign-in page.
+ *  gate renders the 403 or the 401 sign-in page. The footer uses session to
+ *  show Sign in, or People (org admin) and Sign out.
  */
-export async function loadAppShell(): Promise<{ projects: ShellProject[] }> {
+export async function loadAppShell(): Promise<{ projects: ShellProject[]; session: ShellSession }> {
   try {
     const access = await authorizeRequest(await pageAccessRequest(), "read");
     const projects = await listProjects(access.organizationId);
@@ -31,10 +38,13 @@ export async function loadAppShell(): Promise<{ projects: ShellProject[] }> {
         openCount: listAttention(review.findings).length,
       };
     }));
-    return { projects: cards };
+    return { projects: cards, session: { signedIn: true, role: access.role } };
   } catch (error) {
-    if (isDomainError(error) && (error.code === "FORBIDDEN" || error.code === "UNAUTHENTICATED")) {
-      return { projects: [] };
+    if (isDomainError(error) && error.code === "UNAUTHENTICATED") {
+      return { projects: [], session: { signedIn: false, role: null } };
+    }
+    if (isDomainError(error) && error.code === "FORBIDDEN") {
+      return { projects: [], session: { signedIn: true, role: null } };
     }
     throw error;
   }

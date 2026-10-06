@@ -76,6 +76,16 @@ export class PrismaMembershipStore implements PeopleStore, CredentialStore {
     return toMembership(row);
   }
 
+  async setRole(id: string, role: OrgRole) {
+    const row = await this.db.orgMembership.update({ where: { id }, data: { role } });
+    return toMembership(row);
+  }
+
+  async userHasPassword(userId: string) {
+    const user = await this.db.user.findUnique({ where: { id: userId }, select: { passwordHash: true } });
+    return Boolean(user?.passwordHash);
+  }
+
   async countActiveRole(organizationId: string, role: OrgRole) {
     return this.db.orgMembership.count({ where: { organizationId, role, status: "ACTIVE" } });
   }
@@ -155,6 +165,7 @@ export class PrismaMembershipStore implements PeopleStore, CredentialStore {
       name: row.user.name,
       role: row.role,
       status: row.status,
+      updatedAt: row.updatedAt,
     }));
   }
 }

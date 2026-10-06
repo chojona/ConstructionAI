@@ -16,11 +16,11 @@ export const dynamic = "force-dynamic";
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   await connection();
-  const { projects } = await loadAppShell();
+  const { projects, session } = await loadAppShell();
   return (
     <html lang="en" className={inter.variable}>
       <body>
-        <AppShell projects={projects}>{children}</AppShell>
+        <AppShell projects={projects} session={session}>{children}</AppShell>
       </body>
     </html>
   );

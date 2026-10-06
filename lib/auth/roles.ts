@@ -36,6 +36,26 @@ export interface PersonRecord {
   name: string | null;
 }
 
+export const ORG_ROLE_LABEL: Record<OrgRole, string> = {
+  ORG_ADMIN: "Org admin",
+  REVIEWER: "Reviewer",
+  CONTRIBUTOR: "Contributor",
+  VIEWER: "Viewer",
+};
+
+export const MEMBERSHIP_STATUS_LABEL: Record<MembershipStatus, string> = {
+  ACTIVE: "Active",
+  INVITED: "Invited",
+  DISABLED: "Disabled",
+};
+
+/** Status pills for the People table. Colors come from existing tokens. */
+export function membershipStatusClass(status: MembershipStatus) {
+  if (status === "INVITED") return "status-info";
+  if (status === "DISABLED") return "status-danger-subtle";
+  return "status-neutral";
+}
+
 export interface PersonMembership {
   membershipId: string;
   organizationId: string;
@@ -44,6 +64,7 @@ export interface PersonMembership {
   name: string | null;
   role: OrgRole;
   status: MembershipStatus;
+  updatedAt: Date;
 }
 
 export interface MembershipLookup {
@@ -63,6 +84,9 @@ export interface PeopleStore extends MembershipLookup {
   }): Promise<MembershipRecord>;
   findMembershipById(id: string): Promise<MembershipRecord | null>;
   setStatus(id: string, status: MembershipStatus): Promise<MembershipRecord>;
+  setRole(id: string, role: OrgRole): Promise<MembershipRecord>;
+  /** True when the person has set a password and can sign in once active. */
+  userHasPassword(userId: string): Promise<boolean>;
   countActiveRole(organizationId: string, role: OrgRole): Promise<number>;
   listPeople(organizationId: string): Promise<PersonMembership[]>;
   saveAcceptToken(membershipId: string, tokenHash: string, expiresAt: Date): Promise<void>;

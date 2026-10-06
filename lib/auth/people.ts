@@ -139,3 +139,45 @@ export async function disableMember(
   }
   return store.setStatus(membership.id, "DISABLED");
 }
+
+const roleSchema = z.object({
+  role: z.enum(["ORG_ADMIN", "REVIEWER", "CONTRIBUTOR", "VIEWER"]),
+});
+
+export async function changeMemberRole(
+  access: OrgAccess,
+  membershipId: string,
+  raw: unknown,
+  store: PeopleStore = membershipStore,
+): Promise<MembershipRecord> {
+  assertRole(access.role, "manage_people");
+  const input = roleSchema.parse(raw);
+  const membership = await store.findMembershipById(membershipId);
+  if (!membership || membership.organizationId !== access.organizationId) {
+    throw new DomainError("NOT_FOUND", "Membership not found.", 404);
+  }
+  if (membership.role === input.role) return membership;
+  if (membership.role === "ORG_ADMIN" && membership.status === "ACTIVE") {
+    const admins = await store.countActiveRole(access.organizationId, "ORG_ADMIN");
+    if (admins <= 1) {
+      throw new DomainError("INVALID_INPUT", "The organization needs an active org admin.", 400);
+    }
+  }
+  return store.setRole(membership.id, input.role);
+}
+
+/** Restore access. Role stays as it was. A person who never set a password returns to Invited. */
+export async function enableMember(
+  access: OrgAccess,
+  membershipId: string,
+  store: PeopleStore = membershipStore,
+): Promise<MembershipRecord> {
+  assertRole(access.role, "manage_people");
+  const membership = await store.findMembershipById(membershipId);
+  if (!membership || membership.organizationId !== access.organizationId) {
+    throw new DomainError("NOT_FOUND", "Membership not found.", 404);
+  }
+  if (membership.status !== "DISABLED") return membership;
+  const status = await store.userHasPassword(membership.userId) ? "ACTIVE" : "INVITED";
+  return store.setStatus(membership.id, status);
+}

@@ -11,6 +11,7 @@ const buttonVariants = cva(
         default: "bg-brand text-brand-ink hover:bg-brand-hover",
         outline: "border border-line-strong bg-surface text-ink hover:bg-surface-subtle",
         ghost: "text-ink-secondary hover:bg-surface-subtle hover:text-ink",
+        danger: "border border-line-strong bg-surface text-danger hover:bg-danger-subtle",
       },
       size: { default: "h-8 px-3", sm: "h-8 px-2.5", lg: "h-9 px-3.5" },
     },
