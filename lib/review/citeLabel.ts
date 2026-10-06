@@ -13,11 +13,22 @@ export type CiteLabelInput = {
    * Cite chips always name the document and revision.
    */
   viewedRevisionId?: string | null;
-  /** "cite" is `Doc · Rev A · p. 2`. "jump" is `p. 2` or `Rev A · p. 2`. */
+  /** "cite" is `Doc · Rev A · p. 2` or `Doc · Rev A · Sheet C-101`. "jump" names the other revision the same way. */
   surface?: "cite" | "jump";
 };
 
 const REVISION_NAME_UNPREFIXED = new Set(["ifc", "ifb", "bid"]);
+const POSITIVE_PAGE = /^[1-9]\d*$/;
+
+/**
+ * Page text shared with markup chips. A positive integer is `p. N`.
+ * Any other sheet label is `Sheet C-101`, and a label that already says Sheet is not doubled.
+ */
+export function sheetCiteDisplay(label: string) {
+  if (POSITIVE_PAGE.test(label)) return `p. ${label}`;
+  const bare = label.replace(/^sheet\s+/i, "").trim();
+  return `Sheet ${bare || label}`;
+}
 
 /**
  * Revision text for a cite or a reason (`not in ${displayRevision(label)}`).
@@ -85,21 +96,21 @@ export function formatCiteLabel(input: CiteLabelInput): string {
   const parts = citeParts(input);
   if (parts.surface === "jump") {
     if (!parts.page || !parts.revisionId) return UNPINNED_CITE_LABEL;
-    if (parts.viewedRevisionId && parts.revisionId === parts.viewedRevisionId) return `p. ${parts.page}`;
+    if (parts.viewedRevisionId && parts.revisionId === parts.viewedRevisionId) return parts.page;
     if (!parts.revision) return UNPINNED_CITE_LABEL;
-    return `${parts.revision} · p. ${parts.page}`;
+    return `${parts.revision} · ${parts.page}`;
   }
   if (citePinStatus(input) === "Unpinned") return UNPINNED_CITE_LABEL;
-  return `${parts.documentTitle} · ${parts.revision} · p. ${parts.page}`;
+  return `${parts.documentTitle} · ${parts.revision} · ${parts.page}`;
 }
 
 function pageToken(page: number | string | null | undefined) {
   if (typeof page === "number") {
     if (!Number.isInteger(page) || page <= 0) return null;
-    return String(page);
+    return sheetCiteDisplay(String(page));
   }
   if (typeof page !== "string") return null;
   const trimmed = page.trim();
   if (!trimmed || (/^\d+$/.test(trimmed) && Number(trimmed) < 1)) return null;
-  return trimmed;
+  return sheetCiteDisplay(trimmed);
 }

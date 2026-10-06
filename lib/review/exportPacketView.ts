@@ -1,4 +1,4 @@
-import { citePinStatus, displayRevision, formatCiteLabel, type CitePinStatus } from "./citeLabel";
+import { citePinStatus, displayRevision, formatCiteLabel, sheetCiteDisplay, type CitePinStatus } from "./citeLabel";
 
 export const EXPORT_BLOCKED_MESSAGE = "Approve at least one change to export.";
 export const EXPORT_OPEN_MESSAGE = "Finish open reviews before exporting.";
@@ -509,12 +509,6 @@ function pageNotInReason(revisions: readonly MarkupRevisionPages[]) {
   if (labels.length === 0) return "not in Rev";
   if (labels.length === 1) return `not in ${labels[0]}`;
   return `not in ${labels.join(" or ")}`;
-}
-
-function sheetCiteDisplay(label: string) {
-  if (INTEGER_PAGE.test(label)) return `p. ${label}`;
-  const bare = label.replace(/^sheet\s+/i, "").trim();
-  return `Sheet ${bare || label}`;
 }
 
 function soleRevision(revisions: readonly MarkupRevisionPages[]) {

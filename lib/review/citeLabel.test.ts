@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { RevisionInspection } from "@/components/documents/revision-inspection";
 import type { EvidenceLocation } from "./evidenceLocation";
-import { citePinStatus, displayRevision, formatCiteLabel, UNPINNED_CITE_LABEL } from "./citeLabel";
+import { citePinStatus, displayRevision, formatCiteLabel, sheetCiteDisplay, UNPINNED_CITE_LABEL } from "./citeLabel";
 
 const before: EvidenceLocation = {
   documentPageId: "page_a",
@@ -116,6 +116,35 @@ describe("formatCiteLabel", () => {
       page: 2,
     })).toBe(UNPINNED_CITE_LABEL);
     expect(formatCiteLabel({ page: 2 })).toBe(UNPINNED_CITE_LABEL);
+  });
+
+  it("renders p. 3 for an integer page and Sheet C-101 for a sheet number", () => {
+    expect(formatCiteLabel({
+      documentTitle: "Drainage Plan",
+      revisionLabel: "A",
+      revisionId: "rev_a",
+      page: 3,
+    })).toBe("Drainage Plan · Rev A · p. 3");
+    expect(sheetCiteDisplay("C-101")).toBe("Sheet C-101");
+    expect(sheetCiteDisplay("Sheet C-101")).toBe("Sheet C-101");
+    expect(formatCiteLabel({
+      documentTitle: "Drainage Plan",
+      revisionLabel: "Rev A",
+      revisionId: "rev_a",
+      page: "C-101",
+    })).toBe("Drainage Plan · Rev A · Sheet C-101");
+    expect(formatCiteLabel({
+      documentTitle: "Drainage Plan",
+      revisionLabel: "A",
+      revisionId: "rev_a",
+      page: "C-101",
+    })).not.toContain("p. C-101");
+    expect(formatCiteLabel({
+      documentTitle: "Drainage Plan",
+      revisionLabel: "A",
+      revisionId: "rev_a",
+      page: "Sheet C-101",
+    })).toBe("Drainage Plan · Rev A · Sheet C-101");
   });
 
   it("names another revision on a jump and keeps the same revision as a page", () => {
