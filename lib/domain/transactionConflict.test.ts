@@ -8,6 +8,12 @@ describe("transaction conflicts", () => {
     expect(isSerializationConflict(error)).toBe(true);
     expect(isSerializationConflict({ code: "P2034" })).toBe(true);
     expect(isSerializationConflict(new Error("connection reset"))).toBe(false);
+    expect(isSerializationConflict({
+      code: "P2010",
+      message: "Raw query failed. Code: `40001`. Message: `could not serialize access due to concurrent update`",
+      meta: { driverAdapterError: { cause: { kind: "TransactionWriteConflict", originalCode: "40001" } } },
+    })).toBe(true);
+    expect(isSerializationConflict({ code: "P2010", message: "column does not exist" })).toBe(false);
   });
 
   it("reads unique targets from Prisma and the pg adapter", () => {

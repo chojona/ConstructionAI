@@ -6,7 +6,8 @@ import { hashPassword } from "./password";
 import { authorizeRequest, type OrgAccess } from "./membership";
 import { disableMember, enableMember, inviteMember, refreshAcceptToken } from "./people";
 import { hashToken, SESSION_COOKIE } from "./sessionToken";
-import type { MembershipRecord, OrgRole, PeopleStore, PersonMembership, PersonRecord } from "./roles";
+import { applyOrgAdminRelease, createReleaseQueue } from "./orgAdminRelease";
+import type { MembershipRecord, OrgAdminRelease, OrgRole, PeopleStore, PersonMembership, PersonRecord, ReviewerDirectoryEntry } from "./roles";
 
 class MemoryAuth implements PeopleStore, CredentialStore {
   users: CredentialUser[] = [];
@@ -15,6 +16,7 @@ class MemoryAuth implements PeopleStore, CredentialStore {
   private sessions = new Map<string, { userId: string; expiresAt: Date }>();
   private updatedAt = new Map<string, Date>();
   private sequence = 0;
+  private exclusive = createReleaseQueue();
 
   private touch(id: string) {
     this.updatedAt.set(id, new Date());
@@ -79,6 +81,14 @@ class MemoryAuth implements PeopleStore, CredentialStore {
     return row;
   }
 
+  releaseOrgAdmin(id: string, change: OrgAdminRelease) {
+    return this.exclusive(() => {
+      const result = applyOrgAdminRelease(this.memberships, id, change);
+      if (result.outcome === "updated") this.touch(id);
+      return result;
+    });
+  }
+
   async acceptPending(id: string) {
     for (const invite of this.invites.values()) {
       if (invite.membershipId === id) return true;
@@ -89,6 +99,14 @@ class MemoryAuth implements PeopleStore, CredentialStore {
   async countActiveRole(organizationId: string, role: OrgRole) {
     return this.memberships.filter((row) =>
       row.organizationId === organizationId && row.role === role && row.status === "ACTIVE").length;
+  }
+
+  async listReviewerDirectory(organizationId: string): Promise<ReviewerDirectoryEntry[]> {
+    return this.memberships.filter((row) => row.organizationId === organizationId).map((row) => ({
+      userId: row.userId,
+      name: this.users.find((user) => user.id === row.userId)?.name ?? null,
+      status: row.status,
+    }));
   }
 
   async listPeople(organizationId: string): Promise<PersonMembership[]> {

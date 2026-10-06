@@ -1,3 +1,4 @@
+import { ApprovalSignoffText } from "@/components/review/approval-signoff";
 import { FactBadges } from "@/components/review/fact-badges";
 import { PagePreview } from "@/components/review/page-preview";
 import type { DecidedRowChrome } from "@/lib/review/changeRow";
@@ -22,6 +23,7 @@ export function DecisionChangeList({
               <span className="fact-row-copy">
                 <span className="row-title">{row.title}</span>
                 <span className="row-meta">{row.documentTitle}</span>
+                {row.signoff ? <ApprovalSignoffText name={row.signoff.name} disabled={row.signoff.disabled} /> : null}
               </span>
               <span className="page-chip">{row.pageLabel}</span>
             </button>
@@ -46,6 +48,7 @@ export function DecisionEvidence({ row, projectId }: { row: DecidedRowChrome; pr
       ) : missingExcerpt ? <p className="rail-empty rail-empty-inline">{DESK_EMPTY_MISSING_EVIDENCE}</p> : null}
       {row.sourceCitation ? null : <p className="row-meta">{row.documentTitle} · {row.revisionLabel}</p>}
       {row.badges?.length ? <FactBadges badges={row.badges} /> : null}
+      {row.signoff ? <p className="row-meta"><ApprovalSignoffText name={row.signoff.name} disabled={row.signoff.disabled} /></p> : null}
       <h3>{row.title}</h3>
     </div>
   );

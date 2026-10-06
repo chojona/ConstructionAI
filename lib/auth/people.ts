@@ -1,9 +1,11 @@
 import { z } from "zod";
-import { DomainError } from "@/lib/domain/errors";
+import { DomainError, isDomainError } from "@/lib/domain/errors";
+import { uniqueConstraintTargets } from "@/lib/domain/transactionConflict";
 import { assertRole, type OrgAccess } from "./membership";
 import { membershipStore } from "./prismaMembership";
 import { acceptPath, hashToken, INVITE_TTL_MS, newSecret } from "./sessionToken";
 import {
+  type OrgAdminRelease,
   type PeopleStore,
   type PersonMembership,
   type PersonRecord,
@@ -72,6 +74,22 @@ export async function inviteMember(
 ): Promise<InvitedMember> {
   assertRole(access.role, "manage_people");
   const input = inviteSchema.parse(raw);
+  try {
+    return await inviteMemberRecord(access, input, store);
+  } catch (error) {
+    if (isDomainError(error)) throw error;
+    if (uniqueConstraintTargets(error)) {
+      throw new DomainError("INVALID_INPUT", "That person already belongs to this organization.", 409);
+    }
+    throw error;
+  }
+}
+
+async function inviteMemberRecord(
+  access: OrgAccess,
+  input: { email: string; name: string | null; role: MembershipRecord["role"] },
+  store: PeopleStore,
+): Promise<InvitedMember> {
   const existing = await store.findUserByEmail(input.email);
   if (existing) {
     const memberships = await store.listMembershipsForUser(existing.id);
@@ -115,21 +133,14 @@ async function membershipInOrg(store: PeopleStore, access: OrgAccess, membership
   return membership;
 }
 
-/** Active org admin count must stay at least one when a change would drop the last one. */
-async function assertKeepsOrgAdmin(
-  store: PeopleStore,
-  access: OrgAccess,
-  membership: MembershipRecord,
-  nextRole?: MembershipRecord["role"],
-) {
-  const dropsAdmin = membership.role === "ORG_ADMIN"
-    && membership.status === "ACTIVE"
-    && nextRole !== "ORG_ADMIN";
-  if (!dropsAdmin) return;
-  const admins = await store.countActiveRole(access.organizationId, "ORG_ADMIN");
-  if (admins <= 1) {
-    throw new DomainError("INVALID_INPUT", "The organization needs an active org admin.", 400);
-  }
+const LAST_ORG_ADMIN = "The organization needs an active org admin.";
+
+/** Count and write happen together inside the store, so two overlapping drops cannot both succeed. */
+async function dropOrgAdmin(store: PeopleStore, membershipId: string, change: OrgAdminRelease) {
+  const result = await store.releaseOrgAdmin(membershipId, change);
+  if (result.outcome === "missing") throw new DomainError("NOT_FOUND", "Membership not found.", 404);
+  if (result.outcome === "blocked") throw new DomainError("INVALID_INPUT", LAST_ORG_ADMIN, 400);
+  return result.membership;
 }
 
 /** Replace the accept token for a membership that is still invited. */
@@ -159,10 +170,13 @@ export async function changeMemberRole(
     throw new DomainError("INVALID_INPUT", "Re-enable this person before changing their role.", 400);
   }
   if (membership.role === input.role) return membership;
-  await assertKeepsOrgAdmin(store, access, membership, input.role);
+  if (membership.role === "ORG_ADMIN" && membership.status === "ACTIVE" && input.role !== "ORG_ADMIN") {
+    return dropOrgAdmin(store, membership.id, { role: input.role });
+  }
   return store.setRole(membership.id, input.role);
 }
 
+/** Turns access off. Review decisions and frozen packs stay as recorded. */
 export async function disableMember(
   access: OrgAccess,
   membershipId: string,
@@ -171,7 +185,9 @@ export async function disableMember(
   assertRole(access.role, "manage_people");
   const membership = await membershipInOrg(store, access, membershipId);
   if (membership.status === "DISABLED") return membership;
-  await assertKeepsOrgAdmin(store, access, membership);
+  if (membership.role === "ORG_ADMIN" && membership.status === "ACTIVE") {
+    return dropOrgAdmin(store, membership.id, { status: "DISABLED" });
+  }
   return store.setStatus(membership.id, "DISABLED");
 }
 

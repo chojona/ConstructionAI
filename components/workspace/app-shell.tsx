@@ -83,14 +83,20 @@ export function AppShell({ projects, signedIn, canManagePeople, children }: { pr
           <Link className={`nav-row ${pathname === "/changes" ? "is-active" : ""}`} aria-current={pathname === "/changes" ? "page" : undefined} aria-label="Changes" href="/changes"><Layers3 size={16} aria-hidden /><span className="nav-copy">Changes<small>Needs attention</small></span></Link>
         </nav>
         <div className="sidebar-footer">
-          {signedIn ? (
-            <>
-              {canManagePeople ? <Link href="/people" aria-current={pathname === "/people" ? "page" : undefined}>People</Link> : null}
-              <SignOutButton />
-            </>
-          ) : (
-            <Link href="/login">Sign in</Link>
-          )}
+          <ul className="sidebar-account">
+            {signedIn ? (
+              <>
+                {canManagePeople ? (
+                  <li className="sidebar-account-row">
+                    <Link href="/people" aria-current={pathname === "/people" ? "page" : undefined}>People</Link>
+                  </li>
+                ) : null}
+                <li className="sidebar-account-row"><SignOutButton /></li>
+              </>
+            ) : (
+              <li className="sidebar-account-row"><Link href="/login">Sign in</Link></li>
+            )}
+          </ul>
           <span className="status-dot" />Source intelligence<small>Decisions grounded in documents</small>
         </div>
       </aside>

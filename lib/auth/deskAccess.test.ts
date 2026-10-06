@@ -8,6 +8,7 @@ const {
   listActiveMemberships,
   listMembershipsForUser,
   findValidSession,
+  listReviewerDirectory,
   getProject,
   listProjects,
   getProjectReview,
@@ -25,6 +26,7 @@ const {
   listActiveMemberships: vi.fn(),
   listMembershipsForUser: vi.fn(),
   findValidSession: vi.fn(),
+  listReviewerDirectory: vi.fn(),
   getProject: vi.fn(),
   listProjects: vi.fn(),
   getProjectReview: vi.fn(),
@@ -50,7 +52,7 @@ vi.mock("next/headers", () => ({
 }));
 
 vi.mock("@/lib/auth/prismaMembership", () => ({
-  membershipStore: { findMembership, listActiveMemberships, listMembershipsForUser, findValidSession },
+  membershipStore: { findMembership, listActiveMemberships, listMembershipsForUser, findValidSession, listReviewerDirectory },
 }));
 
 vi.mock("@/lib/projects/service", () => ({ getProject, listProjects }));
@@ -106,6 +108,7 @@ beforeEach(() => {
   listMembershipsForUser.mockImplementation(async (userId: string) =>
     rows.filter((row) => row.userId === userId));
   findValidSession.mockResolvedValue(null);
+  listReviewerDirectory.mockResolvedValue([]);
   getProject.mockReset();
   getProject.mockResolvedValue({
     id: "project_1",

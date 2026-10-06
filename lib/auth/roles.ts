@@ -53,6 +53,23 @@ export interface MembershipLookup {
   listMembershipsForUser(userId: string): Promise<MembershipRecord[]>;
 }
 
+/** Names and membership status for approval attribution. Email stays off this list. */
+export interface ReviewerDirectoryEntry {
+  userId: string;
+  name: string | null;
+  status: MembershipStatus;
+}
+
+/** A write that can remove the last active org admin. */
+export type OrgAdminRelease =
+  | { status: "DISABLED" }
+  | { role: OrgRole };
+
+export type OrgAdminReleaseResult =
+  | { outcome: "updated"; membership: MembershipRecord }
+  | { outcome: "blocked" }
+  | { outcome: "missing" };
+
 export interface PeopleStore extends MembershipLookup {
   findUserByEmail(email: string): Promise<PersonRecord | null>;
   createUser(input: { email: string; name: string | null }): Promise<PersonRecord>;
@@ -65,9 +82,15 @@ export interface PeopleStore extends MembershipLookup {
   findMembershipById(id: string): Promise<MembershipRecord | null>;
   setStatus(id: string, status: MembershipStatus): Promise<MembershipRecord>;
   setRole(id: string, role: OrgRole): Promise<MembershipRecord>;
+  /**
+   * Count active org admins and apply the write in one critical section.
+   * `blocked` means the write would leave the organization with no active org admin.
+   */
+  releaseOrgAdmin(membershipId: string, change: OrgAdminRelease): Promise<OrgAdminReleaseResult>;
   /** True while an accept link is still stored for this membership. */
   acceptPending(id: string): Promise<boolean>;
   countActiveRole(organizationId: string, role: OrgRole): Promise<number>;
   listPeople(organizationId: string): Promise<PersonMembership[]>;
+  listReviewerDirectory(organizationId: string): Promise<ReviewerDirectoryEntry[]>;
   saveAcceptToken(membershipId: string, tokenHash: string, expiresAt: Date): Promise<void>;
 }

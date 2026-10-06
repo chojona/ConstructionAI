@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { ApprovalSignoffText } from "@/components/review/approval-signoff";
 import { DraftEmailButton } from "@/components/review/draft-email";
+import type { ApprovalSignoff } from "@/lib/auth/approvalSignoff";
 import { PackProofList } from "@/components/review/pack-proof";
 import { Button } from "@/components/ui/button";
 import { draftEmailVisible } from "@/lib/email/emailSendView";
@@ -42,6 +44,7 @@ export function ExportPacketControl({
   appendices = [],
   appendixSubjectKey = "",
   appendixPageCites = [],
+  signoffs = [],
 }: {
   projectId: string;
   changes: readonly ApprovedChangePreview[];
@@ -51,11 +54,13 @@ export function ExportPacketControl({
   appendices?: readonly DeskPackFile[];
   appendixSubjectKey?: string;
   appendixPageCites?: readonly PackPageCite[];
+  signoffs?: readonly (ApprovalSignoff & { subjectKey: string })[];
 }) {
   const approved = visiblePacketChanges(changes).filter((change) => subjectExportVisible(change.decision));
   const action = exportPacketAction(approved.length, projectId, openCount);
+  const signoffList = <SignoffList signoffs={signoffs} />;
   if (!action.enabled || !action.href || !accChapterAttachVisible(approved.length)) {
-    return <p className="packet-blocked">{action.message}</p>;
+    return <>{action.message ? <p className="packet-blocked">{action.message}</p> : null}{signoffList}</>;
   }
   return (
     <div className="packet-export">
@@ -65,9 +70,23 @@ export function ExportPacketControl({
         </Button>
         {draftEmailVisible(approved.length) && <DraftEmailButton projectId={projectId} actorId={actorId} />}
       </div>
+      {signoffList}
       <AccChapterForm projectId={projectId} initialFiles={chapters} />
       <MarkupAppendixForm projectId={projectId} initialFiles={appendices} subjectKey={appendixSubjectKey} pageCites={appendixPageCites} />
     </div>
+  );
+}
+
+function SignoffList({ signoffs }: { signoffs: readonly (ApprovalSignoff & { subjectKey: string })[] }) {
+  if (signoffs.length === 0) return null;
+  return (
+    <ul className="pack-signoffs" aria-label="Pack sign-offs">
+      {signoffs.map((signoff) => (
+        <li key={signoff.subjectKey}>
+          <ApprovalSignoffText name={signoff.name} disabled={signoff.disabled} />
+        </li>
+      ))}
+    </ul>
   );
 }
 

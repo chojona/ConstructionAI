@@ -76,38 +76,47 @@ function mainNav(html: string) {
   return html.split('aria-label="Main"')[1]?.split("</nav>")[0] ?? "";
 }
 
-function footer(html: string) {
-  return html.split('class="sidebar-footer"')[1]?.split("</div>")[0] ?? "";
+function accountRows(html: string) {
+  const list = html.match(/<ul class="sidebar-account">([\s\S]*?)<\/ul>/);
+  if (!list) throw new Error("missing account list");
+  return [...list[1].matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/g)].map((match) => match[1]);
 }
 
 describe("people desk chrome", () => {
-  it("puts People in the signed-in org-admin footer, above Sign out", () => {
-    const admin = renderToStaticMarkup(createElement(AppShell, { projects: [], signedIn: true, canManagePeople: true }, "desk"));
+  it("puts People in the signed-in org-admin account row, above Sign out", () => {
+    // children belongs on the props object; a third createElement argument does not typecheck.
+    /* eslint-disable react/no-children-prop */
+    const admin = renderToStaticMarkup(createElement(AppShell, { projects: [], signedIn: true, canManagePeople: true, children: null }));
     const main = mainNav(admin);
-    const adminFooter = footer(admin);
+    const rows = accountRows(admin);
     expect(main).toContain("Projects");
     expect(main).toContain("Changes");
     expect(main).not.toContain("People");
     expect(main).not.toContain("/people");
     expect(admin).not.toContain("admin-nav");
     expect(admin).not.toContain('aria-label="Organization"');
-    expect(adminFooter.indexOf(">People<")).toBeGreaterThan(-1);
-    expect(adminFooter.indexOf(">People<")).toBeLessThan(adminFooter.indexOf(">Sign out<"));
-    expect(adminFooter).not.toContain(">Sign in<");
+    expect(rows.map((row) => row.includes(">People<"))).toEqual([true, false]);
+    expect(admin).toContain('class="sidebar-account-row"');
+    expect(rows.at(-1)).toContain(">Sign out<");
+    expect(admin).not.toContain(">Sign in<");
     expect(admin.match(/href="\/people"/g)).toHaveLength(2);
+    expect(admin).not.toContain("sidebar-account-row sidebar-member");
 
-    const memberShell = renderToStaticMarkup(createElement(AppShell, { projects: [], signedIn: true, canManagePeople: false }, "desk"));
-    const memberFooter = footer(memberShell);
+    const memberShell = renderToStaticMarkup(createElement(AppShell, { projects: [], signedIn: true, canManagePeople: false, children: null }));
+    const memberRows = accountRows(memberShell);
     expect(memberShell).not.toContain('href="/people"');
-    expect(memberFooter).toContain(">Sign out<");
-    expect(memberFooter).not.toContain(">Sign in<");
+    expect(memberRows).toHaveLength(1);
+    expect(memberRows[0]).toContain(">Sign out<");
+    expect(memberShell).not.toContain(">Sign in<");
     expect(mainNav(memberShell)).toContain("Projects");
 
-    const signedOut = renderToStaticMarkup(createElement(AppShell, { projects: [], signedIn: false, canManagePeople: false }, "desk"));
-    const signedOutFooter = footer(signedOut);
-    expect(signedOutFooter).toContain(">Sign in<");
-    expect(signedOutFooter).not.toContain(">Sign out<");
+    const signedOut = renderToStaticMarkup(createElement(AppShell, { projects: [], signedIn: false, canManagePeople: false, children: null }));
+    const signedOutRows = accountRows(signedOut);
+    expect(signedOutRows).toHaveLength(1);
+    expect(signedOutRows[0]).toContain(">Sign in<");
+    expect(signedOut).not.toContain(">Sign out<");
     expect(signedOut).not.toContain('href="/people"');
+    /* eslint-enable react/no-children-prop */
   });
 
   it("formats the updated column in UTC", () => {

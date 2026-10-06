@@ -159,4 +159,45 @@ describe("people API role gates", () => {
     expect(changeMemberRole).toHaveBeenCalledWith(access, "membership_1", { role: "CONTRIBUTOR" });
     expect(refreshAcceptToken).toHaveBeenCalledWith(access, "membership_1");
   });
+
+  it("rejects an org admin aimed at a different organization", async () => {
+    rows.push({ id: "membership_b", organizationId: "org_b", userId: "user_b", role: "ORG_ADMIN", status: "ACTIVE" });
+    const responses = await callAll("user_b");
+    for (const response of responses) {
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toMatchObject({ error: { code: "FORBIDDEN" } });
+    }
+    for (const fn of peopleFns) expect(fn).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invited caller", async () => {
+    rows.push(member("REVIEWER", "user_invited", "INVITED"));
+    const responses = await callAll("user_invited");
+    for (const response of responses) {
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toMatchObject({
+        error: { code: "FORBIDDEN", message: "Accept the invitation before using the organization." },
+      });
+    }
+    for (const fn of peopleFns) expect(fn).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed JSON before it changes a membership", async () => {
+    rows.push(member("ORG_ADMIN", "user_admin"));
+    const invite = await inviteRoute(new NextRequest("http://localhost/api/org/memberships", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...headers("user_admin") },
+      body: "{",
+    }));
+    const role = await roleRoute(new NextRequest("http://localhost/api/org/memberships/membership_1/role", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...headers("user_admin") },
+      body: "{",
+    }), context());
+    expect(invite.status).toBe(400);
+    expect(role.status).toBe(400);
+    await expect(invite.json()).resolves.toMatchObject({ error: { code: "INVALID_INPUT" } });
+    expect(inviteMember).not.toHaveBeenCalled();
+    expect(changeMemberRole).not.toHaveBeenCalled();
+  });
 });

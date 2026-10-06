@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { ZodError } from "zod";
 import type { OrgAccess } from "./membership";
 import { authorizeRequest } from "./membership";
+import { applyOrgAdminRelease, createReleaseQueue } from "./orgAdminRelease";
 import { changeMemberRole, disableMember, enableMember, inviteMember, listPeople, type InvitedMember } from "./people";
-import type { MembershipRecord, OrgRole, PeopleStore, PersonMembership, PersonRecord } from "./roles";
+import type { MembershipRecord, OrgAdminRelease, OrgRole, PeopleStore, PersonMembership, PersonRecord, ReviewerDirectoryEntry } from "./roles";
 
 function access(role: OrgRole, organizationId = "org_a"): OrgAccess {
   return { organizationId, userId: `user_${role.toLowerCase()}`, role, named: true };
@@ -15,6 +17,7 @@ class MemoryPeople implements PeopleStore {
   memberships: MembershipRecord[] = [];
   private sequence = 0;
   private updatedAt = new Map<string, Date>();
+  private exclusive = createReleaseQueue();
 
   private touch(id: string) {
     this.updatedAt.set(id, new Date());
@@ -74,6 +77,14 @@ class MemoryPeople implements PeopleStore {
     return row;
   }
 
+  releaseOrgAdmin(id: string, change: OrgAdminRelease) {
+    return this.exclusive(() => {
+      const result = applyOrgAdminRelease(this.memberships, id, change);
+      if (result.outcome === "updated") this.touch(id);
+      return result;
+    });
+  }
+
   async acceptPending(id: string) {
     return this.acceptTokens.some((token) => token.membershipId === id);
   }
@@ -87,6 +98,14 @@ class MemoryPeople implements PeopleStore {
 
   async saveAcceptToken(membershipId: string, tokenHash: string, expiresAt: Date) {
     this.acceptTokens.push({ membershipId, tokenHash, expiresAt });
+  }
+
+  async listReviewerDirectory(organizationId: string): Promise<ReviewerDirectoryEntry[]> {
+    return this.memberships.filter((row) => row.organizationId === organizationId).map((row) => ({
+      userId: row.userId,
+      name: this.users.find((user) => user.id === row.userId)?.name ?? null,
+      status: row.status,
+    }));
   }
 
   async listPeople(organizationId: string): Promise<PersonMembership[]> {
@@ -301,5 +320,86 @@ describe("invite and disable", () => {
       headers: { "x-user-id": invited.userId, "x-organization-id": "org_a" },
     }), "read", store)).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(enableMember(access("ORG_ADMIN"), "membership_missing", store)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("rejects a duplicate invite that loses the email unique constraint", async () => {
+    const store = new MemoryPeople();
+    const original = store.createUser.bind(store);
+    let created = 0;
+    store.createUser = async (input) => {
+      created += 1;
+      if (created > 1) {
+        throw new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+          code: "P2002",
+          clientVersion: "7.10.0",
+          meta: { target: ["email"] },
+        });
+      }
+      return original(input);
+    };
+    await inviteMember(access("ORG_ADMIN"), { email: "pe@northstar.example", role: "VIEWER" }, store);
+    store.users.length = 0;
+    await expect(inviteMember(access("ORG_ADMIN"), { email: "pe@northstar.example", role: "VIEWER" }, store)).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+      httpStatus: 409,
+      message: "That person already belongs to this organization.",
+    });
+  });
+
+  async function twoAdmins() {
+    const store = new MemoryPeople();
+    const first = await store.createUser({ email: "lead@northstar.example", name: "Lead" });
+    const firstMembership = await store.createMembership({
+      organizationId: "org_a",
+      userId: first.id,
+      role: "ORG_ADMIN",
+      status: "ACTIVE",
+    });
+    const second = await store.createUser({ email: "ops@northstar.example", name: "Ops" });
+    const secondMembership = await store.createMembership({
+      organizationId: "org_a",
+      userId: second.id,
+      role: "ORG_ADMIN",
+      status: "ACTIVE",
+    });
+    return { store, firstMembership, secondMembership };
+  }
+
+  it("lets one of two admins be disabled or demoted and rejects the overlapping loser", async () => {
+    const disabled = await twoAdmins();
+    const disableResults = await Promise.allSettled([
+      disableMember(access("ORG_ADMIN"), disabled.firstMembership.id, disabled.store),
+      disableMember(access("ORG_ADMIN"), disabled.secondMembership.id, disabled.store),
+    ]);
+    expect(disableResults.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    const disableLoser = disableResults.find((result) => result.status === "rejected");
+    expect(disableLoser?.status === "rejected" && disableLoser.reason).toMatchObject({
+      code: "INVALID_INPUT",
+      message: "The organization needs an active org admin.",
+    });
+    expect(await disabled.store.countActiveRole("org_a", "ORG_ADMIN")).toBeGreaterThanOrEqual(1);
+
+    const demoted = await twoAdmins();
+    const demoteResults = await Promise.allSettled([
+      changeMemberRole(access("ORG_ADMIN"), demoted.firstMembership.id, { role: "REVIEWER" }, demoted.store),
+      changeMemberRole(access("ORG_ADMIN"), demoted.secondMembership.id, { role: "VIEWER" }, demoted.store),
+    ]);
+    expect(demoteResults.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    const demoteLoser = demoteResults.find((result) => result.status === "rejected");
+    expect(demoteLoser?.status === "rejected" && demoteLoser.reason).toMatchObject({
+      code: "INVALID_INPUT",
+      message: "The organization needs an active org admin.",
+    });
+    expect(await demoted.store.countActiveRole("org_a", "ORG_ADMIN")).toBeGreaterThanOrEqual(1);
+
+    const kept = demoted.store.memberships.find((row) => row.role === "ORG_ADMIN" && row.status === "ACTIVE");
+    const dropped = demoted.store.memberships.find((row) => row.id !== kept?.id);
+    expect(dropped?.role).not.toBe("ORG_ADMIN");
+    if (dropped?.status === "ACTIVE") {
+      const restored = await changeMemberRole(access("ORG_ADMIN"), dropped.id, { role: "ORG_ADMIN" }, demoted.store);
+      expect(restored.role).toBe("ORG_ADMIN");
+      const again = await changeMemberRole(access("ORG_ADMIN"), dropped.id, { role: "CONTRIBUTOR" }, demoted.store);
+      expect(again.role).toBe("CONTRIBUTOR");
+    }
   });
 });

@@ -15,6 +15,12 @@ export function errorResponse(error: unknown) {
       { status: 400 },
     );
   }
+  if (error instanceof SyntaxError) {
+    return NextResponse.json(
+      { error: { code: "INVALID_INPUT", message: "The request body is not valid JSON." } },
+      { status: 400 },
+    );
+  }
   console.error(error);
   return NextResponse.json(
     { error: { code: "INTERNAL_ERROR", message: "An unexpected error occurred." } },

@@ -22,7 +22,9 @@ import { deskPackFiles, EXPORT_BLOCKED_MESSAGE, isLegacyPageCiteError } from "@/
 import { uploadRevisionHref } from "@/lib/review/emptyState";
 import { toAttentionDto } from "@/lib/review/dto";
 import { projectOverviewModel } from "@/lib/review/projectOverview";
+import { signoffForReviewer } from "@/lib/auth/approvalSignoff";
 import { authorizePage } from "@/lib/auth/pageAccess";
+import { membershipStore } from "@/lib/auth/prismaMembership";
 import { currentApprovedChangePacket, getProjectReview } from "@/lib/review/service";
 
 export const dynamic = "force-dynamic";
@@ -70,7 +72,12 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       ? { type: item.finding.subject.type, revisedRevisionId: item.finding.subject.revisedRevisionId }
       : { type: item.finding.subject.type },
   })), new Date()));
+  const directory = await membershipStore.listReviewerDirectory(organizationId);
   const approved = approvedChangePreview(review.findings);
+  const signoffs = review.findings.flatMap((finding) => {
+    if (finding.currentDecision?.decision !== "ACCEPTED") return [];
+    return [{ subjectKey: finding.subjectKey, ...signoffForReviewer(finding.currentDecision.reviewerId, directory) }];
+  });
   const overview = projectOverviewModel({
     projectId: project.id,
     attention: attention.map((item) => ({
@@ -109,16 +116,23 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           projectId={project.id}
           items={attention.map(toAttentionDto)}
           approved={approved}
-          decided={decidedRowChrome(review.findings)}
+          decided={decidedRowChrome(review.findings, directory)}
+          signoffs={signoffs}
           chapters={packFiles.chapters}
           appendices={packFiles.appendices}
           citeNotice={packFiles.citeNotice}
-          notes={review.state.retirements.map((retirement) => ({
-            key: `${retirement.proposedFactId}-${retirement.decisionId}`,
-            text: retirement.supersededByProposedFactId
-              ? `“${retirement.summary}” was replaced. Recorded by ${retirement.reviewerId}.`
-              : `“${retirement.summary}” was removed from the current values by ${retirement.reviewerId}.`,
-          }))}
+          notes={review.state.retirements.map((retirement) => {
+            const signoff = signoffForReviewer(retirement.reviewerId, directory);
+            return {
+              key: `${retirement.proposedFactId}-${retirement.decisionId}`,
+              before: retirement.supersededByProposedFactId
+                ? `“${retirement.summary}” was replaced. Recorded by `
+                : `“${retirement.summary}” was removed from the current values by `,
+              name: signoff.name,
+              disabled: signoff.disabled,
+              after: ".",
+            };
+          })}
           uploadHref={uploadRevisionHref(project.id, project.documents)}
           summary={reviewSummaryCounts({ needsReview: attention.length, decisions: review.decisions })}
         />
