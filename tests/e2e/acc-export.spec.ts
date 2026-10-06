@@ -68,7 +68,7 @@ test("attaches a markup summary on an approved pack", async ({ page, request }) 
   await expect(proof.getByText("Fetched")).toBeVisible();
   await expect(proof.getByText("sha256")).toBeVisible();
   await expect(proof.getByText(/^[a-f0-9]{12}$/).first()).toBeVisible();
-  await expect(proof.getByText("Rev A · p. 1", { exact: true })).toBeVisible();
+  await expect(proof.getByText("Earthworks · Rev A · p. 1", { exact: true })).toBeVisible();
   await expect(proof.getByText("Unpinned · p. 14 · not in Rev A")).toBeVisible();
   await expect(proof.getByText("Rev A · p. 14")).toHaveCount(0);
   await page.reload();
@@ -92,7 +92,7 @@ test("attaches a markup summary on an approved pack", async ({ page, request }) 
 test("binds the accepted fact page when the markup file has no page cite", async ({ page }) => {
   await page.goto(`/projects/${projectId}?view=changes`);
   const appendix = page.getByRole("form", { name: "Pack appendix" });
-  await expect(appendix.locator(".packet-chips").getByText("Rev A · p. 1", { exact: true })).toBeVisible();
+  await expect(appendix.locator(".packet-chips").getByText("Earthworks · Rev A · p. 1", { exact: true })).toBeVisible();
   await expect(appendix.getByRole("textbox", { name: "Page" })).toHaveCount(0);
   await appendix.getByLabel("File: PDF").setInputFiles({
     name: "markup-summary.pdf",
@@ -105,7 +105,7 @@ test("binds the accepted fact page when the markup file has no page cite", async
   await expect(proof.getByText("bb-fact-page")).toBeVisible();
   await expect(proof.locator("time")).toHaveAttribute("datetime", /^\d{4}-\d{2}-\d{2}T/);
   await expect(proof.getByText(/^[a-f0-9]{12}$/)).toBeVisible();
-  await expect(proof.getByText("Rev A · p. 1", { exact: true })).toBeVisible();
+  await expect(proof.getByText("Earthworks · Rev A · p. 1", { exact: true })).toBeVisible();
   await expect(page.getByText("This accepted fact has no page cite.")).toHaveCount(0);
 });
 
@@ -137,7 +137,7 @@ test("blank source id shows the upload marker on chapter and appendix proof", as
   await expect(appendixRow.getByText(/^upload:[a-f0-9]{64}$/)).toBeVisible();
   await expect(appendixRow.locator("time")).toHaveAttribute("datetime", /^\d{4}-\d{2}-\d{2}T/);
   await expect(appendixRow.getByText(/^[a-f0-9]{12}$/)).toBeVisible();
-  await expect(appendixRow.getByText("Rev A · p. 1", { exact: true })).toBeVisible();
+  await expect(appendixRow.getByText("Earthworks · Rev A · p. 1", { exact: true })).toBeVisible();
   await expect(appendixRow.getByText("Unpinned")).toHaveCount(0);
   await expect(appendixRow.getByText("Source id")).toBeVisible();
   await expect(appendixRow.getByText("Fetched")).toBeVisible();

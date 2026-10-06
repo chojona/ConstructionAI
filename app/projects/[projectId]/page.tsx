@@ -18,7 +18,7 @@ import { listAttention } from "@/lib/review/attention";
 import { decidedRowChrome } from "@/lib/review/changeRow";
 import { reviewSummaryCounts } from "@/lib/review/reviewSummary";
 import { approvedChangePreview } from "@/lib/review/exportPacket";
-import { deskPackFiles, EXPORT_BLOCKED_MESSAGE, isLegacyPageCiteError } from "@/lib/review/exportPacketView";
+import { deskPackFilesFromPacket, EXPORT_BLOCKED_MESSAGE, isLegacyPageCiteError } from "@/lib/review/exportPacketView";
 import { uploadRevisionHref } from "@/lib/review/emptyState";
 import { toAttentionDto } from "@/lib/review/dto";
 import { projectOverviewModel } from "@/lib/review/projectOverview";
@@ -31,8 +31,7 @@ async function loadPackFiles(organizationId: string, projectId: string) {
   try {
     const packet = await currentApprovedChangePacket(organizationId, projectId);
     return {
-      chapters: deskPackFiles(packet.chapters),
-      appendices: deskPackFiles(packet.appendices),
+      ...deskPackFilesFromPacket(packet),
       citeNotice: null,
     };
   } catch (error) {

@@ -287,12 +287,12 @@ details.create-panel[open] > summary { margin-bottom: 18px; }
 .review-boundary strong { color: var(--color-success); font-size: 11px; font-weight: 650; }
 .review-boundary p { margin: 0; color: var(--color-ink-secondary); font-size: 12px; line-height: 1.45; }
 .change-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.change-card { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 8px 10px; border: 1px solid var(--color-line); border-radius: 10px; background: var(--color-surface); scroll-margin-top: 16px; }
+.change-card { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0; padding: 8px 10px; border: 1px solid var(--color-line); border-radius: 10px; background: var(--color-surface); scroll-margin-top: 16px; }
 .change-card.is-active { border-color: var(--color-brand); background: var(--color-warning-subtle); outline: 1px solid var(--color-brand); outline-offset: -1px; }
 a.change-card:hover, .change-card:hover { background: var(--color-surface-subtle); }
 .change-card.is-active:hover { background: var(--color-warning-subtle); }
 .change-card-copy { min-width: 0; flex: 1; display: grid; }
-.page-chip { flex-shrink: 0; display: inline-flex; align-items: center; height: 21px; padding: 0 7px; border-radius: 4px; background: var(--color-info-subtle); color: var(--color-info); font-size: 11px; font-weight: 650; }
+.page-chip { flex-shrink: 0; display: inline-flex; align-items: center; box-sizing: border-box; max-width: 100%; height: auto; min-height: 21px; padding: 2px 7px; border-radius: 4px; background: var(--color-info-subtle); color: var(--color-info); font-size: 11px; font-weight: 650; line-height: 1.35; white-space: normal; overflow-wrap: anywhere; text-align: left; }
 .page-chip[data-pin-status="Unpinned"] { background: transparent; color: var(--color-ink-muted); outline: 1px dashed var(--color-line-strong); outline-offset: -1px; }
 .evidence-rail { display: flex; flex-direction: column; width: 320px; min-height: 180px; max-height: calc(100dvh - 32px); border: 1px solid var(--color-line); border-radius: 14px; overflow: hidden; background: var(--surface-context); position: sticky; top: 16px; }
 .evidence-rail-body { min-height: 0; overflow: auto; padding: 17px; }
@@ -325,7 +325,7 @@ a.change-card:hover, .change-card:hover { background: var(--color-surface-subtle
 .packet-proof-fields dt { margin: 0; color: var(--color-ink-secondary); font-size: 11px; font-weight: 650; }
 .packet-proof-fields dd { margin: 0; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
 .fact-list { display: grid; gap: 4px; margin: 0 0 10px; padding: 0; list-style: none; }
-.fact-row { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: 6px 8px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-surface); color: inherit; text-align: left; }
+.fact-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; width: 100%; min-width: 0; padding: 6px 8px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-surface); color: inherit; text-align: left; }
 .fact-row:hover { background: var(--color-surface-subtle); }
 .fact-row.is-active { border-color: var(--color-brand); background: var(--color-warning-subtle); outline: 1px solid var(--color-brand); outline-offset: -1px; }
 .fact-row.is-active:hover { background: var(--color-warning-subtle); }
@@ -346,7 +346,7 @@ textarea.field.email-body { height: auto; min-height: 68px; padding: 8px 10px; l
 .change-list-pane .packet-blocked { margin: 0 0 10px; }
 .packet-kicker { margin: 0; color: var(--color-ink-secondary); font-size: 11px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; }
 .packet-preview { display: grid; gap: 6px; max-height: 88px; margin: 0; padding: 0; overflow: auto; list-style: none; }
-.packet-preview li { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.packet-preview li { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .packet-summary { min-width: 0; flex: 1; font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
 .packet-chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .packet-blocked { margin: 0; color: var(--color-ink-secondary); font-size: 12px; line-height: 1.4; }

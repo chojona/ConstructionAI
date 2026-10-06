@@ -203,7 +203,7 @@ describe("Bluebeam markup summary appendix", () => {
       sourceId: "bb-summary-17",
       fetchedAt: fetchedAt.toISOString(),
       contentHash,
-      pageCites: shippedPages(project.revisionId, project.pageId),
+      pageCites: shippedPages(project.revisionId, project.pageId).map((cite) => ({ ...cite, documentTitle: "Drainage Plan" })),
     }]);
     expect(source.exportPacketId).toBe(repository.exportPackets.at(-1)?.id);
     const draft = await recordEmailSend("org_a", project.id, {

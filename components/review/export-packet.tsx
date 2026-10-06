@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { CiteChip } from "@/components/review/cite-chip";
 import { DraftEmailButton } from "@/components/review/draft-email";
 import { PackProofList } from "@/components/review/pack-proof";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,7 @@ import {
   PACK_APPENDIX_SOURCE_LABEL,
   RFI_PDF_CHAPTER_TITLE,
   accChapterAttachVisible,
-  deskPackFiles,
+  deskPackFilesFromPacket,
   exportPacketAction,
   subjectExportVisible,
   packPageCiteLabel,
@@ -86,8 +87,8 @@ function AccChapterForm({ projectId, initialFiles }: { projectId: string; initia
         method: "POST",
         body: new FormData(form),
       });
-      const result = await response.json() as { packet?: { chapters?: DeskPackFile[] }; error?: { message?: string } };
-      const proof = visiblePackProof(deskPackFiles(result.packet?.chapters));
+      const result = await response.json() as { packet?: Parameters<typeof deskPackFilesFromPacket>[0]; error?: { message?: string } };
+      const proof = visiblePackProof(deskPackFilesFromPacket(result.packet).chapters);
       if (!response.ok || proof.length === 0) {
         setMessage(result.error?.message ?? "Could not add the pack chapter.");
         return;
@@ -152,8 +153,8 @@ function MarkupAppendixForm({
         method: "POST",
         body: new FormData(form),
       });
-      const result = await response.json() as { packet?: { appendices?: DeskPackFile[] }; error?: { message?: string } };
-      const proof = visiblePackProof(deskPackFiles(result.packet?.appendices));
+      const result = await response.json() as { packet?: Parameters<typeof deskPackFilesFromPacket>[0]; error?: { message?: string } };
+      const proof = visiblePackProof(deskPackFilesFromPacket(result.packet).appendices);
       if (!response.ok || proof.length === 0) {
         setMessage(result.error?.message ?? "Could not add the pack appendix.");
         return;
@@ -188,7 +189,7 @@ function MarkupAppendixForm({
       {subjectKey && pageCites.length > 0 ? <input type="hidden" name="subjectKey" value={subjectKey} /> : null}
       {pageCites.length > 0 ? (
         <p className="packet-chips" aria-label="Page">
-          {pageCites.map((cite) => <span className="page-chip" key={`${cite.revisionId}:${cite.page}`}>{packPageCiteLabel(cite)}</span>)}
+          {pageCites.map((cite) => <CiteChip key={`${cite.revisionId}:${cite.page}`} label={packPageCiteLabel(cite)} />)}
         </p>
       ) : <p className="packet-blocked">{APPENDIX_PAGE_MISSING_MESSAGE}</p>}
       <Button type="submit" variant="outline" disabled={pending || pageCites.length === 0}>{ADD_PACK_APPENDIX_LABEL}</Button>

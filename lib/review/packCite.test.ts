@@ -15,6 +15,7 @@ import {
   bindMarkupPageCites,
   canonicalPackPageCite,
   deskPackFiles,
+  deskPackFilesFromPacket,
   factPageCites,
   isLettingNotice,
   isPinnedEvidenceCite,
@@ -205,20 +206,45 @@ describe("pack page cites", () => {
     expect(html).not.toContain("p. C-101");
   });
 
-  it("shows the revision label beside the page on pack proof chrome", () => {
-    const cite = pin("rev_a", "A", "2", null, hashA);
-    expect(packPageCiteLabel(cite)).toBe("Rev A · p. 2");
-    const html = renderToStaticMarkup(createElement(PackProofList, {
-      files: [{
+  it("shows the document and revision once beside the page on pack proof chrome", () => {
+    const stored = pin("rev_a", "Rev A", "2", null, hashA);
+    expect(canonicalPackPageCite({ ...stored, documentTitle: "Drainage Plan" })).toEqual(stored);
+    expect(JSON.stringify(canonicalPackPageCite({ ...stored, documentTitle: "Drainage Plan" }))).not.toContain("Drainage");
+    const cite = { ...pin("rev_a", "A", "2", null, hashA), documentTitle: "Drainage Plan" };
+    expect(packPageCiteLabel(cite)).toBe("Drainage Plan · Rev A · p. 2");
+    expect(packPageCiteLabel({ ...stored, documentTitle: "Drainage Plan" })).toBe("Drainage Plan · Rev A · p. 2");
+    expect(packPageCiteLabel({ ...pin("rev_c", "Revision C", "2", null, hashA), documentTitle: "Drainage Plan" })).toBe("Drainage Plan · Revision C · p. 2");
+    expect(packPageCiteLabel(stored)).toBe("Unpinned");
+    const files = deskPackFilesFromPacket({
+      appendices: [{
         title: "Markup Summary",
         sourceId: "bb-1",
         fetchedAt: "2026-10-02T04:00:00.000Z",
         contentHash: "ab".repeat(32),
-        pageCites: [cite],
+        pageCites: [pin("rev_a", "Rev A", "2", null, hashA), pin("rev_b", "Rev B", "4", null, hashB)],
       }],
-    }));
-    expect(html).toContain("Rev A · p. 2");
+      changes: [
+        { document: { title: "Drainage Plan" }, revisions: [{ id: "rev_a" }], evidence: [{ revisionId: "rev_a" }] },
+        { document: { title: "Special provisions" }, revisions: [{ id: "rev_b" }], evidence: [{ revisionId: "rev_b" }] },
+      ],
+    });
+    expect(files.appendices[0]?.pageCites.map((item) => packPageCiteLabel(item))).toEqual([
+      "Drainage Plan · Rev A · p. 2",
+      "Special provisions · Rev B · p. 4",
+    ]);
+    const html = renderToStaticMarkup(createElement(PackProofList, { files: files.appendices }));
+    expect(html).toContain("Drainage Plan · Rev A · p. 2");
+    expect(html).toContain("Special provisions · Rev B · p. 4");
+    expect(html).not.toContain("Rev Rev");
     expect(html).not.toContain(">p. 2<");
+    expect(factPageCites([{
+      revisionId: "rev_a",
+      revisionLabel: "Rev A",
+      pageNumber: 2,
+      documentTitle: "Drainage Plan",
+      documentPageId: null,
+      contentHash: hashA,
+    }])[0]?.documentTitle).toBe("Drainage Plan");
   });
 
   it("refuses a stored pack whose cite is only a page number", () => {

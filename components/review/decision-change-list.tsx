@@ -1,3 +1,4 @@
+import { CiteChip } from "@/components/review/cite-chip";
 import { FactBadges } from "@/components/review/fact-badges";
 import { PagePreview } from "@/components/review/page-preview";
 import type { DecidedRowChrome } from "@/lib/review/changeRow";
@@ -23,7 +24,7 @@ export function DecisionChangeList({
                 <span className="row-title">{row.title}</span>
                 <span className="row-meta">{row.documentTitle}</span>
               </span>
-              <span className="page-chip">{row.pageLabel}</span>
+              <CiteChip label={row.pageLabel} />
             </button>
           </li>
         );
@@ -38,13 +39,12 @@ export function DecisionEvidence({ row, projectId }: { row: DecidedRowChrome; pr
     <div className="evidence-rail-body">
       {row.pageNumber ? (
         <div className="evidence-rail-lead">
-          <span className="page-chip">{row.pageLabel}</span>
+          <CiteChip label={row.pageLabel} />
           {missingExcerpt ? <p className="rail-empty rail-empty-inline">{DESK_EMPTY_MISSING_EVIDENCE}</p> : <p className="evidence-rail-excerpt">{row.excerpt}</p>}
-          {row.sourceCitation ? <p className="source-citation">{row.sourceCitation}</p> : null}
           <PagePreview projectId={projectId} revisionId={row.revisionId} pageNumber={row.pageNumber} />
         </div>
       ) : missingExcerpt ? <p className="rail-empty rail-empty-inline">{DESK_EMPTY_MISSING_EVIDENCE}</p> : null}
-      {row.sourceCitation ? null : <p className="row-meta">{row.documentTitle} · {row.revisionLabel}</p>}
+      {row.pageNumber ? null : <p className="row-meta">{row.documentTitle} · {row.revisionLabel}</p>}
       {row.badges?.length ? <FactBadges badges={row.badges} /> : null}
       <h3>{row.title}</h3>
     </div>

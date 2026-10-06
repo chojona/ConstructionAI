@@ -61,7 +61,7 @@ const acceptedFinding = {
   label: "excavation: 1250 CY",
   subject: { type: "proposed_fact" as const },
   before: null,
-  after: { category: "quantity" as const, evidence: [{ pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY." }] },
+  after: { category: "quantity" as const, evidence: [{ pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY.", revisionId: "rev", revisionLabel: "Rev 04", documentTitle: "Earthworks specification" }] },
   evidence: [],
   currentDecision: { decision: "ACCEPTED" },
 };
@@ -100,7 +100,7 @@ describe("changes desk chrome", () => {
         subjectKey: acceptedFinding.subjectKey,
         decision: "ACCEPTED",
         summary: acceptedFinding.label,
-        evidence: [{ revisionId: "rev", revisionLabel: "A", pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY." }],
+        evidence: [{ revisionId: "rev", revisionLabel: "A", pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY.", documentTitle: "Earthworks specification" }],
       }],
       decided: decidedRowChrome([acceptedFinding]),
     }));
@@ -125,7 +125,7 @@ describe("changes desk chrome", () => {
         subjectKey: acceptedFinding.subjectKey,
         decision: "ACCEPTED",
         summary: acceptedFinding.label,
-        evidence: [{ revisionId: "rev", revisionLabel: "A", pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY." }],
+        evidence: [{ revisionId: "rev", revisionLabel: "A", pageNumber: 1, excerpt: "Excavation quantity is 1,250 CY.", documentTitle: "Earthworks specification" }],
       }],
       decided: decidedRowChrome([acceptedFinding]),
     }));
@@ -136,7 +136,8 @@ describe("changes desk chrome", () => {
     expect(open).not.toContain("AI-suggested");
     expect(open).toContain("Accepted facts become project truth. AI suggestions never bypass human review.");
     expect(open).toContain("name=\"subjectKey\" value=\"proposed-fact:excavation\"");
-    expect(open).toContain(">Rev A · p. 1<");
+    expect(open).toContain(">Earthworks specification · Rev A · p. 1<");
+    expect(open).not.toContain("Rev Rev");
     expect(open).not.toContain("This accepted fact has no page cite.");
     expect(open).not.toContain("name=\"page");
   });

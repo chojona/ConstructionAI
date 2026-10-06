@@ -1,3 +1,4 @@
+import { formatCiteLabel } from "./citeLabel";
 import { queueBadges, type DeskBadge } from "./factBadge";
 import { pinnedSourceCitation } from "./sourceCitation";
 
@@ -28,8 +29,13 @@ export function changeRowTitle(finding: RowFinding) {
 }
 
 export function changePageChip(finding: RowFinding) {
-  const page = changeEvidenceLead(finding)?.page;
-  return page ? `p. ${page}` : "p. —";
+  const lead = changeEvidenceLead(finding);
+  return formatCiteLabel({
+    documentTitle: lead?.documentTitle,
+    revisionLabel: lead?.revisionLabel,
+    revisionId: lead?.revisionId,
+    page: lead?.page,
+  });
 }
 
 export function changeEvidenceLead(finding: RowFinding) {

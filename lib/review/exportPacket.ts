@@ -513,6 +513,7 @@ function pageChips(finding: ProjectFinding) {
       pageNumber: item.pageNumber,
       excerpt: item.excerpt,
       documentPageId: item.documentPageId,
+      documentTitle: item.documentTitle,
     });
   }
   return chips;
