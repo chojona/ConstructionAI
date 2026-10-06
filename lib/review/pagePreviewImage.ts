@@ -13,9 +13,13 @@ const MAX_REQUIRED_INK_PIXELS = 24;
 const require = createRequire(import.meta.url);
 
 /**
- * pdf.js standard-14 fonts shipped with pdfjs-dist 6.1.200, the pdf.js build
- * unpdf bundles. Node reads these with fs, so this is a directory path with a
- * trailing slash rather than a file URL. Vercel has no Helvetica or Times.
+ * CON-109 page preview. Standard-14 font files (`standard_fonts/`) come from
+ * the installed pdfjs-dist package. Fonts may track pdfjs-dist versions.
+ * Rendering is pinned to whatever unpdf 1.8.1 bundles. Do not bump `unpdf`
+ * or change the rendering path without re-running page-preview ink tests on
+ * Node ≥22.13.
+ * Node reads these with fs, so this is a directory path with a trailing
+ * slash rather than a file URL. Vercel has no Helvetica or Times.
  */
 function standardFontDataUrl() {
   const packageJson = require.resolve("pdfjs-dist/package.json");
