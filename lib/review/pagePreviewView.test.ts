@@ -6,7 +6,7 @@ import { DecisionEvidence } from "@/components/review/decision-change-list";
 import { PagePreview } from "@/components/review/page-preview";
 import type { AttentionItemDto } from "@/lib/review/dto";
 import type { DecidedRowChrome } from "./changeRow";
-import { PAGE_PREVIEW_UNAVAILABLE_MESSAGE } from "./pagePreviewCopy";
+import { PAGE_PREVIEW_OPEN_LABEL, PAGE_PREVIEW_UNAVAILABLE_MESSAGE } from "./pagePreviewCopy";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh() { return undefined; } }),
@@ -160,5 +160,37 @@ describe("page preview rail", () => {
     }));
     expect(missing).not.toContain("page-preview");
     expect(missing).toContain("No linked excerpt for this item.");
+  });
+
+  it("shows the text-draw failure when the row has a linked excerpt", () => {
+    const html = renderToStaticMarkup(createElement(PagePreview, {
+      projectId: "project_1",
+      revisionId: "rev_1",
+      pageNumber: 2,
+      excerpt: "Excavation quantity is 1,250 CY.",
+      failureCode: "PAGE_PREVIEW_TEXT_UNAVAILABLE",
+    }));
+    expect(html).toContain("Page preview unavailable — showing extracted text.");
+    expect(html).toContain("page-preview-unavailable");
+    expect(html).toContain(PAGE_PREVIEW_OPEN_LABEL);
+    expect(html).toContain('href="/revisions/rev_1"');
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("Page preview unavailable — open full document.");
+  });
+
+  it("shows the generic preview failure when the row has no linked excerpt", () => {
+    const html = renderToStaticMarkup(createElement(PagePreview, {
+      projectId: "project_1",
+      revisionId: "rev_1",
+      pageNumber: 2,
+      excerpt: "No linked excerpt available.",
+      failureCode: "PAGE_PREVIEW_TEXT_UNAVAILABLE",
+    }));
+    expect(html).toContain("Page preview unavailable — open full document.");
+    expect(html).toContain("page-preview-unavailable");
+    expect(html).toContain(PAGE_PREVIEW_OPEN_LABEL);
+    expect(html).toContain('href="/revisions/rev_1"');
+    expect(html).not.toContain("Page preview unavailable — showing extracted text.");
+    expect(html).not.toContain("<img");
   });
 });
