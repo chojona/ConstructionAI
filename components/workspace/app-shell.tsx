@@ -32,14 +32,17 @@ type Project = {
 export function SidebarFooter({ viewer }: { viewer: { label: string } | null }) {
   return (
     <div className="sidebar-footer">
-      {viewer ? (
-        <>
-          <span className="sidebar-member" title={viewer.label}>{viewer.label}</span>
-          <SignOutButton />
-        </>
-      ) : (
-        <Link href="/login">Sign in</Link>
-      )}
+      <ul className="sidebar-account">
+        {viewer ? (
+          <>
+            <li className="sidebar-account-row sidebar-member" title={viewer.label}>{viewer.label}</li>
+            {/* Org-admin People link is inserted here, directly above Sign out. */}
+            <li className="sidebar-account-row"><SignOutButton /></li>
+          </>
+        ) : (
+          <li className="sidebar-account-row"><Link href="/login">Sign in</Link></li>
+        )}
+      </ul>
       <span className="status-dot" />Source intelligence<small>Decisions grounded in documents</small>
     </div>
   );
