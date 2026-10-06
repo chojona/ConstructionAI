@@ -1,0 +1,65 @@
+/* V1 tokens, dark-surface custom properties, and the base reset. */
+
+@theme {
+  --font-sans: var(--font-inter), Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --color-canvas: #f2f4f1;
+  --color-surface: #ffffff;
+  --color-surface-subtle: #f0f3f0;
+  --color-ink: #19201e;
+  --color-ink-secondary: #68736e;
+  --color-ink-muted: #8a948f;
+  --color-line: #d8deda;
+  --color-line-strong: #c9d0cc;
+  --color-brand: #d79a32;
+  --color-brand-hover: #c88a22;
+  --color-brand-ink: #11181e;
+  --color-success: #2e7b5d;
+  --color-success-subtle: #e8f3ed;
+  --color-danger: #b84d52;
+  --color-danger-subtle: #fbeced;
+  --color-warning: #93600f;
+  --color-warning-subtle: #fff6e6;
+  --color-attention: #93600f;
+  --color-attention-subtle: #fff0d2;
+  --color-info: #4d6eac;
+  --color-info-subtle: #e9eff8;
+}
+:root { color-scheme: light; --sidebar-width: 236px; --sidebar-rail: 56px; --surface-nav: #11181e; --surface-context: #f7f8f6; --surface-decision: #172026; --focus: #4d6eac; --shadow-card: 0 2px 8px rgba(10, 15, 13, 0.06); }
+.sidebar, .evidence-rail, .evidence-panel {
+  --color-canvas: #11181e;
+  --color-surface: #182128;
+  --color-surface-subtle: #222d34;
+  --color-ink: #f4f7f6;
+  --color-ink-secondary: #a8b2ae;
+  --color-ink-muted: #85908b;
+  --color-line: #2e3a42;
+  --color-line-strong: #3d4a53;
+  --color-success: #7fcca9;
+  --color-success-subtle: #1c3a2e;
+  --color-danger: #f0a3a6;
+  --color-danger-subtle: #46262b;
+  --color-warning: #e8b25a;
+  --color-warning-subtle: #2f2817;
+  --color-attention: #e8b25a;
+  --color-attention-subtle: #3a2f1c;
+  --color-info: #9db5e6;
+  --color-info-subtle: #223146;
+  --surface-context: var(--surface-decision);
+  --focus: #e8b25a;
+  color-scheme: dark;
+  color: var(--color-ink);
+}
+* { box-sizing: border-box; }
+html, body { background: var(--color-canvas); }
+body { margin: 0; color: var(--color-ink); font-family: var(--font-sans); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+button, input { font: inherit; }
+button, summary { cursor: pointer; }
+button:disabled { cursor: wait; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* Order-locked: palette and list focus offsets stay with the base :focus-visible rule. */
+.search-trigger:focus, .search-trigger:focus-visible, .command-search input:focus, .command-search input:focus-visible { outline: none; box-shadow: none; }
+.search-trigger:focus-visible { border-color: var(--color-line); }
+.command-search:focus-within { box-shadow: 0 0 0 1px var(--color-line); border-radius: 6px; }
+.list a:focus-visible, .revision-timeline a:focus-visible, .change-row:focus-visible, .command-result:focus-visible, .revision-index a:focus-visible { outline-offset: -2px; }
+::selection { background: #ffe2a8; color: #19201e; }

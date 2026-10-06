@@ -1,4 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
+import { assertAuthTrustUserHeaderForbiddenInProduction } from "./productionTrustHeader";
+
+assertAuthTrustUserHeaderForbiddenInProduction();
 
 export const SESSION_COOKIE = "construction_session";
 export const SESSION_TTL_MS = 14 * 24 * 60 * 60 * 1000;
@@ -16,7 +19,10 @@ export function acceptPath(token: string): string {
   return `/accept?token=${encodeURIComponent(token)}`;
 }
 
-/** Temporary test and local-script switch. Production leaves this unset. */
+/**
+ * Temporary test and local-script switch. Only the exact value "1" trusts
+ * x-user-id. Production refuses to start if the variable is 1, true, or yes.
+ */
 export function trustsUserHeader(): boolean {
   return process.env.AUTH_TRUST_USER_HEADER === "1";
 }

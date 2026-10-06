@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -19,6 +19,14 @@ import {
   PACK_APPENDIX_FILE_LABEL,
   RFI_PDF_CHAPTER_TITLE,
 } from "./exportPacketView";
+
+function readAppCss() {
+  const app = new URL("../../app/", import.meta.url);
+  const styles = readdirSync(new URL("styles/", app))
+    .filter((name) => name.endsWith(".css"))
+    .map((name) => readFileSync(new URL(`styles/${name}`, app), "utf8"));
+  return [readFileSync(new URL("globals.css", app), "utf8"), ...styles].join("\n");
+}
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh() { return undefined; } }),
@@ -68,7 +76,7 @@ const acceptedFinding = {
 
 describe("changes desk chrome", () => {
   it("keeps Figma Product UI V1 canvas and brand tokens", () => {
-    const css = readFileSync(new URL("../../app/globals.css", import.meta.url), "utf8");
+    const css = readAppCss();
     expect(css).toContain("--color-canvas: #f2f4f1");
     expect(css).toContain("--color-brand: #d79a32");
     expect(css).not.toContain("#17191f");
