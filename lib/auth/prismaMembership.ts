@@ -225,9 +225,14 @@ export class PrismaMembershipStore implements PeopleStore, CredentialStore {
   async listReviewerDirectory(organizationId: string): Promise<ReviewerDirectoryEntry[]> {
     const rows = await this.db.orgMembership.findMany({
       where: { organizationId },
-      select: { userId: true, status: true, user: { select: { name: true } } },
+      select: { userId: true, status: true, user: { select: { name: true, email: true } } },
     });
-    return rows.map((row) => ({ userId: row.userId, name: row.user.name, status: row.status }));
+    return rows.map((row) => ({
+      userId: row.userId,
+      name: row.user.name,
+      email: row.user.email,
+      status: row.status,
+    }));
   }
 }
 

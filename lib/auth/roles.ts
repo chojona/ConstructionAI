@@ -53,10 +53,11 @@ export interface MembershipLookup {
   listMembershipsForUser(userId: string): Promise<MembershipRecord[]>;
 }
 
-/** Names and membership status for approval attribution. Email stays off this list. */
+/** Names, email, and membership status for approval attribution. Email is only the display fallback. */
 export interface ReviewerDirectoryEntry {
   userId: string;
   name: string | null;
+  email: string | null;
   status: MembershipStatus;
 }
 

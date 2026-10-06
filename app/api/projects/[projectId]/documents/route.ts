@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authorizeRequest } from "@/lib/auth/membership";
 import { createDocument } from "@/lib/documents/service";
-import { errorResponse } from "@/lib/http";
+import { errorResponse, readJsonBody } from "@/lib/http";
 
 export async function POST(
   request: NextRequest,
@@ -13,7 +13,7 @@ export async function POST(
     const document = await createDocument(
       access.organizationId,
       projectId,
-      await request.json(),
+      await readJsonBody(request),
     );
     return NextResponse.json({ document }, { status: 201 });
   } catch (error) {

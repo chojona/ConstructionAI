@@ -133,6 +133,7 @@ class MemoryPeople implements PeopleStore {
     return this.memberships.filter((row) => row.organizationId === organizationId).map((row) => ({
       userId: row.userId,
       name: this.users.find((user) => user.id === row.userId)?.name ?? null,
+      email: this.users.find((user) => user.id === row.userId)?.email ?? null,
       status: row.status,
     }));
   }

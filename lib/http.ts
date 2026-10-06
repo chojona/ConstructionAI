@@ -1,6 +1,18 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
-import { isDomainError } from "@/lib/domain/errors";
+import { DomainError, isDomainError } from "@/lib/domain/errors";
+
+const INVALID_JSON_BODY = "The request body is not valid JSON.";
+
+/** Parse a route body. Only this call maps a JSON SyntaxError to a client error. */
+export async function readJsonBody(request: Request) {
+  try {
+    return await request.json();
+  } catch (error) {
+    if (error instanceof SyntaxError) throw new DomainError("INVALID_INPUT", INVALID_JSON_BODY, 400);
+    throw error;
+  }
+}
 
 export function errorResponse(error: unknown) {
   if (isDomainError(error)) {
@@ -12,12 +24,6 @@ export function errorResponse(error: unknown) {
   if (error instanceof ZodError) {
     return NextResponse.json(
       { error: { code: "INVALID_INPUT", message: error.issues[0]?.message ?? "Invalid request." } },
-      { status: 400 },
-    );
-  }
-  if (error instanceof SyntaxError) {
-    return NextResponse.json(
-      { error: { code: "INVALID_INPUT", message: "The request body is not valid JSON." } },
       { status: 400 },
     );
   }
