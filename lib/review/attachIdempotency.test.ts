@@ -108,12 +108,13 @@ describe("sha256 attach idempotency", () => {
     expect(repository.exportPacketChapters).toHaveLength(1);
     expect(repository.exportPacketChapters[0]?.id).toBe(existing.id);
     const pin = packet.changes[0]!.evidence[0]!;
-    const pinned = (page: string) => ({
+    const unpinned = (label: string) => ({
+      status: "Unpinned" as const,
+      label,
+      display: label,
+      reason: `page not in Rev ${pin.revisionLabel}`,
       revisionId: pin.revisionId,
       revisionLabel: pin.revisionLabel,
-      page,
-      documentPageId: null,
-      contentHash: pin.contentHash,
     });
     expect(repository.exportPacketChapters[0]).toMatchObject({
       role: "bluebeam-markup",
@@ -121,7 +122,7 @@ describe("sha256 attach idempotency", () => {
       fetchedAt,
       contentHash,
       filename: "markup-summary.pdf",
-      pageCites: [pinned("2"), pinned("14")],
+      pageCites: [unpinned("2"), unpinned("14")],
     });
     expect(again.appendices).toEqual([
       expect.objectContaining({
@@ -129,7 +130,7 @@ describe("sha256 attach idempotency", () => {
         fetchedAt: fetchedAt.toISOString(),
         contentHash,
         filename: "markup-summary.pdf",
-        pageCites: [pinned("2"), pinned("14")],
+        pageCites: [unpinned("2"), unpinned("14")],
       }),
     ]);
     expect(again.chapters).toBeUndefined();

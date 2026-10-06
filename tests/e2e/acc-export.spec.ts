@@ -68,7 +68,10 @@ test("attaches a markup summary on an approved pack", async ({ page, request }) 
   await expect(proof.getByText("Fetched")).toBeVisible();
   await expect(proof.getByText("sha256")).toBeVisible();
   await expect(proof.getByText(/^[a-f0-9]{12}$/).first()).toBeVisible();
-  await expect(proof.getByText("Rev A · p. 2")).toBeVisible();
+  await expect(proof.getByText("Unpinned · 2 · page not in Rev A")).toBeVisible();
+  await expect(proof.getByText("Unpinned · 14 · page not in Rev A")).toBeVisible();
+  await expect(proof.getByText("Rev A · p. 2")).toHaveCount(0);
+  await expect(proof.getByText("p. 14")).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole("form", { name: "Pack appendix" }).locator(".packet-proof").getByText("bb-summary-17")).toBeVisible();
   const response = await request.get(`/api/projects/${projectId}/export`);
@@ -80,8 +83,8 @@ test("attaches a markup summary on an approved pack", async ({ page, request }) 
       sourceId: "bb-summary-17",
       filename: "markup-summary.pdf",
       pageCites: [
-        expect.objectContaining({ revisionLabel: "A", page: "2", contentHash: "a".repeat(64) }),
-        expect.objectContaining({ revisionLabel: "A", page: "14", contentHash: "a".repeat(64) }),
+        expect.objectContaining({ status: "Unpinned", label: "2", display: "2", reason: "page not in Rev A", revisionLabel: "A" }),
+        expect.objectContaining({ status: "Unpinned", label: "14", display: "14", reason: "page not in Rev A", revisionLabel: "A" }),
       ],
     }),
   ]);
@@ -135,7 +138,8 @@ test("blank source id shows the upload marker on chapter and appendix proof", as
   await expect(appendixRow.getByText(/^upload:[a-f0-9]{64}$/)).toBeVisible();
   await expect(appendixRow.locator("time")).toHaveAttribute("datetime", /^\d{4}-\d{2}-\d{2}T/);
   await expect(appendixRow.getByText(/^[a-f0-9]{12}$/)).toBeVisible();
-  await expect(appendixRow.getByText("Rev A · p. 2")).toBeVisible();
+  await expect(appendixRow.getByText("Unpinned · 2 · page not in Rev A")).toBeVisible();
+  await expect(appendixRow.getByText("Rev A · p. 2")).toHaveCount(0);
   await expect(appendixRow.getByText("Source id")).toBeVisible();
   await expect(appendixRow.getByText("Fetched")).toBeVisible();
   await expect(appendixRow.getByText("sha256")).toBeVisible();

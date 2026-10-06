@@ -35,6 +35,10 @@ function pin(revisionId: string, revisionLabel: string, page: string, documentPa
   return { revisionId, revisionLabel, page, documentPageId, contentHash };
 }
 
+function unpinned(label: string, display: string, reason: string, revisionId: string | null, revisionLabel: string | null) {
+  return { status: "Unpinned" as const, label, display, reason, revisionId, revisionLabel };
+}
+
 describe("pack page cites", () => {
   it("rejects a page number, URL, document name, or floating revision as a pack cite", () => {
     expect(canonicalPackPageCite("2")).toBeNull();
@@ -119,18 +123,85 @@ describe("pack page cites", () => {
     expect(Object.keys(accepted).slice(0, 3)).toEqual(["revisionId", "revisionLabel", "page"]);
   });
 
-  it("binds markup page labels to the accepted revision and does not follow the latest revision", () => {
-    const onA = pin("rev_a", "A", "1", "page_a", hashA);
-    const onB = pin("rev_b", "B", "4", "page_b", hashB);
-    expect(bindMarkupPageCites(["2", "14"], [onA])).toEqual([
-      pin("rev_a", "A", "2", null, hashA),
-      pin("rev_a", "A", "14", null, hashA),
+  it("pins an in-range markup page and leaves out-of-range, sheet, and unmatched labels unpinned", () => {
+    const onA = pin("rev_a", "A", "1", "page_a1", hashA);
+    const onB = pin("rev_b", "B", "4", "page_b1", hashB);
+    const revA = {
+      revisionId: "rev_a",
+      revisionLabel: "A",
+      contentHash: hashA,
+      pages: [
+        { id: "page_a1", pageNumber: 1 },
+        { id: "page_a2", pageNumber: 2 },
+        { id: "page_a3", pageNumber: 3 },
+      ],
+    };
+    const revB = {
+      revisionId: "rev_b",
+      revisionLabel: "B",
+      contentHash: hashB,
+      pages: [{ id: "page_b1", pageNumber: 1 }],
+    };
+    expect(bindMarkupPageCites(["2"], [onA], [revA])).toEqual([
+      pin("rev_a", "A", "2", "page_a2", hashA),
     ]);
-    expect(bindMarkupPageCites(["9", "14"], [onA, onB])).toEqual([onA, onB]);
-    expect(bindMarkupPageCites(["1"], [onA, onB])).toEqual([onA]);
-    expect(bindMarkupPageCites(["1"], [onA, { ...onB, page: "1" }])).toEqual([onA, { ...onB, page: "1" }]);
-    expect(bindMarkupPageCites(["NYSDOT notice"], [onA])).toEqual([onA]);
-    expect(bindMarkupPageCites([], [onA])).toEqual([onA]);
+    const outOfRange = bindMarkupPageCites(["14"], [onA], [revA]);
+    expect(outOfRange).toEqual([unpinned("14", "14", "page not in Rev A", "rev_a", "A")]);
+    expect(outOfRange[0]).not.toHaveProperty("page");
+    expect(outOfRange[0]).not.toHaveProperty("documentPageId");
+
+    const sheets = bindMarkupPageCites(["C-101", "A-201", "S-3.1"], [onA], [revA]);
+    expect(sheets).toEqual([
+      unpinned("C-101", "Sheet C-101", "sheet not matched", "rev_a", "A"),
+      unpinned("A-201", "Sheet A-201", "sheet not matched", "rev_a", "A"),
+      unpinned("S-3.1", "Sheet S-3.1", "sheet not matched", "rev_a", "A"),
+    ]);
+    expect(JSON.stringify(sheets)).not.toContain("\"page\":\"C-101\"");
+    expect(JSON.stringify(sheets)).not.toContain("p. C-101");
+
+    const mapped = bindMarkupPageCites(["c-101"], [onA], [{
+      ...revA,
+      pages: revA.pages.map((page) => page.pageNumber === 2 ? { ...page, sheetNumber: "C-101" } : page),
+    }]);
+    expect(mapped).toEqual([pin("rev_a", "A", "2", "page_a2", hashA)]);
+    expect(mapped[0]).not.toMatchObject({ page: "C-101" });
+
+    const unmatched = bindMarkupPageCites(["9", "14"], [onA, onB], [revA, revB]);
+    expect(unmatched).toEqual([
+      unpinned("9", "9", "page not in Rev A or Rev B", null, null),
+      unpinned("14", "14", "page not in Rev A or Rev B", null, null),
+    ]);
+    expect(unmatched).not.toEqual([onA, onB]);
+
+    expect(bindMarkupPageCites(["2"], [onA, onB], [revA, revB])).toEqual([
+      pin("rev_a", "A", "2", "page_a2", hashA),
+    ]);
+    expect(bindMarkupPageCites(["1"], [onA, onB], [revA, {
+      ...revB,
+      pages: [
+        { id: "page_b1", pageNumber: 1 },
+        { id: "page_b2", pageNumber: 2 },
+        { id: "page_b3", pageNumber: 3 },
+        { id: "page_b4", pageNumber: 4 },
+      ],
+    }])).toEqual([unpinned("1", "1", "page not matched", null, null)]);
+    expect(bindMarkupPageCites(["NYSDOT notice"], [onA], [revA])).toEqual([onA]);
+    expect(bindMarkupPageCites([], [onA], [revA])).toEqual([onA]);
+
+    const html = renderToStaticMarkup(createElement(PackProofList, {
+      files: [{
+        title: "Markup Summary",
+        sourceId: "bb-1",
+        fetchedAt: "2026-10-02T04:00:00.000Z",
+        contentHash: "ab".repeat(32),
+        pageCites: [pin("rev_a", "A", "2", "page_a2", hashA), pin("rev_a", "A", "C-101", null, hashA), ...sheets, ...outOfRange],
+      }],
+    }));
+    expect(html).toContain("Rev A · p. 2");
+    expect(html).toContain("Unpinned · Sheet C-101 · sheet not matched");
+    expect(html).toContain("Unpinned · 14 · page not in Rev A");
+    expect(html).not.toContain("p. C-101");
+    expect(html).not.toContain("p. 14");
   });
 
   it("shows the revision label beside the page on pack proof chrome", () => {

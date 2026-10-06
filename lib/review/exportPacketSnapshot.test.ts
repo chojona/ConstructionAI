@@ -111,11 +111,12 @@ describe("frozen export snapshot", () => {
     expect(again.changes[0]?.summary).toContain("CAT 336");
     expect(again.chapters?.[0]?.filename).toBe("acc.pdf");
     expect(again.appendices?.[0]?.pageCites).toEqual([{
+      status: "Unpinned",
+      label: "2",
+      display: "2",
+      reason: "page not in Rev A",
       revisionId: project.revisionId,
       revisionLabel: "A",
-      page: "2",
-      documentPageId: null,
-      contentHash: "a".repeat(64),
     }]);
     expect(again.appendices?.[0]?.filename).toBe("markup.pdf");
     expect(repository.exportPackets).toHaveLength(3);

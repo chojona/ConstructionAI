@@ -4,7 +4,6 @@ import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createPrismaClient } from "@/lib/db";
 import { buildTextPdf } from "@/lib/documents/minimalPdf";
 import { createDocument } from "@/lib/documents/service";
 import { PrismaConstructionRepository } from "@/lib/domain/prismaRepository";
@@ -14,9 +13,7 @@ import { createProject } from "@/lib/projects/service";
 import { attachBluebeamMarkupAppendix } from "@/lib/review/bluebeamAppendix";
 import { recordReviewDecision } from "@/lib/review/service";
 import { LocalObjectStore } from "@/lib/storage/objectStore";
-
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) throw new Error("DATABASE_URL is required for integration tests.");
+import { hasIntegrationDatabase, integrationDb } from "@/tests/support/integrationDb";
 
 const approvedExcerpt = "A CAT 336 excavator shall be used for the trench.";
 const rejectedExcerpt = "A dozer shall be used.";
@@ -27,8 +24,8 @@ const provenance = {
   model: "gpt-4.1",
 };
 
-describe("Prisma Bluebeam markup appendix", () => {
-  const db = createPrismaClient();
+describe.skipIf(!hasIntegrationDatabase)("Prisma Bluebeam markup appendix", () => {
+  const db = integrationDb();
   const storageRoot = mkdtempSync(path.join(tmpdir(), "bluebeam-appendix-"));
   const objects = new LocalObjectStore(storageRoot);
   const repository = new PrismaConstructionRepository(db, objects);
@@ -118,10 +115,7 @@ describe("Prisma Bluebeam markup appendix", () => {
       fetchedAt: fetchedAt.toISOString(),
       contentHash,
       storageKey,
-      pageCites: [
-        expect.objectContaining({ revisionId: revision.id, revisionLabel: "A", page: "2", contentHash: revision.sha256, documentPageId: null }),
-        expect.objectContaining({ revisionId: revision.id, revisionLabel: "A", page: "C-101", contentHash: revision.sha256, documentPageId: null }),
-      ],
+      pageCites: markupLabels(revision.id),
     });
     expect(await new LocalObjectStore(storageRoot).get(storageKey)).toEqual(pdf);
     const row = await db.exportPacketChapter.findFirstOrThrow({
@@ -137,10 +131,7 @@ describe("Prisma Bluebeam markup appendix", () => {
     });
     expect(row.pageCites).toHaveLength(2);
     expect(row.pageCites.every((cite) => cite !== "2" && cite !== "C-101" && cite.includes(revision.id))).toBe(true);
-    expect(row.pageCites.map((cite) => JSON.parse(cite))).toEqual([
-      expect.objectContaining({ revisionId: revision.id, revisionLabel: "A", page: "2" }),
-      expect.objectContaining({ revisionId: revision.id, revisionLabel: "A", page: "C-101" }),
-    ]);
+    expect(row.pageCites.map((cite) => JSON.parse(cite))).toEqual(markupLabels(revision.id));
     expect(row.decisions.map((link) => link.reviewDecisionId)).toEqual([accepted.id]);
 
     const again = await attachBluebeamMarkupAppendix(organizationId, project.id, {
@@ -155,10 +146,7 @@ describe("Prisma Bluebeam markup appendix", () => {
       fetchedAt: fetchedAt.toISOString(),
       contentHash,
       filename: "markup-summary.pdf",
-      pageCites: [
-        expect.objectContaining({ revisionId: revision.id, revisionLabel: "A", page: "2", contentHash: revision.sha256 }),
-        expect.objectContaining({ revisionId: revision.id, revisionLabel: "A", page: "C-101", contentHash: revision.sha256 }),
-      ],
+      pageCites: markupLabels(revision.id),
     });
     expect(await db.exportPacketChapter.count({ where: { projectId: project.id, contentHash, role: "bluebeam-markup" } })).toBe(1);
     const kept = await db.exportPacketChapter.findFirstOrThrow({ where: { id: row.id } });
@@ -167,10 +155,7 @@ describe("Prisma Bluebeam markup appendix", () => {
 
     const storedPack = await objects.get(`export-packets/${project.id}/${packet.contentHash}.json`);
     expect(createHash("sha256").update(storedPack).digest("hex")).toBe(packet.contentHash);
-    expect(JSON.parse(storedPack.toString("utf8")).appendices[0].pageCites).toEqual([
-      expect.objectContaining({ revisionId: revision.id, page: "2", revisionLabel: "A" }),
-      expect.objectContaining({ revisionId: revision.id, page: "C-101", revisionLabel: "A" }),
-    ]);
+    expect(JSON.parse(storedPack.toString("utf8")).appendices[0].pageCites).toEqual(markupLabels(revision.id));
 
     await expect(repository.saveExportPacketChapter({
       organizationId,
@@ -190,6 +175,27 @@ describe("Prisma Bluebeam markup appendix", () => {
     expect(await db.emailSend.count({ where: { projectId: project.id } })).toBe(0);
   });
 });
+
+function markupLabels(revisionId: string) {
+  return [
+    {
+      status: "Unpinned",
+      label: "2",
+      display: "2",
+      reason: "page not in Rev A",
+      revisionId,
+      revisionLabel: "A",
+    },
+    {
+      status: "Unpinned",
+      label: "C-101",
+      display: "Sheet C-101",
+      reason: "sheet not matched",
+      revisionId,
+      revisionLabel: "A",
+    },
+  ];
+}
 
 function fact(excerpt: string, equipment: string, startOffset: number) {
   return {
