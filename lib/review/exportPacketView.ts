@@ -1,4 +1,4 @@
-import { citePinStatus, formatCiteLabel, type CitePinStatus } from "./citeLabel";
+import { citePinStatus, displayRevision, formatCiteLabel, type CitePinStatus } from "./citeLabel";
 
 export const EXPORT_BLOCKED_MESSAGE = "Approve at least one change to export.";
 export const EXPORT_OPEN_MESSAGE = "Finish open reviews before exporting.";
@@ -272,13 +272,19 @@ export function documentTitlesFromChanges(changes: readonly {
   return titles;
 }
 
-export function citeWithDocumentTitle<T extends { revisionId: string; documentTitle?: string | null }>(
-  cite: T,
-  titles: ReadonlyMap<string, string>,
-) {
+export function citeWithDocumentTitle(cite: AppendixPageCite, titles: ReadonlyMap<string, string>): AppendixPageCite {
+  if (isUnpinnedAppendixCite(cite)) return cite;
   const documentTitle = cite.documentTitle?.trim() || titles.get(cite.revisionId)?.trim() || "";
   if (!documentTitle || cite.documentTitle === documentTitle) return cite;
   return { ...cite, documentTitle };
+}
+
+function citeKeepingDocumentTitle(row: AppendixPageCite, source: unknown): AppendixPageCite {
+  if (isUnpinnedAppendixCite(row)) return row;
+  const documentTitle = source && typeof source === "object" && "documentTitle" in source && typeof source.documentTitle === "string"
+    ? source.documentTitle.trim()
+    : "";
+  return documentTitle ? { ...row, documentTitle } : row;
 }
 
 function attachUnknownCiteTitle(cite: unknown, titles: ReadonlyMap<string, string>) {
@@ -316,10 +322,14 @@ export function appendixCiteVisible(cite: AppendixPageCite): { status: "Pinned" 
   if (!INTEGER_PAGE.test(cite.page)) {
     return { status: "Unpinned", text: sheetCiteDisplay(cite.page), reason: SHEET_NOT_MATCHED };
   }
-  const titled = packPageCiteLabel(cite);
-  if (titled !== "Unpinned") return { status: "Pinned", text: titled, reason: null };
-  const stored = cite.revisionLabel.trim();
-  const revision = /^rev/i.test(stored) ? stored : `Rev ${stored}`;
+  const titled = citePinStatus({
+    documentTitle: cite.documentTitle,
+    revisionLabel: cite.revisionLabel,
+    revisionId: cite.revisionId,
+    page: cite.page,
+  });
+  if (titled === "Pinned") return { status: "Pinned", text: packPageCiteLabel(cite), reason: null };
+  const revision = displayRevision(cite.revisionLabel) ?? cite.revisionLabel;
   return { status: "Pinned", text: `${revision} · p. ${cite.page}`, reason: null };
 }
 
@@ -493,11 +503,9 @@ function integerPage(label: string) {
 }
 
 function pageNotInReason(revisions: readonly MarkupRevisionPages[]) {
-  const labels = revisions.map((revision) => {
-    const label = revision.revisionLabel.trim();
-    if (!label) return "";
-    return /^rev/i.test(label) ? label : `Rev ${label}`;
-  }).filter((label) => label.length > 0);
+  const labels = revisions
+    .map((revision) => displayRevision(revision.revisionLabel))
+    .filter((label): label is string => Boolean(label));
   if (labels.length === 0) return "not in Rev";
   if (labels.length === 1) return `not in ${labels[0]}`;
   return `not in ${labels.join(" or ")}`;
@@ -632,15 +640,11 @@ export function deskPackFiles(files: readonly {
 }[] | undefined): DeskPackFile[] {
   return (files ?? []).map((file) => {
     const raw = file.pageCites ?? [];
-    const pageCites = raw.flatMap((cite) => {
+    const pageCites: AppendixPageCite[] = [];
+    for (const cite of raw) {
       const row = canonicalAppendixPageCite(cite);
-      if (!row) return [];
-      if (isUnpinnedAppendixCite(row)) return [row];
-      const documentTitle = cite && typeof cite === "object" && "documentTitle" in cite && typeof (cite as { documentTitle?: unknown }).documentTitle === "string"
-        ? (cite as { documentTitle: string }).documentTitle.trim()
-        : "";
-      return [documentTitle ? { ...row, documentTitle } : row];
-    });
+      if (row) pageCites.push(citeKeepingDocumentTitle(row, cite));
+    }
     const legacy = pageCites.length === 0 ? legacyBarePageTokens(raw) : null;
     return {
       title: file.title,
@@ -677,9 +681,9 @@ export function packProofChrome(file: DeskPackFile) {
     sourceId: file.sourceId.trim(),
     fetchedAt: file.fetchedAt,
     sha256: shortContentSha256(file.contentHash),
-    pageCites: file.pageCites.flatMap((cite) => {
+    pageCites: file.pageCites.flatMap((cite): AppendixPageCite[] => {
       const row = canonicalAppendixPageCite(cite);
-      return row ? [row] : [];
+      return row ? [citeKeepingDocumentTitle(row, cite)] : [];
     }),
   };
 }

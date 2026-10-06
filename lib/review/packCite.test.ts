@@ -20,6 +20,7 @@ import {
   isLettingNotice,
   isPinnedEvidenceCite,
   legacyPageCiteMessage,
+  isUnpinnedAppendixCite,
   packPageCiteLabel,
   pinLegacyPageCites,
   readStoredPageCites,
@@ -219,6 +220,33 @@ describe("pack page cites", () => {
     expect(html).toContain("Unpinned · p. 14 · not in Rev A");
     expect(html).toContain("data-pin-status=\"Unpinned\"");
     expect(html).not.toContain("p. C-101");
+    expect(html).not.toContain("Rev Rev");
+    expect(html).not.toContain("Sheet Sheet");
+  });
+
+  it("keeps sheet text and revision reasons from doubling", () => {
+    const fact = pin("rev_a", "Rev A", "1", "page_a1", hashA);
+    const rev = {
+      revisionId: "rev_a",
+      revisionLabel: "Rev A",
+      contentHash: hashA,
+      pages: [{ id: "page_a1", pageNumber: 1 }],
+    };
+    expect(bindMarkupPageCites(["14"], [fact], [rev])).toEqual([
+      unpinned("14", "p. 14", "not in Rev A", "rev_a", "Rev A"),
+    ]);
+    expect(bindMarkupPageCites(["C-101", "Sheet C-101"], [fact], [rev])).toEqual([
+      unpinned("C-101", "Sheet C-101", "not matched", "rev_a", "Rev A"),
+      unpinned("Sheet C-101", "Sheet C-101", "not matched", "rev_a", "Rev A"),
+    ]);
+    expect(bindMarkupPageCites(["14"], [pin("rev_ifc", "IFC", "1", "page_ifc", hashA)], [{
+      revisionId: "rev_ifc",
+      revisionLabel: "IFC",
+      contentHash: hashA,
+      pages: [{ id: "page_ifc", pageNumber: 1 }],
+    }])).toEqual([
+      unpinned("14", "p. 14", "not in IFC", "rev_ifc", "IFC"),
+    ]);
   });
 
   it("shows the document and revision once beside the page on pack proof chrome", () => {
@@ -243,7 +271,7 @@ describe("pack page cites", () => {
         { document: { title: "Special provisions" }, revisions: [{ id: "rev_b" }], evidence: [{ revisionId: "rev_b" }] },
       ],
     });
-    expect(files.appendices[0]?.pageCites.map((item) => packPageCiteLabel(item))).toEqual([
+    expect(files.appendices[0]?.pageCites.flatMap((item) => isUnpinnedAppendixCite(item) ? [] : [packPageCiteLabel(item)])).toEqual([
       "Drainage Plan · Rev A · p. 2",
       "Special provisions · Rev B · p. 4",
     ]);
