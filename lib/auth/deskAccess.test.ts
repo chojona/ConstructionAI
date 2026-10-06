@@ -61,12 +61,12 @@ vi.mock("@/lib/heavyjob/service", () => ({ listHeavyJobSourceObjects }));
 vi.mock("@/lib/documents/service", () => ({ getDocument, getRevision, listRevisionAnalysis, listDocumentRegister }));
 vi.mock("@/lib/email/service", () => ({ readEmailSend }));
 
-import ChangesPage from "@/app/changes/page";
-import DocumentPage from "@/app/documents/[documentId]/page";
-import ProjectPage from "@/app/projects/[projectId]/page";
-import ProjectsPage from "@/app/projects/page";
-import EmailPage from "@/app/projects/[projectId]/emails/[emailSendId]/page";
-import RevisionPage from "@/app/revisions/[revisionId]/page";
+import ChangesPage from "@/app/(desk)/changes/page";
+import DocumentPage from "@/app/(desk)/documents/[documentId]/page";
+import ProjectPage from "@/app/(desk)/projects/[projectId]/page";
+import ProjectsPage from "@/app/(desk)/projects/page";
+import EmailPage from "@/app/(desk)/projects/[projectId]/emails/[emailSendId]/page";
+import RevisionPage from "@/app/(desk)/revisions/[revisionId]/page";
 import { ProjectContext } from "@/components/workspace/project-context";
 import { DEMO_USER_ID } from "./demoUser";
 import { hashToken, SESSION_COOKIE } from "./sessionToken";

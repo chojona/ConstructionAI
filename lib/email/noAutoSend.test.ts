@@ -60,7 +60,7 @@ describe("CON-78 no auto-send wall", () => {
   it("uses ledger-only copy for human send, not delivery claims", () => {
     expect(SEND_RECORDED_MESSAGE).toBe("Send recorded.");
     expect(HUMAN_SEND_RECORDED).toBe("Human send recorded.");
-    const client = ["components/review/draft-email.tsx", "app/projects/[projectId]/emails/[emailSendId]/page.tsx"]
+    const client = ["components/review/draft-email.tsx", "app/(desk)/projects/[projectId]/emails/[emailSendId]/page.tsx"]
       .map((file) => readFileSync(join(repoRoot, file), "utf8"))
       .join("\n");
     expect(client).not.toMatch(/\bmailed\b/i);

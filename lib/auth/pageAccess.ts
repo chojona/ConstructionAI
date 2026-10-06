@@ -13,8 +13,10 @@ export async function pageAccessRequest(): Promise<AccessRequest> {
 
 /** Same OrgMembership gate as authorizeRequest, for server-rendered desks.
  *  The session cookie is the caller. A denied member becomes the 403 page.
- *  An unsigned page becomes the 401 page. The root layout cannot call
- *  forbidden(); it uses authorizeRequest and omits organization data instead.
+ *  An unsigned page becomes the 401 page. The desk layout calls this before
+ *  its loading boundary so the document status is 401 or 403. Pages call it
+ *  again because a layout does not re-render on client navigations. The root
+ *  layout cannot call forbidden(); it omits organization data instead.
  */
 export async function authorizePage(
   permission: OrgPermission = "read",
