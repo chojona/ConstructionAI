@@ -44,6 +44,7 @@ export interface PersonMembership {
   name: string | null;
   role: OrgRole;
   status: MembershipStatus;
+  updatedAt: Date;
 }
 
 export interface MembershipLookup {
@@ -63,6 +64,9 @@ export interface PeopleStore extends MembershipLookup {
   }): Promise<MembershipRecord>;
   findMembershipById(id: string): Promise<MembershipRecord | null>;
   setStatus(id: string, status: MembershipStatus): Promise<MembershipRecord>;
+  setRole(id: string, role: OrgRole): Promise<MembershipRecord>;
+  /** True while an accept link is still stored for this membership. */
+  acceptPending(id: string): Promise<boolean>;
   countActiveRole(organizationId: string, role: OrgRole): Promise<number>;
   listPeople(organizationId: string): Promise<PersonMembership[]>;
   saveAcceptToken(membershipId: string, tokenHash: string, expiresAt: Date): Promise<void>;

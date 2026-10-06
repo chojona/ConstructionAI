@@ -1,5 +1,6 @@
 import { pageAccessRequest } from "@/lib/auth/pageAccess";
 import { authorizeRequest } from "@/lib/auth/membership";
+import { roleAllows } from "@/lib/auth/roles";
 import { isDomainError } from "@/lib/domain/errors";
 import { listProjects } from "@/lib/projects/service";
 import { listAttention } from "@/lib/review/attention";
@@ -17,7 +18,7 @@ export interface ShellProject {
  *  organization rows. forbidden() cannot run in the root layout, so the page
  *  gate renders the 403 or the 401 sign-in page.
  */
-export async function loadAppShell(): Promise<{ projects: ShellProject[] }> {
+export async function loadAppShell(): Promise<{ projects: ShellProject[]; canManagePeople: boolean }> {
   try {
     const access = await authorizeRequest(await pageAccessRequest(), "read");
     const projects = await listProjects(access.organizationId);
@@ -31,10 +32,10 @@ export async function loadAppShell(): Promise<{ projects: ShellProject[] }> {
         openCount: listAttention(review.findings).length,
       };
     }));
-    return { projects: cards };
+    return { projects: cards, canManagePeople: roleAllows(access.role, "manage_people") };
   } catch (error) {
     if (isDomainError(error) && (error.code === "FORBIDDEN" || error.code === "UNAUTHENTICATED")) {
-      return { projects: [] };
+      return { projects: [], canManagePeople: false };
     }
     throw error;
   }

@@ -10,11 +10,15 @@ import {
   type MembershipRecord,
 } from "./roles";
 
+const roleSchema = z.enum(["ORG_ADMIN", "REVIEWER", "CONTRIBUTOR", "VIEWER"]);
+
 const inviteSchema = z.object({
   email: z.string().trim().max(200).regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Enter a valid email.").transform((value) => value.toLowerCase()),
   name: z.string().trim().max(120).optional().transform((value) => value || null),
-  role: z.enum(["ORG_ADMIN", "REVIEWER", "CONTRIBUTOR", "VIEWER"]),
+  role: roleSchema,
 });
+
+const roleChangeSchema = z.object({ role: roleSchema });
 
 export interface InvitedMember {
   id: string;
@@ -103,6 +107,31 @@ export async function inviteMember(
   return invitedMember(user, membership, await issueAcceptToken(store, membership.id));
 }
 
+async function membershipInOrg(store: PeopleStore, access: OrgAccess, membershipId: string) {
+  const membership = await store.findMembershipById(membershipId);
+  if (!membership || membership.organizationId !== access.organizationId) {
+    throw new DomainError("NOT_FOUND", "Membership not found.", 404);
+  }
+  return membership;
+}
+
+/** Active org admin count must stay at least one when a change would drop the last one. */
+async function assertKeepsOrgAdmin(
+  store: PeopleStore,
+  access: OrgAccess,
+  membership: MembershipRecord,
+  nextRole?: MembershipRecord["role"],
+) {
+  const dropsAdmin = membership.role === "ORG_ADMIN"
+    && membership.status === "ACTIVE"
+    && nextRole !== "ORG_ADMIN";
+  if (!dropsAdmin) return;
+  const admins = await store.countActiveRole(access.organizationId, "ORG_ADMIN");
+  if (admins <= 1) {
+    throw new DomainError("INVALID_INPUT", "The organization needs an active org admin.", 400);
+  }
+}
+
 /** Replace the accept token for a membership that is still invited. */
 export async function refreshAcceptToken(
   access: OrgAccess,
@@ -110,14 +139,28 @@ export async function refreshAcceptToken(
   store: PeopleStore = membershipStore,
 ): Promise<{ acceptToken: string; acceptPath: string }> {
   assertRole(access.role, "manage_people");
-  const membership = await store.findMembershipById(membershipId);
-  if (!membership || membership.organizationId !== access.organizationId) {
-    throw new DomainError("NOT_FOUND", "Membership not found.", 404);
-  }
+  const membership = await membershipInOrg(store, access, membershipId);
   if (membership.status !== "INVITED") {
     throw new DomainError("INVALID_INPUT", "Only an invited person can receive a new accept link.", 400);
   }
   return issueAcceptToken(store, membership.id);
+}
+
+export async function changeMemberRole(
+  access: OrgAccess,
+  membershipId: string,
+  raw: unknown,
+  store: PeopleStore = membershipStore,
+): Promise<MembershipRecord> {
+  assertRole(access.role, "manage_people");
+  const input = roleChangeSchema.parse(raw);
+  const membership = await membershipInOrg(store, access, membershipId);
+  if (membership.status === "DISABLED") {
+    throw new DomainError("INVALID_INPUT", "Re-enable this person before changing their role.", 400);
+  }
+  if (membership.role === input.role) return membership;
+  await assertKeepsOrgAdmin(store, access, membership, input.role);
+  return store.setRole(membership.id, input.role);
 }
 
 export async function disableMember(
@@ -126,16 +169,26 @@ export async function disableMember(
   store: PeopleStore = membershipStore,
 ): Promise<MembershipRecord> {
   assertRole(access.role, "manage_people");
-  const membership = await store.findMembershipById(membershipId);
-  if (!membership || membership.organizationId !== access.organizationId) {
-    throw new DomainError("NOT_FOUND", "Membership not found.", 404);
-  }
+  const membership = await membershipInOrg(store, access, membershipId);
   if (membership.status === "DISABLED") return membership;
-  if (membership.role === "ORG_ADMIN" && membership.status === "ACTIVE") {
-    const admins = await store.countActiveRole(access.organizationId, "ORG_ADMIN");
-    if (admins <= 1) {
-      throw new DomainError("INVALID_INPUT", "The organization needs an active org admin.", 400);
-    }
-  }
+  await assertKeepsOrgAdmin(store, access, membership);
   return store.setStatus(membership.id, "DISABLED");
+}
+
+/** Restore access. The stored role is unchanged.
+ *  A membership that still has an accept link returns to Invited.
+ *  An accepted membership returns to Active.
+ */
+export async function enableMember(
+  access: OrgAccess,
+  membershipId: string,
+  store: PeopleStore = membershipStore,
+): Promise<MembershipRecord> {
+  assertRole(access.role, "manage_people");
+  const membership = await membershipInOrg(store, access, membershipId);
+  if (membership.status !== "DISABLED") {
+    throw new DomainError("INVALID_INPUT", "That person is not disabled.", 400);
+  }
+  const pending = await store.acceptPending(membership.id);
+  return store.setStatus(membership.id, pending ? "INVITED" : "ACTIVE");
 }

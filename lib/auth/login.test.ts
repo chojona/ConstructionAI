@@ -4,7 +4,7 @@ import type { CredentialStore, CredentialUser, InviteRecord } from "./credential
 import { acceptInvitation, endSession, loginWithPassword } from "./login";
 import { hashPassword } from "./password";
 import { authorizeRequest, type OrgAccess } from "./membership";
-import { inviteMember, refreshAcceptToken } from "./people";
+import { disableMember, enableMember, inviteMember, refreshAcceptToken } from "./people";
 import { hashToken, SESSION_COOKIE } from "./sessionToken";
 import type { MembershipRecord, OrgRole, PeopleStore, PersonMembership, PersonRecord } from "./roles";
 
@@ -13,7 +13,12 @@ class MemoryAuth implements PeopleStore, CredentialStore {
   memberships: MembershipRecord[] = [];
   private invites = new Map<string, { membershipId: string; expiresAt: Date }>();
   private sessions = new Map<string, { userId: string; expiresAt: Date }>();
+  private updatedAt = new Map<string, Date>();
   private sequence = 0;
+
+  private touch(id: string) {
+    this.updatedAt.set(id, new Date());
+  }
 
   async findMembership(userId: string, organizationId: string) {
     return this.memberships.find((row) => row.userId === userId && row.organizationId === organizationId) ?? null;
@@ -50,6 +55,7 @@ class MemoryAuth implements PeopleStore, CredentialStore {
   }) {
     const row: MembershipRecord = { id: `membership_${++this.sequence}`, ...input };
     this.memberships.push(row);
+    this.touch(row.id);
     return row;
   }
 
@@ -61,7 +67,23 @@ class MemoryAuth implements PeopleStore, CredentialStore {
     const row = this.memberships.find((item) => item.id === id);
     if (!row) throw new Error(`missing ${id}`);
     row.status = status;
+    this.touch(id);
     return row;
+  }
+
+  async setRole(id: string, role: OrgRole) {
+    const row = this.memberships.find((item) => item.id === id);
+    if (!row) throw new Error(`missing ${id}`);
+    row.role = role;
+    this.touch(id);
+    return row;
+  }
+
+  async acceptPending(id: string) {
+    for (const invite of this.invites.values()) {
+      if (invite.membershipId === id) return true;
+    }
+    return false;
   }
 
   async countActiveRole(organizationId: string, role: OrgRole) {
@@ -80,6 +102,7 @@ class MemoryAuth implements PeopleStore, CredentialStore {
         name: user?.name ?? null,
         role: row.role,
         status: row.status,
+        updatedAt: this.updatedAt.get(row.id) ?? new Date(0),
       };
     });
   }
@@ -268,5 +291,35 @@ describe("login and invite accept", () => {
       email: "missing@northstar.example",
       password: "wrong-password-1",
     }, store)).rejects.toMatchObject({ code: "UNAUTHENTICATED", message: "Email or password is incorrect." });
+  });
+
+  it("restores the prior role and sign-in after re-enable", async () => {
+    const store = new MemoryAuth();
+    const invited = await inviteMember(admin(), { email: "pe@northstar.example", role: "REVIEWER" }, store);
+    const accepted = await acceptInvitation({
+      token: invited.acceptToken,
+      password: "correct-horse-1",
+      name: "Pat Lee",
+    }, store);
+    await endSession(accepted.token, store);
+    await disableMember(admin(), invited.id, store);
+    await expect(loginWithPassword({
+      email: "pe@northstar.example",
+      password: "correct-horse-1",
+    }, store)).rejects.toMatchObject({ message: "This account is disabled for the organization." });
+
+    const enabled = await enableMember(admin(), invited.id, store);
+    expect(enabled).toMatchObject({ status: "ACTIVE", role: "REVIEWER" });
+    const signedIn = await loginWithPassword({
+      email: "pe@northstar.example",
+      password: "correct-horse-1",
+    }, store);
+    const request = new NextRequest("http://localhost/api/projects", {
+      headers: { cookie: `${SESSION_COOKIE}=${signedIn.token}` },
+    });
+    await expect(authorizeRequest(request, "approve", store, store)).resolves.toMatchObject({
+      userId: invited.userId,
+      role: "REVIEWER",
+    });
   });
 });
