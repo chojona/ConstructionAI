@@ -14,11 +14,34 @@ const loginSchema = z.object({
   password: passwordSchema,
 });
 
+const acceptTokenSchema = z.string().trim().min(20, "This invitation link is not valid.").max(200);
+
 const acceptSchema = z.object({
-  token: z.string().trim().min(20, "This invitation link is not valid.").max(200),
+  token: acceptTokenSchema,
   password: passwordSchema,
   name: z.string().trim().max(120).optional().transform((value) => value || null),
 });
+
+export function parseLoginRequest(raw: unknown) {
+  return loginSchema.parse(raw);
+}
+
+export function parseAcceptRequest(raw: unknown) {
+  return acceptSchema.parse(raw);
+}
+
+/** Email for an accept-token attempt, or null when the token identifies nobody. */
+export async function findAcceptEmail(
+  raw: unknown,
+  store: Pick<CredentialStore, "findInvite"> = membershipStore,
+): Promise<string | null> {
+  const token = raw && typeof raw === "object" && "token" in raw ? raw.token : undefined;
+  const parsed = acceptTokenSchema.safeParse(token);
+  if (!parsed.success) return null;
+  const invite = await store.findInvite(hashToken(parsed.data));
+  const email = invite?.email.trim().toLowerCase() ?? "";
+  return email || null;
+}
 
 export interface SignedInUser {
   userId: string;
@@ -61,7 +84,7 @@ export async function loginWithPassword(
   raw: unknown,
   store: CredentialStore = membershipStore,
 ): Promise<SignedInUser> {
-  const input = loginSchema.parse(raw);
+  const input = parseLoginRequest(raw);
   const user = await store.findUserCredential(input.email);
   const matches = await passwordMatches(user, input.password);
   if (!user || !matches) throw new DomainError("UNAUTHENTICATED", INVALID_LOGIN, 401);
@@ -80,7 +103,7 @@ export async function acceptInvitation(
   raw: unknown,
   store: CredentialStore = membershipStore,
 ): Promise<SignedInUser> {
-  const input = acceptSchema.parse(raw);
+  const input = parseAcceptRequest(raw);
   const invite = await store.findInvite(hashToken(input.token));
   if (!invite || !invite.expiresAt || invite.expiresAt.getTime() <= Date.now()) {
     throw new DomainError("INVALID_INPUT", "This invitation link is not valid.", 400);
