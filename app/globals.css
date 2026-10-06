@@ -492,7 +492,10 @@ button.queue-heading:hover { color: var(--color-brand-hover); }
   .sidebar-collapse { display: none; }
   .sidebar > .nav-stack { display: flex; grid-column: 1 / -1; gap: 8px; }
   .nav-heading { display: none; }
-  .sidebar > .sidebar-footer { display: block; grid-column: 1 / -1; margin-top: 0; padding: 0; }
+  .sidebar > .sidebar-footer { display: block; grid-column: 1 / -1; margin-top: 0; padding: 0; font-size: 0; line-height: 0; }
+  .sidebar-footer .status-dot,
+  .sidebar-footer small { display: none; }
+  .sidebar-footer .sidebar-account { margin-bottom: 0; }
   .app-shell.is-collapsed .brand-copy,
   .app-shell.is-collapsed .nav-label,
   .app-shell.is-collapsed .nav-copy { display: revert; }
