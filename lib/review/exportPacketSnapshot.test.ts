@@ -70,7 +70,7 @@ describe("frozen export snapshot", () => {
       mimeType: "application/pdf",
       sourceId: "acc-doc-1",
     }, repository, objects, () => new Date("2026-10-01T21:00:00.000Z"));
-    const appendixPdf = buildTextPdf(["Markup Summary", "Page: 2"]);
+    const appendixPdf = buildTextPdf(["Markup Summary", "Page: 1"]);
     const withAppendix = await attachBluebeamMarkupAppendix("org_a", project.id, {
       bytes: appendixPdf,
       filename: "markup.pdf",
@@ -110,13 +110,13 @@ describe("frozen export snapshot", () => {
     expect(again.changes[0]?.reason).toBe("Confirmed on sheet C-101.");
     expect(again.changes[0]?.summary).toContain("CAT 336");
     expect(again.chapters?.[0]?.filename).toBe("acc.pdf");
+    const storedRevision = await repository.getRevision("org_a", project.revisionId);
     expect(again.appendices?.[0]?.pageCites).toEqual([{
-      status: "Unpinned",
-      label: "2",
-      display: "2",
-      reason: "page not in Rev A",
       revisionId: project.revisionId,
       revisionLabel: "A",
+      page: "1",
+      documentPageId: storedRevision!.pages[0]!.id,
+      contentHash: "a".repeat(64),
     }]);
     expect(again.appendices?.[0]?.filename).toBe("markup.pdf");
     expect(repository.exportPackets).toHaveLength(3);

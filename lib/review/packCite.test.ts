@@ -146,7 +146,7 @@ describe("pack page cites", () => {
       pin("rev_a", "A", "2", "page_a2", hashA),
     ]);
     const outOfRange = bindMarkupPageCites(["14"], [onA], [revA]);
-    expect(outOfRange).toEqual([unpinned("14", "14", "page not in Rev A", "rev_a", "A")]);
+    expect(outOfRange).toEqual([unpinned("14", "p. 14", "not in Rev A", "rev_a", "A")]);
     expect(outOfRange[0]).not.toHaveProperty("page");
     expect(outOfRange[0]).not.toHaveProperty("documentPageId");
 
@@ -168,8 +168,8 @@ describe("pack page cites", () => {
 
     const unmatched = bindMarkupPageCites(["9", "14"], [onA, onB], [revA, revB]);
     expect(unmatched).toEqual([
-      unpinned("9", "9", "page not in Rev A or Rev B", null, null),
-      unpinned("14", "14", "page not in Rev A or Rev B", null, null),
+      unpinned("9", "p. 9", "not in Rev A or Rev B", null, null),
+      unpinned("14", "p. 14", "not in Rev A or Rev B", null, null),
     ]);
     expect(unmatched).not.toEqual([onA, onB]);
 
@@ -184,7 +184,7 @@ describe("pack page cites", () => {
         { id: "page_b3", pageNumber: 3 },
         { id: "page_b4", pageNumber: 4 },
       ],
-    }])).toEqual([unpinned("1", "1", "page not matched", null, null)]);
+    }])).toEqual([unpinned("1", "p. 1", "page not matched", null, null)]);
     expect(bindMarkupPageCites(["NYSDOT notice"], [onA], [revA])).toEqual([onA]);
     expect(bindMarkupPageCites([], [onA], [revA])).toEqual([onA]);
 
@@ -199,9 +199,9 @@ describe("pack page cites", () => {
     }));
     expect(html).toContain("Rev A · p. 2");
     expect(html).toContain("Unpinned · Sheet C-101 · sheet not matched");
-    expect(html).toContain("Unpinned · 14 · page not in Rev A");
+    expect(html).toContain("Unpinned · p. 14 · not in Rev A");
+    expect(html).toContain("data-pin-status=\"Unpinned\"");
     expect(html).not.toContain("p. C-101");
-    expect(html).not.toContain("p. 14");
   });
 
   it("shows the revision label beside the page on pack proof chrome", () => {

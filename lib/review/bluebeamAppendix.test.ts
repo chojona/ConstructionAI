@@ -20,6 +20,7 @@ import {
   PACK_CITE_UNPINNED_MESSAGE,
   appendixFactBinding,
   EXPORT_BLOCKED_MESSAGE,
+  APPENDIX_PAGE_MISSING_MESSAGE,
   PACK_APPENDIX_ADDED_MESSAGE,
   PACK_APPENDIX_FILE_LABEL,
   packProofChrome,
@@ -82,6 +83,11 @@ describe("Bluebeam markup summary appendix", () => {
     expect(view).not.toContain("Add pack chapter appendix");
     expect(view).not.toMatch(/Add pack appendix[\s\S]*Add pack chapter|name="kind"[^>]*>\s*<option[^>]*>\s*Pack chapter/);
     expect(copySource).not.toMatch(BANNED_COPY);
+    const unpinnedRule = readFileSync("app/globals.css", "utf8").match(/\.page-chip\[data-pin-status="Unpinned"\]\s*\{[^}]+\}/)?.[0] ?? "";
+    expect(unpinnedRule).toContain("dashed");
+    expect(unpinnedRule).toContain("var(--color-ink-muted)");
+    expect(unpinnedRule).toContain("var(--color-line-strong)");
+    expect(unpinnedRule).not.toMatch(/danger|#b84d52|red/i);
     expect(readFileSync("lib/review/bluebeamAppendix.ts", "utf8")).not.toMatch(/S3Client|public-read|PutObjectCommand|new S3/);
     expect(readFileSync("lib/review/bluebeamAppendix.ts", "utf8")).toMatch(/writePacketBytes|ObjectStore/);
   });
@@ -103,6 +109,36 @@ describe("Bluebeam markup summary appendix", () => {
     expect(markupSummaryPageCites("Page Label: C-101\nPage: 3")).toEqual(["C-101", "3"]);
     expect(markupSummaryPageCites("Page Label,Subject,Comment\nC-101,Cloud,Verify invert\n3,Text,See detail\nC-101,Callout,Again")).toEqual(["C-101", "3"]);
     expect(markupSummaryPageCites("Markup Summary\nNo pages listed")).toEqual([]);
+  });
+
+  it("rejects a markup summary when every label is unmatched and does not use the fact page", async () => {
+    const { repository, project, facts } = await scaffold();
+    const objects = objectStore();
+    const clock = sequencedClock();
+    await recordReviewDecision("org_a", project.id, "pm-1", {
+      decision: "ACCEPTED",
+      subject: { type: "proposed_fact", proposedFactId: facts.trench.id },
+    }, repository, clock);
+    const before = await exportApprovedChangePacket("org_a", project.id, {}, repository, clock);
+    const pdf = buildTextPdf(["Markup Summary", "Page: 14", "Page Label: C-101"]);
+    const contentHash = createHash("sha256").update(pdf).digest("hex");
+
+    await expect(attachBluebeamMarkupAppendix("org_a", project.id, {
+      bytes: pdf,
+      filename: "markup-summary.pdf",
+      mimeType: "application/pdf",
+      sourceId: "bb-unmatched",
+    }, repository, objects, clock)).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+      message: `${APPENDIX_PAGE_MISSING_MESSAGE} p. 14 not in Rev A. Sheet C-101 sheet not matched.`,
+    });
+
+    const after = await exportApprovedChangePacket("org_a", project.id, {}, repository, clock);
+    expect(after.contentHash).toBe(before.contentHash);
+    expect(after.appendices).toBeUndefined();
+    expect(repository.exportPacketChapters).toHaveLength(0);
+    expect(repository.exportPackets).toHaveLength(1);
+    expect(await objects.exists(`export-packets/${project.id}/appendices/${contentHash}.pdf`)).toBe(false);
   });
 
   it("attaches a markup summary PDF to an accepted pack with provenance in the object store", async () => {
@@ -143,7 +179,7 @@ describe("Bluebeam markup summary appendix", () => {
       storageKey: `export-packets/${project.id}/appendices/${contentHash}.pdf`,
       filename: "markup-summary.pdf",
       byteSize: pdf.length,
-      pageCites: outOfRangePages(project.revisionId),
+      pageCites: shippedPages(project.revisionId, project.pageId),
     }]);
     expect(packet.contentHash).not.toBe(before.contentHash);
     expect(packet.contentHash).toBe(packetContentHash(packet));
@@ -153,7 +189,7 @@ describe("Bluebeam markup summary appendix", () => {
       sourceId: "bb-summary-17",
       fetchedAt,
       contentHash,
-      pageCites: outOfRangePages(project.revisionId),
+      pageCites: shippedPages(project.revisionId, project.pageId),
       reviewDecisionIds: [accepted.id],
     });
     expect(repository.emailSends).toHaveLength(0);
@@ -167,7 +203,7 @@ describe("Bluebeam markup summary appendix", () => {
       sourceId: "bb-summary-17",
       fetchedAt: fetchedAt.toISOString(),
       contentHash,
-      pageCites: outOfRangePages(project.revisionId),
+      pageCites: shippedPages(project.revisionId, project.pageId),
     }]);
     expect(source.exportPacketId).toBe(repository.exportPackets.at(-1)?.id);
     const draft = await recordEmailSend("org_a", project.id, {
@@ -182,7 +218,7 @@ describe("Bluebeam markup summary appendix", () => {
     expect(draft.exportPacketId).toBe(source.exportPacketId);
     expect(repository.emailSends).toHaveLength(1);
     const stored = JSON.parse(repository.exportPackets.at(-1)!.payload.toString("utf8")) as { appendices: Array<{ pageCites: Array<{ revisionId: string; page: string }> }> };
-    expect(stored.appendices[0]?.pageCites).toEqual(outOfRangePages(project.revisionId));
+    expect(stored.appendices[0]?.pageCites).toEqual(shippedPages(project.revisionId, project.pageId));
     expect(stored.appendices[0]?.pageCites.every((cite) => typeof cite !== "string")).toBe(true);
   });
 
@@ -219,7 +255,7 @@ describe("Bluebeam markup summary appendix", () => {
       mimeType: "application/pdf",
       sourceId: "bb-summary-17",
     }, repository, objects, () => new Date("2026-10-02T05:00:00.000Z"));
-    expect(again.appendices?.[0]?.pageCites).toEqual(outOfRangePages(project.revisionId));
+    expect(again.appendices?.[0]?.pageCites).toEqual(shippedPages(project.revisionId, project.pageId));
     expect(repository.exportPacketChapters[0]?.legacyPageLabels).toEqual([]);
     const reloaded = await currentApprovedChangePacket("org_a", project.id, repository);
     expect(reloaded.appendices?.[0]?.pageCites).toEqual(again.appendices?.[0]?.pageCites);
@@ -256,7 +292,7 @@ describe("Bluebeam markup summary appendix", () => {
       decision: "ACCEPTED",
       subject: { type: "proposed_fact", proposedFactId: facts.trench.id },
     }, repository, sequencedClock());
-    const csv = Buffer.from("Page Label,Subject\nC-101,Cloud\n3,Text\n");
+    const csv = Buffer.from("Page Label,Subject\nC-101,Cloud\n1,Text\n");
     const packet = await attachBluebeamMarkupAppendix("org_a", project.id, {
       bytes: csv,
       filename: "../secret/summary.csv",
@@ -270,7 +306,7 @@ describe("Bluebeam markup summary appendix", () => {
       storageKey: `export-packets/${project.id}/appendices/${contentHash}.csv`,
       pageCites: [
         unpinnedMarkup(project.revisionId, "C-101", "sheet not matched"),
-        unpinnedMarkup(project.revisionId, "3", "page not in Rev A"),
+        pinnedPage(project.revisionId, "1", project.pageId),
       ],
     });
     const appendix = packet.appendices![0]!;
@@ -287,7 +323,7 @@ describe("Bluebeam markup summary appendix", () => {
       sha256: contentHash.slice(0, 12),
       pageCites: [
         unpinnedMarkup(project.revisionId, "C-101", "sheet not matched"),
-        unpinnedMarkup(project.revisionId, "3", "page not in Rev A"),
+        pinnedPage(project.revisionId, "1", project.pageId),
       ],
     });
     expect(await objects.get(appendix.storageKey)).toEqual(csv);
@@ -411,7 +447,7 @@ describe("Bluebeam markup summary appendix", () => {
     expect(again.appendices?.[0]).toMatchObject({
       sourceId: "bb-both",
       fetchedAt: "2026-10-02T05:00:00.000Z",
-      pageCites: outOfRangePages(project.revisionId),
+      pageCites: shippedPages(project.revisionId, project.pageId),
     });
     expect(repository.exportPacketChapters).toHaveLength(1);
     expect(repository.exportPacketChapters[0]?.reviewDecisionIds).toEqual([pumpDecision.id]);
@@ -437,7 +473,7 @@ describe("Bluebeam markup summary appendix", () => {
     }, repository, objects, () => new Date("2026-10-02T04:00:00.000Z"));
     expect(packet.appendices?.[0]?.pageCites).toEqual([
       pinnedPage(project.revisionId, "2", sheetPage.id),
-      unpinnedMarkup(project.revisionId, "14", "page not in Rev A"),
+      unpinnedMarkup(project.revisionId, "14", "not in Rev A"),
       unpinnedMarkup(project.revisionId, "A-201", "sheet not matched"),
     ]);
     const cites = packet.appendices?.[0]?.pageCites ?? [];
@@ -456,7 +492,7 @@ function viewSource() {
 }
 
 function markupPdf() {
-  return buildTextPdf(["Markup Summary", "Page: 2", "Page: 14", "Page: 2"]);
+  return buildTextPdf(["Markup Summary", "Page: 1", "Page: 14", "Page: 1"]);
 }
 
 function objectStore() {
@@ -493,7 +529,7 @@ async function scaffold(options?: { pageCount?: number }) {
   ]);
   return {
     repository,
-    project: { id: project.id, documentId: document!.id, revisionId: revision.id },
+    project: { id: project.id, documentId: document!.id, revisionId: revision.id, pageId: revision.pages[0]!.id },
     facts: {
       trench: stored[0]!,
       dozer: stored[1]!,
@@ -567,17 +603,17 @@ function unpinnedMarkup(revisionId: string, label: string, reason: string) {
   return {
     status: "Unpinned" as const,
     label,
-    display: numeric ? label : `Sheet ${label}`,
+    display: numeric ? `p. ${label}` : `Sheet ${label}`,
     reason,
     revisionId,
     revisionLabel: "A",
   };
 }
 
-function outOfRangePages(revisionId: string) {
+function shippedPages(revisionId: string, documentPageId: string) {
   return [
-    unpinnedMarkup(revisionId, "2", "page not in Rev A"),
-    unpinnedMarkup(revisionId, "14", "page not in Rev A"),
+    pinnedPage(revisionId, "1", documentPageId),
+    unpinnedMarkup(revisionId, "14", "not in Rev A"),
   ];
 }
 

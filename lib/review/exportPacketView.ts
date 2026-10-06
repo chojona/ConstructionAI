@@ -199,8 +199,15 @@ export function bindMarkupPageCites(
   const labels = markupLabels(filePages);
   if (labels.length === 0) return facts;
   const checked = markupRevisions(facts, revisions);
-  if (checked.length === 0) return facts;
   return labels.map((label) => resolveMarkupLabel(label, checked));
+}
+
+/** Shown when a markup summary pins no page. Lists each unmatched label. Does not substitute the fact's pages. */
+export function appendixPageMissingMessage(cites: readonly AppendixPageCite[]) {
+  const unmatched = cites.filter(isUnpinnedAppendixCite);
+  if (unmatched.length === 0) return APPENDIX_PAGE_MISSING_MESSAGE;
+  const details = unmatched.map((cite) => `${cite.display} ${cite.reason}`);
+  return `${APPENDIX_PAGE_MISSING_MESSAGE} ${details.join(". ")}.`;
 }
 
 export function isUnpinnedAppendixCite(cite: AppendixPageCite): cite is MarkupUnpinnedCite {
@@ -360,12 +367,11 @@ function resolveMarkupLabel(label: string, revisions: readonly MarkupRevisionPag
     return page ? [{ revision, page }] : [];
   });
   if (matches.length === 1) return pinMarkupPage(matches[0]!.revision, matches[0]!.page);
-  if (matches.length === 0) return unpinnedMarkup(label, label, pageNotInReason(revisions), soleRevision(revisions));
-  return unpinnedMarkup(label, label, PAGE_NOT_MATCHED, null);
+  if (matches.length === 0) return unpinnedMarkup(label, pageNotInReason(revisions), soleRevision(revisions));
+  return unpinnedMarkup(label, PAGE_NOT_MATCHED, null);
 }
 
 function resolveSheetLabel(label: string, revisions: readonly MarkupRevisionPages[]): AppendixPageCite {
-  const display = `Sheet ${label}`;
   const matches = revisions.flatMap((revision) => revision.pages.flatMap((page) => {
     const sheet = page.sheetNumber?.trim();
     if (!sheet || sheet.toLowerCase() !== label.toLowerCase()) return [];
@@ -373,7 +379,7 @@ function resolveSheetLabel(label: string, revisions: readonly MarkupRevisionPage
     return [{ revision, page }];
   }));
   if (matches.length === 1) return pinMarkupPage(matches[0]!.revision, matches[0]!.page);
-  return unpinnedMarkup(label, display, SHEET_NOT_MATCHED, soleRevision(revisions));
+  return unpinnedMarkup(label, SHEET_NOT_MATCHED, soleRevision(revisions));
 }
 
 function pinMarkupPage(revision: MarkupRevisionPages, page: MarkupRevisionPage): AppendixPageCite {
@@ -384,7 +390,7 @@ function pinMarkupPage(revision: MarkupRevisionPages, page: MarkupRevisionPage):
     documentPageId: page.id,
     contentHash: revision.contentHash,
   });
-  if (!cite) return unpinnedMarkup(String(page.pageNumber), String(page.pageNumber), pageNotInReason([revision]), revision);
+  if (!cite) return unpinnedMarkup(String(page.pageNumber), pageNotInReason([revision]), revision);
   return cite;
 }
 
@@ -401,9 +407,9 @@ function integerPage(label: string) {
 
 function pageNotInReason(revisions: readonly MarkupRevisionPages[]) {
   const labels = revisions.map((revision) => revision.revisionLabel).filter((label) => label.length > 0);
-  if (labels.length === 0) return "page not in Rev";
-  if (labels.length === 1) return `page not in Rev ${labels[0]}`;
-  return `page not in Rev ${labels.join(" or Rev ")}`;
+  if (labels.length === 0) return "not in Rev";
+  if (labels.length === 1) return `not in Rev ${labels[0]}`;
+  return `not in Rev ${labels.join(" or Rev ")}`;
 }
 
 function soleRevision(revisions: readonly MarkupRevisionPages[]) {
@@ -412,14 +418,13 @@ function soleRevision(revisions: readonly MarkupRevisionPages[]) {
 
 function unpinnedMarkup(
   label: string,
-  display: string,
   reason: string,
   revision: MarkupRevisionPages | null,
 ): MarkupUnpinnedCite {
   return {
     status: "Unpinned",
     label,
-    display,
+    display: INTEGER_PAGE.test(label) ? `p. ${label}` : `Sheet ${label}`,
     reason,
     revisionId: revision?.revisionId ?? null,
     revisionLabel: revision?.revisionLabel ?? null,
@@ -433,11 +438,10 @@ function canonicalUnpinnedCite(row: Partial<MarkupUnpinnedCite>): MarkupUnpinned
   const revisionLabel = row.revisionLabel ?? null;
   if (revisionId !== null && (typeof revisionId !== "string" || !isRevisionPin(revisionId))) return null;
   if (revisionLabel !== null && (typeof revisionLabel !== "string" || !isRevisionLabel(revisionLabel))) return null;
-  const numeric = INTEGER_PAGE.test(row.label);
   return {
     status: "Unpinned",
     label: row.label,
-    display: numeric ? row.label : `Sheet ${row.label}`,
+    display: INTEGER_PAGE.test(row.label) ? `p. ${row.label}` : `Sheet ${row.label}`,
     reason: row.reason,
     revisionId,
     revisionLabel,

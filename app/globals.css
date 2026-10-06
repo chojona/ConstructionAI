@@ -293,6 +293,7 @@ a.change-card:hover, .change-card:hover { background: var(--color-surface-subtle
 .change-card.is-active:hover { background: var(--color-warning-subtle); }
 .change-card-copy { min-width: 0; flex: 1; display: grid; }
 .page-chip { flex-shrink: 0; display: inline-flex; align-items: center; height: 21px; padding: 0 7px; border-radius: 4px; background: var(--color-info-subtle); color: var(--color-info); font-size: 11px; font-weight: 650; }
+.page-chip[data-pin-status="Unpinned"] { background: transparent; color: var(--color-ink-muted); outline: 1px dashed var(--color-line-strong); outline-offset: -1px; }
 .evidence-rail { display: flex; flex-direction: column; width: 320px; min-height: 180px; max-height: calc(100dvh - 32px); border: 1px solid var(--color-line); border-radius: 14px; overflow: hidden; background: var(--surface-context); position: sticky; top: 16px; }
 .evidence-rail-body { min-height: 0; overflow: auto; padding: 17px; }
 .evidence-rail-lead { display: grid; gap: 8px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--color-line); }

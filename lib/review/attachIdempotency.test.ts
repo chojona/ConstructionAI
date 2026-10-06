@@ -86,7 +86,7 @@ describe("sha256 attach idempotency", () => {
 
   it("returns the existing markup appendix when the same bytes are attached again", async () => {
     const { repository, project, packet, objects } = await scaffold();
-    const pdf = buildTextPdf(["Markup Summary", "Page: 2", "Page: 14"]);
+    const pdf = buildTextPdf(["Markup Summary", "Page: 1", "Page: 14"]);
     const fetchedAt = new Date("2026-10-02T04:00:00.000Z");
     const contentHash = createHash("sha256").update(pdf).digest("hex");
 
@@ -108,21 +108,28 @@ describe("sha256 attach idempotency", () => {
     expect(repository.exportPacketChapters).toHaveLength(1);
     expect(repository.exportPacketChapters[0]?.id).toBe(existing.id);
     const pin = packet.changes[0]!.evidence[0]!;
-    const unpinned = (label: string) => ({
-      status: "Unpinned" as const,
-      label,
-      display: label,
-      reason: `page not in Rev ${pin.revisionLabel}`,
+    const pinned = {
       revisionId: pin.revisionId,
       revisionLabel: pin.revisionLabel,
-    });
+      page: "1",
+      documentPageId: pin.documentPageId,
+      contentHash: pin.contentHash,
+    };
+    const unpinned = {
+      status: "Unpinned" as const,
+      label: "14",
+      display: "p. 14",
+      reason: `not in Rev ${pin.revisionLabel}`,
+      revisionId: pin.revisionId,
+      revisionLabel: pin.revisionLabel,
+    };
     expect(repository.exportPacketChapters[0]).toMatchObject({
       role: "bluebeam-markup",
       sourceId: "bb-summary-17",
       fetchedAt,
       contentHash,
       filename: "markup-summary.pdf",
-      pageCites: [unpinned("2"), unpinned("14")],
+      pageCites: [pinned, unpinned],
     });
     expect(again.appendices).toEqual([
       expect.objectContaining({
@@ -130,7 +137,7 @@ describe("sha256 attach idempotency", () => {
         fetchedAt: fetchedAt.toISOString(),
         contentHash,
         filename: "markup-summary.pdf",
-        pageCites: [unpinned("2"), unpinned("14")],
+        pageCites: [pinned, unpinned],
       }),
     ]);
     expect(again.chapters).toBeUndefined();
@@ -138,8 +145,8 @@ describe("sha256 attach idempotency", () => {
 
   it("stores a second markup appendix when the bytes differ", async () => {
     const { repository, project, objects } = await scaffold();
-    const first = buildTextPdf(["Markup Summary", "Page: 2"]);
-    const second = buildTextPdf(["Markup Summary", "Page: 9"]);
+    const first = buildTextPdf(["Markup Summary", "Page: 1"]);
+    const second = buildTextPdf(["Markup Summary", "Page: 1", "Page: 9"]);
     await attachBluebeamMarkupAppendix("org_a", project.id, {
       bytes: first,
       filename: "first.pdf",
@@ -161,7 +168,7 @@ describe("sha256 attach idempotency", () => {
 
   it("keeps a chapter and an appendix when the same bytes are attached as each", async () => {
     const { repository, project, objects } = await scaffold();
-    const pdf = buildTextPdf(["Markup Summary", "Page: 2", "Page: 14"]);
+    const pdf = buildTextPdf(["Markup Summary", "Page: 1", "Page: 14"]);
     await attachAccPdfChapter("org_a", project.id, {
       bytes: pdf,
       filename: "markup-summary.pdf",

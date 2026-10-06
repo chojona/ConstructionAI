@@ -8,7 +8,7 @@ import { displayFilename } from "@/lib/documents/storage";
 import { extractPdfDocument } from "@/lib/documents/extractPdf";
 import { writePacketBytes } from "@/lib/storage/packetBytes";
 import { requireObjectStore, type ObjectStore } from "@/lib/storage/objectStore";
-import { APPENDIX_PAGE_MISSING_MESSAGE, BLUEBEAM_APPENDIX_ROLE, BLUEBEAM_MARKUP_APPENDIX_TITLE, bindMarkupPageCites, factPageCites, isLegacyPageCiteError, type MarkupRevisionPages, type PackPageCite } from "./exportPacketView";
+import { BLUEBEAM_APPENDIX_ROLE, BLUEBEAM_MARKUP_APPENDIX_TITLE, appendixPageMissingMessage, bindMarkupPageCites, factPageCites, isLegacyPageCiteError, isUnpinnedAppendixCite, type MarkupRevisionPages, type PackPageCite } from "./exportPacketView";
 import { appendixStorageKey, packetAppendixFromStored, packetWithAppendix } from "./exportPacket";
 import { currentApprovedChangePacket, publishApprovedChangePacket, type Clock } from "./service";
 
@@ -59,8 +59,8 @@ export async function attachBluebeamMarkupAppendix(
   const fromFact = factPageCites(cited.changes.flatMap((change) => change.evidence));
   const revisions = await markupRevisionPages(organizationId, fromFact, repository);
   const pageCites = bindMarkupPageCites(fromFile, fromFact, revisions);
-  if (pageCites.length === 0) {
-    throw new DomainError("INVALID_INPUT", APPENDIX_PAGE_MISSING_MESSAGE, 400);
+  if (pageCites.length === 0 || pageCites.every(isUnpinnedAppendixCite)) {
+    throw new DomainError("INVALID_INPUT", appendixPageMissingMessage(pageCites), 400);
   }
   if (pageCites.length > MAX_PAGE_CITES) {
     throw new DomainError("INVALID_INPUT", "The markup summary has too many page cites.", 400);
