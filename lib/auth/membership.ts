@@ -75,7 +75,8 @@ async function resolveUserId(request: AccessRequest, sessions: SessionLookup): P
 /** Resolve the person and organization for a gated API route or server page.
  *  A session cookie is the caller. x-organization-id is only a claim that must
  *  match an active membership. x-user-id is honored only when
- *  AUTH_TRUST_USER_HEADER=1 (temporary tests and local scripts). A request with
+ *  AUTH_TRUST_USER_HEADER=1 (temporary tests and local scripts). Production
+ *  refuses to start when that variable is 1, true, or yes. A request with
  *  neither a session nor that header is rejected.
  */
 export async function authorizeRequest(

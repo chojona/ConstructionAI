@@ -12,7 +12,7 @@
     "build": "next build --webpack",
     "vercel-build": "prisma migrate deploy && npm run db:seed && next build --webpack",
     "start": "next start",
-    "lint": "eslint app components lib tests",
+    "lint": "eslint app components lib tests instrumentation.ts",
     "typecheck": "node ./node_modules/typescript/lib/tsc.js --noEmit",
     "test": "node --env-file-if-exists=.env ./node_modules/vitest/vitest.mjs run",
     "test:unit": "node --env-file-if-exists=.env ./node_modules/vitest/vitest.mjs run --project unit",
