@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { ApprovalSignoffText } from "@/components/review/approval-signoff";
+import { CiteChip } from "@/components/review/cite-chip";
 import { DraftEmailButton } from "@/components/review/draft-email";
+import type { ApprovalSignoff } from "@/lib/auth/approvalSignoff";
 import { PackProofList } from "@/components/review/pack-proof";
 import { Button } from "@/components/ui/button";
 import { draftEmailVisible } from "@/lib/email/emailSendView";
@@ -22,10 +25,10 @@ import {
   PACK_APPENDIX_SOURCE_LABEL,
   RFI_PDF_CHAPTER_TITLE,
   accChapterAttachVisible,
-  deskPackFiles,
+  deskPackFilesFromPacket,
   exportPacketAction,
   subjectExportVisible,
-  packPageCiteLabel,
+  packPageCiteChip,
   visiblePackProof,
   visiblePacketChanges,
   type ApprovedChangePreview,
@@ -42,6 +45,7 @@ export function ExportPacketControl({
   appendices = [],
   appendixSubjectKey = "",
   appendixPageCites = [],
+  signoffs = [],
 }: {
   projectId: string;
   changes: readonly ApprovedChangePreview[];
@@ -51,11 +55,13 @@ export function ExportPacketControl({
   appendices?: readonly DeskPackFile[];
   appendixSubjectKey?: string;
   appendixPageCites?: readonly PackPageCite[];
+  signoffs?: readonly (ApprovalSignoff & { subjectKey: string })[];
 }) {
   const approved = visiblePacketChanges(changes).filter((change) => subjectExportVisible(change.decision));
   const action = exportPacketAction(approved.length, projectId, openCount);
+  const signoffList = <SignoffList signoffs={signoffs} />;
   if (!action.enabled || !action.href || !accChapterAttachVisible(approved.length)) {
-    return <p className="packet-blocked">{action.message}</p>;
+    return <>{action.message ? <p className="packet-blocked">{action.message}</p> : null}{signoffList}</>;
   }
   return (
     <div className="packet-export">
@@ -65,9 +71,23 @@ export function ExportPacketControl({
         </Button>
         {draftEmailVisible(approved.length) && <DraftEmailButton projectId={projectId} actorId={actorId} />}
       </div>
+      {signoffList}
       <AccChapterForm projectId={projectId} initialFiles={chapters} />
       <MarkupAppendixForm projectId={projectId} initialFiles={appendices} subjectKey={appendixSubjectKey} pageCites={appendixPageCites} />
     </div>
+  );
+}
+
+function SignoffList({ signoffs }: { signoffs: readonly (ApprovalSignoff & { subjectKey: string })[] }) {
+  if (signoffs.length === 0) return null;
+  return (
+    <ul className="pack-signoffs" aria-label="Pack sign-offs">
+      {signoffs.map((signoff) => (
+        <li key={signoff.subjectKey}>
+          <ApprovalSignoffText name={signoff.name} disabled={signoff.disabled} />
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -86,8 +106,8 @@ function AccChapterForm({ projectId, initialFiles }: { projectId: string; initia
         method: "POST",
         body: new FormData(form),
       });
-      const result = await response.json() as { packet?: { chapters?: DeskPackFile[] }; error?: { message?: string } };
-      const proof = visiblePackProof(deskPackFiles(result.packet?.chapters));
+      const result = await response.json() as { packet?: Parameters<typeof deskPackFilesFromPacket>[0]; error?: { message?: string } };
+      const proof = visiblePackProof(deskPackFilesFromPacket(result.packet).chapters);
       if (!response.ok || proof.length === 0) {
         setMessage(result.error?.message ?? "Could not add the pack chapter.");
         return;
@@ -152,8 +172,8 @@ function MarkupAppendixForm({
         method: "POST",
         body: new FormData(form),
       });
-      const result = await response.json() as { packet?: { appendices?: DeskPackFile[] }; error?: { message?: string } };
-      const proof = visiblePackProof(deskPackFiles(result.packet?.appendices));
+      const result = await response.json() as { packet?: Parameters<typeof deskPackFilesFromPacket>[0]; error?: { message?: string } };
+      const proof = visiblePackProof(deskPackFilesFromPacket(result.packet).appendices);
       if (!response.ok || proof.length === 0) {
         setMessage(result.error?.message ?? "Could not add the pack appendix.");
         return;
@@ -188,7 +208,7 @@ function MarkupAppendixForm({
       {subjectKey && pageCites.length > 0 ? <input type="hidden" name="subjectKey" value={subjectKey} /> : null}
       {pageCites.length > 0 ? (
         <p className="packet-chips" aria-label="Page">
-          {pageCites.map((cite) => <span className="page-chip" key={`${cite.revisionId}:${cite.page}`}>{packPageCiteLabel(cite)}</span>)}
+          {pageCites.map((cite) => <CiteChip key={`${cite.revisionId}:${cite.page}`} {...packPageCiteChip(cite)} />)}
         </p>
       ) : <p className="packet-blocked">{APPENDIX_PAGE_MISSING_MESSAGE}</p>}
       <Button type="submit" variant="outline" disabled={pending || pageCites.length === 0}>{ADD_PACK_APPENDIX_LABEL}</Button>

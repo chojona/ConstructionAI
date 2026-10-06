@@ -1,6 +1,9 @@
+import { ApprovalSignoffText } from "@/components/review/approval-signoff";
+import { CiteChip } from "@/components/review/cite-chip";
 import { FactBadges } from "@/components/review/fact-badges";
 import { PagePreview } from "@/components/review/page-preview";
 import type { DecidedRowChrome } from "@/lib/review/changeRow";
+import { knownDocRevLine } from "@/lib/review/citeLabel";
 import { DESK_EMPTY_MISSING_EVIDENCE } from "@/lib/review/exportPacketView";
 
 export function DecisionChangeList({
@@ -22,8 +25,9 @@ export function DecisionChangeList({
               <span className="fact-row-copy">
                 <span className="row-title">{row.title}</span>
                 <span className="row-meta">{row.documentTitle}</span>
+                {row.signoff ? <ApprovalSignoffText name={row.signoff.name} disabled={row.signoff.disabled} /> : null}
               </span>
-              <span className="page-chip">{row.pageLabel}</span>
+              <CiteChip label={row.pageLabel} status={row.pinStatus} />
             </button>
           </li>
         );
@@ -34,18 +38,23 @@ export function DecisionChangeList({
 
 export function DecisionEvidence({ row, projectId }: { row: DecidedRowChrome; projectId: string }) {
   const missingExcerpt = !row.excerpt.trim() || row.excerpt === "No linked excerpt available.";
+  const docRev = row.pinStatus === "Unpinned" ? knownDocRevLine({
+    documentTitle: row.evidenceDocumentTitle || row.documentTitle,
+    revisionLabel: row.evidenceRevisionLabel || row.revisionLabel,
+  }) : null;
   return (
     <div className="evidence-rail-body">
       {row.pageNumber ? (
         <div className="evidence-rail-lead">
-          <span className="page-chip">{row.pageLabel}</span>
+          <CiteChip label={row.pageLabel} status={row.pinStatus} />
+          {docRev ? <p className="row-meta">{docRev}</p> : null}
           {missingExcerpt ? <p className="rail-empty rail-empty-inline">{DESK_EMPTY_MISSING_EVIDENCE}</p> : <p className="evidence-rail-excerpt">{row.excerpt}</p>}
-          {row.sourceCitation ? <p className="source-citation">{row.sourceCitation}</p> : null}
           <PagePreview projectId={projectId} revisionId={row.revisionId} pageNumber={row.pageNumber} excerpt={row.excerpt} />
         </div>
       ) : missingExcerpt ? <p className="rail-empty rail-empty-inline">{DESK_EMPTY_MISSING_EVIDENCE}</p> : null}
-      {row.sourceCitation ? null : <p className="row-meta">{row.documentTitle} · {row.revisionLabel}</p>}
+      {row.pageNumber || !docRev ? null : <p className="row-meta">{docRev}</p>}
       {row.badges?.length ? <FactBadges badges={row.badges} /> : null}
+      {row.signoff ? <p className="row-meta"><ApprovalSignoffText name={row.signoff.name} disabled={row.signoff.disabled} /></p> : null}
       <h3>{row.title}</h3>
     </div>
   );

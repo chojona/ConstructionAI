@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { attachSession } from "@/lib/auth/httpSession";
 import { loginWithPassword } from "@/lib/auth/login";
-import { errorResponse } from "@/lib/http";
+import { errorResponse, readJsonBody } from "@/lib/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await loginWithPassword(await request.json());
+    const session = await loginWithPassword(await readJsonBody(request));
     const response = NextResponse.json({
       user: {
         id: session.userId,
