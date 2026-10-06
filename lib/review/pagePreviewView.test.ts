@@ -170,12 +170,12 @@ describe("page preview rail", () => {
       excerpt: "Excavation quantity is 1,250 CY.",
       failureCode: "PAGE_PREVIEW_TEXT_UNAVAILABLE",
     }));
-    expect(html).toContain("draw this page");
-    expect(html).toContain("extracted text is still available");
+    expect(html).toContain("Page preview unavailable — showing extracted text.");
+    expect(html).toContain("page-preview-unavailable");
     expect(html).toContain(PAGE_PREVIEW_OPEN_LABEL);
     expect(html).toContain('href="/revisions/rev_1"');
     expect(html).not.toContain("<img");
-    expect(html).not.toContain(PAGE_PREVIEW_UNAVAILABLE_MESSAGE);
+    expect(html).not.toContain("Page preview unavailable — open full document.");
   });
 
   it("shows the generic preview failure when the row has no linked excerpt", () => {
@@ -186,10 +186,11 @@ describe("page preview rail", () => {
       excerpt: "No linked excerpt available.",
       failureCode: "PAGE_PREVIEW_TEXT_UNAVAILABLE",
     }));
-    expect(html).toContain(PAGE_PREVIEW_UNAVAILABLE_MESSAGE);
+    expect(html).toContain("Page preview unavailable — open full document.");
+    expect(html).toContain("page-preview-unavailable");
     expect(html).toContain(PAGE_PREVIEW_OPEN_LABEL);
     expect(html).toContain('href="/revisions/rev_1"');
-    expect(html).not.toContain("extracted text is still available");
+    expect(html).not.toContain("Page preview unavailable — showing extracted text.");
     expect(html).not.toContain("<img");
   });
 });
