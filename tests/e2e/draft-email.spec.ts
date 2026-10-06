@@ -129,7 +129,7 @@ test("draft email stays gated until approve and send records the ledger", async 
   await page.getByRole("button", { name: "Draft email" }).click();
   await expect(panel.getByLabel("Subject")).toHaveValue(`${projectName} — approved facts pack`);
   await expect(panel.getByText("Approved", { exact: true })).toBeVisible();
-  await expect(panel.getByText("p. 1").first()).toBeVisible();
+  await expect(panel.getByText(/Earthworks specification · Rev 0[12] · p\. 1/).first()).toBeVisible();
   await panel.getByLabel("To").fill("pm@example.com, accountant@example.com");
   await panel.getByLabel("Sender").fill("Alex Chen");
   await panel.getByRole("button", { name: "Send", exact: true }).click();

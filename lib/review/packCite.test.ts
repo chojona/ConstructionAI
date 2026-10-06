@@ -15,10 +15,12 @@ import {
   bindMarkupPageCites,
   canonicalPackPageCite,
   deskPackFiles,
+  deskPackFilesFromPacket,
   factPageCites,
   isLettingNotice,
   isPinnedEvidenceCite,
   legacyPageCiteMessage,
+  isUnpinnedAppendixCite,
   packPageCiteLabel,
   pinLegacyPageCites,
   readStoredPageCites,
@@ -33,6 +35,10 @@ const hashB = "b".repeat(64);
 
 function pin(revisionId: string, revisionLabel: string, page: string, documentPageId: string | null, contentHash: string | null): PackPageCite {
   return { revisionId, revisionLabel, page, documentPageId, contentHash };
+}
+
+function unpinned(label: string, display: string, reason: string, revisionId: string | null, revisionLabel: string | null) {
+  return { status: "Unpinned" as const, label, display, reason, revisionId, revisionLabel };
 }
 
 describe("pack page cites", () => {
@@ -119,34 +125,169 @@ describe("pack page cites", () => {
     expect(Object.keys(accepted).slice(0, 3)).toEqual(["revisionId", "revisionLabel", "page"]);
   });
 
-  it("binds markup page labels to the accepted revision and does not follow the latest revision", () => {
-    const onA = pin("rev_a", "A", "1", "page_a", hashA);
-    const onB = pin("rev_b", "B", "4", "page_b", hashB);
-    expect(bindMarkupPageCites(["2", "14"], [onA])).toEqual([
-      pin("rev_a", "A", "2", null, hashA),
-      pin("rev_a", "A", "14", null, hashA),
-    ]);
-    expect(bindMarkupPageCites(["9", "14"], [onA, onB])).toEqual([onA, onB]);
-    expect(bindMarkupPageCites(["1"], [onA, onB])).toEqual([onA]);
-    expect(bindMarkupPageCites(["1"], [onA, { ...onB, page: "1" }])).toEqual([onA, { ...onB, page: "1" }]);
-    expect(bindMarkupPageCites(["NYSDOT notice"], [onA])).toEqual([onA]);
-    expect(bindMarkupPageCites([], [onA])).toEqual([onA]);
+  it("keeps one cite when the same revision and page are listed twice", () => {
+    const evidence = {
+      revisionId: "rev_a",
+      revisionLabel: "A",
+      pageNumber: 3,
+      documentPageId: "page_a",
+      contentHash: hashA,
+      documentTitle: "Drainage Plan",
+    };
+    expect(factPageCites([evidence, { ...evidence }])).toEqual([{
+      ...pin("rev_a", "A", "3", "page_a", hashA),
+      documentTitle: "Drainage Plan",
+    }]);
   });
 
-  it("shows the revision label beside the page on pack proof chrome", () => {
-    const cite = pin("rev_a", "A", "2", null, hashA);
-    expect(packPageCiteLabel(cite)).toBe("Rev A · p. 2");
+  it("pins an in-range markup page and leaves out-of-range, sheet, and unmatched labels unpinned", () => {
+    const onA = pin("rev_a", "A", "1", "page_a1", hashA);
+    const onB = pin("rev_b", "B", "4", "page_b1", hashB);
+    const revA = {
+      revisionId: "rev_a",
+      revisionLabel: "A",
+      contentHash: hashA,
+      pages: [
+        { id: "page_a1", pageNumber: 1 },
+        { id: "page_a2", pageNumber: 2 },
+        { id: "page_a3", pageNumber: 3 },
+      ],
+    };
+    const revB = {
+      revisionId: "rev_b",
+      revisionLabel: "B",
+      contentHash: hashB,
+      pages: [{ id: "page_b1", pageNumber: 1 }],
+    };
+    expect(bindMarkupPageCites(["2"], [onA], [revA])).toEqual([
+      pin("rev_a", "A", "2", "page_a2", hashA),
+    ]);
+    const outOfRange = bindMarkupPageCites(["14"], [onA], [revA]);
+    expect(outOfRange).toEqual([unpinned("14", "p. 14", "not in Rev A", "rev_a", "A")]);
+    expect(outOfRange[0]).not.toHaveProperty("page");
+    expect(outOfRange[0]).not.toHaveProperty("documentPageId");
+
+    const sheets = bindMarkupPageCites(["C-101", "A-201", "S-3.1"], [onA], [revA]);
+    expect(sheets).toEqual([
+      unpinned("C-101", "Sheet C-101", "not matched", "rev_a", "A"),
+      unpinned("A-201", "Sheet A-201", "not matched", "rev_a", "A"),
+      unpinned("S-3.1", "Sheet S-3.1", "not matched", "rev_a", "A"),
+    ]);
+    expect(JSON.stringify(sheets)).not.toContain("\"page\":\"C-101\"");
+    expect(JSON.stringify(sheets)).not.toContain("p. C-101");
+
+    const mapped = bindMarkupPageCites(["c-101"], [onA], [{
+      ...revA,
+      pages: revA.pages.map((page) => page.pageNumber === 2 ? { ...page, sheetNumber: "C-101" } : page),
+    }]);
+    expect(mapped).toEqual([pin("rev_a", "A", "2", "page_a2", hashA)]);
+    expect(mapped[0]).not.toMatchObject({ page: "C-101" });
+
+    const unmatched = bindMarkupPageCites(["9", "14"], [onA, onB], [revA, revB]);
+    expect(unmatched).toEqual([
+      unpinned("9", "p. 9", "not in Rev A or Rev B", null, null),
+      unpinned("14", "p. 14", "not in Rev A or Rev B", null, null),
+    ]);
+    expect(unmatched).not.toEqual([onA, onB]);
+
+    expect(bindMarkupPageCites(["2"], [onA, onB], [revA, revB])).toEqual([
+      pin("rev_a", "A", "2", "page_a2", hashA),
+    ]);
+    expect(bindMarkupPageCites(["1"], [onA, onB], [revA, {
+      ...revB,
+      pages: [
+        { id: "page_b1", pageNumber: 1 },
+        { id: "page_b2", pageNumber: 2 },
+        { id: "page_b3", pageNumber: 3 },
+        { id: "page_b4", pageNumber: 4 },
+      ],
+    }])).toEqual([unpinned("1", "p. 1", "page not matched", null, null)]);
+    expect(bindMarkupPageCites(["NYSDOT notice"], [onA], [revA])).toEqual([onA]);
+    expect(bindMarkupPageCites([], [onA], [revA])).toEqual([onA]);
+
     const html = renderToStaticMarkup(createElement(PackProofList, {
       files: [{
         title: "Markup Summary",
         sourceId: "bb-1",
         fetchedAt: "2026-10-02T04:00:00.000Z",
         contentHash: "ab".repeat(32),
-        pageCites: [cite],
+        pageCites: [pin("rev_a", "A", "2", "page_a2", hashA), pin("rev_a", "A", "C-101", null, hashA), ...sheets, ...outOfRange],
       }],
     }));
     expect(html).toContain("Rev A · p. 2");
+    expect(html).toContain("Unpinned · Sheet C-101 · not matched");
+    expect(html).not.toContain("sheet not matched");
+    expect(html).toContain("Unpinned · p. 14 · not in Rev A");
+    expect(html).toContain("data-pin-status=\"Unpinned\"");
+    expect(html).not.toContain("p. C-101");
+    expect(html).not.toContain("Rev Rev");
+    expect(html).not.toContain("Sheet Sheet");
+  });
+
+  it("keeps sheet text and revision reasons from doubling", () => {
+    const fact = pin("rev_a", "Rev A", "1", "page_a1", hashA);
+    const rev = {
+      revisionId: "rev_a",
+      revisionLabel: "Rev A",
+      contentHash: hashA,
+      pages: [{ id: "page_a1", pageNumber: 1 }],
+    };
+    expect(bindMarkupPageCites(["14"], [fact], [rev])).toEqual([
+      unpinned("14", "p. 14", "not in Rev A", "rev_a", "Rev A"),
+    ]);
+    expect(bindMarkupPageCites(["C-101", "Sheet C-101"], [fact], [rev])).toEqual([
+      unpinned("C-101", "Sheet C-101", "not matched", "rev_a", "Rev A"),
+      unpinned("Sheet C-101", "Sheet C-101", "not matched", "rev_a", "Rev A"),
+    ]);
+    expect(bindMarkupPageCites(["14"], [pin("rev_ifc", "IFC", "1", "page_ifc", hashA)], [{
+      revisionId: "rev_ifc",
+      revisionLabel: "IFC",
+      contentHash: hashA,
+      pages: [{ id: "page_ifc", pageNumber: 1 }],
+    }])).toEqual([
+      unpinned("14", "p. 14", "not in IFC", "rev_ifc", "IFC"),
+    ]);
+  });
+
+  it("shows the document and revision once beside the page on pack proof chrome", () => {
+    const stored = pin("rev_a", "Rev A", "2", null, hashA);
+    expect(canonicalPackPageCite({ ...stored, documentTitle: "Drainage Plan" })).toEqual(stored);
+    expect(JSON.stringify(canonicalPackPageCite({ ...stored, documentTitle: "Drainage Plan" }))).not.toContain("Drainage");
+    const cite = { ...pin("rev_a", "A", "2", null, hashA), documentTitle: "Drainage Plan" };
+    expect(packPageCiteLabel(cite)).toBe("Drainage Plan · Rev A · p. 2");
+    expect(packPageCiteLabel({ ...stored, documentTitle: "Drainage Plan" })).toBe("Drainage Plan · Rev A · p. 2");
+    expect(packPageCiteLabel({ ...pin("rev_c", "Revision C", "2", null, hashA), documentTitle: "Drainage Plan" })).toBe("Drainage Plan · Revision C · p. 2");
+    expect(packPageCiteLabel(stored)).toBe("Unpinned");
+    const files = deskPackFilesFromPacket({
+      appendices: [{
+        title: "Markup Summary",
+        sourceId: "bb-1",
+        fetchedAt: "2026-10-02T04:00:00.000Z",
+        contentHash: "ab".repeat(32),
+        pageCites: [pin("rev_a", "Rev A", "2", null, hashA), pin("rev_b", "Rev B", "4", null, hashB)],
+      }],
+      changes: [
+        { document: { title: "Drainage Plan" }, revisions: [{ id: "rev_a" }], evidence: [{ revisionId: "rev_a" }] },
+        { document: { title: "Special provisions" }, revisions: [{ id: "rev_b" }], evidence: [{ revisionId: "rev_b" }] },
+      ],
+    });
+    expect(files.appendices[0]?.pageCites.flatMap((item) => isUnpinnedAppendixCite(item) ? [] : [packPageCiteLabel(item)])).toEqual([
+      "Drainage Plan · Rev A · p. 2",
+      "Special provisions · Rev B · p. 4",
+    ]);
+    const html = renderToStaticMarkup(createElement(PackProofList, { files: files.appendices }));
+    expect(html).toContain("Drainage Plan · Rev A · p. 2");
+    expect(html).toContain("Special provisions · Rev B · p. 4");
+    expect(html).not.toContain("Rev Rev");
     expect(html).not.toContain(">p. 2<");
+    expect(factPageCites([{
+      revisionId: "rev_a",
+      revisionLabel: "Rev A",
+      pageNumber: 2,
+      documentTitle: "Drainage Plan",
+      documentPageId: null,
+      contentHash: hashA,
+    }])[0]?.documentTitle).toBe("Drainage Plan");
   });
 
   it("refuses a stored pack whose cite is only a page number", () => {

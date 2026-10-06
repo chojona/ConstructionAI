@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { DecisionChangeList, DecisionEvidence } from "@/components/review/decision-change-list";
+import { UNPINNED_CITE_LABEL } from "./citeLabel";
 import { changeEvidenceLead, changePageChip, changeRowTitle, decidedRowChrome, openRowChrome } from "./changeRow";
 
 describe("change rows", () => {
@@ -13,7 +14,7 @@ describe("change rows", () => {
       evidence: [],
     };
     expect(changeRowTitle(finding)).toBe("Quantity changed");
-    expect(changePageChip(finding)).toBe("p. 1");
+    expect(changePageChip(finding)).toBe(UNPINNED_CITE_LABEL);
     expect(changeEvidenceLead(finding)).toEqual({ page: 1, excerpt: "No linked excerpt available.", revisionId: null, revisionLabel: null, documentTitle: null });
   });
 
@@ -35,7 +36,7 @@ describe("change rows", () => {
       revisionLabel: "Rev A → Rev B",
       subject: { type: "revision_change" as const, changeType: "MODIFIED" as const },
       before: { category: "quantity" as const, evidence: [{ pageNumber: 1, excerpt: "Structural excavation 4200 CY." }] },
-      after: { category: "quantity" as const, evidence: [{ pageNumber: 1, excerpt: "Structural excavation 5100 CY.", revisionId: "rev_b" }] },
+      after: { category: "quantity" as const, evidence: [{ pageNumber: 1, excerpt: "Structural excavation 5100 CY.", revisionId: "rev_b", revisionLabel: "Rev B", documentTitle: "Special provisions" }] },
       evidence: [],
     };
     const open = openRowChrome(shared);
@@ -44,11 +45,14 @@ describe("change rows", () => {
     expect(open).toEqual({
       documentTitle: "Special provisions",
       revisionLabel: "Rev A → Rev B",
-      pageLabel: "p. 1",
+      pageLabel: "Special provisions · Rev B · p. 1",
+      pinStatus: "Pinned",
       pageNumber: 1,
+      evidenceDocumentTitle: "Special provisions",
+      evidenceRevisionLabel: "Rev B",
       excerpt: "Structural excavation 5100 CY.",
       revisionId: "rev_b",
-      sourceCitation: null,
+      sourceCitation: "Special provisions · Rev B · p. 1",
       badges: [
         { kind: "fact", label: "QUANTITY" },
         { kind: "change", label: "MODIFIED" },
@@ -63,13 +67,36 @@ describe("change rows", () => {
       renderToStaticMarkup(createElement(DecisionEvidence, { row: accepted!, projectId: "project_1" })),
       renderToStaticMarkup(createElement(DecisionEvidence, { row: rejected!, projectId: "project_1" })),
     ].join("");
-    expect(html).toContain("Special provisions");
-    expect(html).toContain("p. 1");
-    expect(html).toContain("Rev A → Rev B");
+    expect(html).toContain("Special provisions · Rev B · p. 1");
+    expect(html).not.toContain(">p. 1<");
+    expect(html).not.toContain("Rev A → Rev B");
     expect(html).toContain("excavation: 1250 CY");
     expect(html.match(/Special provisions/g)?.length).toBeGreaterThanOrEqual(2);
     expect(html).not.toMatch(/>Approved</);
     expect(html).not.toContain("AI-suggested");
+    expect(html).toContain('data-pin-status="Pinned"');
+  });
+
+  it("shows the document and revision on the rail when the lead chip is unpinned", () => {
+    const shared = {
+      subjectKey: "proposed-fact:excavation",
+      label: "excavation: 1250 CY",
+      documentTitle: "Special provisions",
+      revisionLabel: "Addendum 2",
+      subject: { type: "revision_change" as const, changeType: "MODIFIED" as const },
+      before: null,
+      after: { category: "quantity" as const, evidence: [{ pageNumber: 3, excerpt: "Structural excavation 4200 CY.", revisionLabel: "A", documentTitle: "Special provisions" }] },
+      evidence: [],
+    };
+    const [accepted] = decidedRowChrome([{ ...shared, currentDecision: { decision: "ACCEPTED" } }]);
+    expect(accepted?.pageLabel).toBe(UNPINNED_CITE_LABEL);
+    expect(accepted?.pinStatus).toBe("Unpinned");
+    const html = renderToStaticMarkup(createElement(DecisionEvidence, { row: accepted!, projectId: "project_1" }));
+    expect(html).toContain(">Unpinned<");
+    expect(html).toContain('data-pin-status="Unpinned"');
+    expect(html).toContain("Special provisions · Rev A");
+    expect(html).not.toContain("Rev Rev");
+    expect(html).not.toContain(">p. 3<");
   });
 
   it("cites the pinned revision on the evidence, not the comparison label", () => {
@@ -81,7 +108,10 @@ describe("change rows", () => {
       after: { category: "quantity", evidence: [{ pageNumber: 4, excerpt: "after", revisionId: "rev_b", revisionLabel: "Rev B", documentTitle: "Special provisions" }] },
       evidence: [],
     });
+    expect(chrome.pageLabel).toBe("Special provisions · Rev B · p. 4");
     expect(chrome.sourceCitation).toBe("Special provisions · Rev B · p. 4");
+    expect(chrome.pageLabel).not.toMatch(/^p\. /);
     expect(chrome.sourceCitation).not.toContain("→");
+    expect(chrome.pageLabel).not.toContain("Rev Rev");
   });
 });

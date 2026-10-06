@@ -6,6 +6,7 @@ import { DecisionEvidence } from "@/components/review/decision-change-list";
 import { PagePreview } from "@/components/review/page-preview";
 import type { AttentionItemDto } from "@/lib/review/dto";
 import type { DecidedRowChrome } from "./changeRow";
+import { citePinStatus, formatCiteLabel } from "./citeLabel";
 import { PAGE_PREVIEW_OPEN_LABEL, PAGE_PREVIEW_UNAVAILABLE_MESSAGE } from "./pagePreviewCopy";
 
 vi.mock("next/navigation", () => ({
@@ -67,7 +68,18 @@ function decidedRow(pageNumber: number | null, revisionId: string | null): Decid
     title: "excavation: 1250 CY",
     documentTitle: "Earthworks specification",
     revisionLabel: "Rev 04",
-    pageLabel: pageNumber ? `p. ${pageNumber}` : "p. —",
+    pageLabel: formatCiteLabel({
+      documentTitle: "Earthworks specification",
+      revisionLabel: "Rev 04",
+      revisionId,
+      page: pageNumber,
+    }),
+    pinStatus: citePinStatus({
+      documentTitle: "Earthworks specification",
+      revisionLabel: "Rev 04",
+      revisionId,
+      page: pageNumber,
+    }),
     pageNumber,
     excerpt: pageNumber ? "Excavation quantity is 1,250 CY." : "",
     revisionId,
@@ -81,7 +93,8 @@ describe("page preview rail", () => {
       uploadHref: "/projects/project_1?view=documents",
       items: [cited],
     }));
-    expect(html).toContain(">p. 4<");
+    expect(html).toContain(">Catch basins · Rev B · p. 4<");
+    expect(html).not.toContain(">p. 4<");
     expect(html).toContain("Install 16 catch basins.");
     expect(html).toContain("/api/projects/project_1/revisions/rev_cited/pages/4");
     expect(html).toContain('alt="Page 4"');
@@ -99,6 +112,40 @@ describe("page preview rail", () => {
     expect(html).toContain("Accepted facts become project truth. AI suggestions never bypass human review.");
     expect(html).not.toContain(PAGE_PREVIEW_UNAVAILABLE_MESSAGE);
     expect(html).not.toMatch(/Ask about this page|pdf-chat|ask the pdf|prompt box|Avg confidence|CONFLICT|Edit fact|Process new docs|DIMENSION|PRODUCT/i);
+    expect(html).toContain('data-pin-status="Pinned"');
+  });
+
+  it("keeps Doc · Rev on the open rail when the lead chip is unpinned", () => {
+    const lead = cited.finding.after;
+    if (!lead) throw new Error("cited fixture is missing after evidence");
+    const unpinned = {
+      ...cited,
+      finding: {
+        ...cited.finding,
+        subjectKey: "revision-change:unpinned",
+        documentTitle: "Special provisions",
+        revisionLabel: "Addendum 2",
+        after: {
+          ...lead,
+          evidence: [{
+            ...lead.evidence[0]!,
+            revisionId: "",
+            revisionLabel: "A",
+            documentTitle: "Special provisions",
+          }],
+        },
+      },
+    } as AttentionItemDto;
+    const html = renderToStaticMarkup(createElement(ChangeReview, {
+      projectId: "project_1",
+      uploadHref: "/projects/project_1?view=documents",
+      items: [unpinned],
+    }));
+    expect(html).toContain(">Unpinned<");
+    expect(html).toContain('data-pin-status="Unpinned"');
+    expect(html).toContain("Special provisions · Rev A");
+    expect(html).not.toContain("Special provisions · Rev A · p.");
+    expect(html).not.toContain("Rev Rev");
   });
 
   it("shows the severity reason on first paint when decided facts are also listed", () => {
@@ -142,7 +189,10 @@ describe("page preview rail", () => {
       projectId: "project_1",
       row: decidedRow(2, null),
     }));
-    expect(html).toContain(">p. 2<");
+    expect(html).toContain(">Unpinned<");
+    expect(html).toContain('data-pin-status="Unpinned"');
+    expect(html).toContain("Earthworks specification · Rev 04");
+    expect(html).not.toContain(">p. 2<");
     expect(html).toContain("Excavation quantity is 1,250 CY.");
     expect(html).toContain(PAGE_PREVIEW_UNAVAILABLE_MESSAGE);
     expect(html).not.toContain("<img");

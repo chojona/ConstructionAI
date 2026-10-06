@@ -1,4 +1,4 @@
-import type { PackPageCite } from "@/lib/review/exportPacketView";
+import type { AppendixPageCite } from "@/lib/review/exportPacketView";
 
 export const DRAFT_EMAIL_ACTION = "Draft email";
 export const DRAFT_EMAIL_TITLE = "Draft email with approved pack";
@@ -46,7 +46,7 @@ export interface EmailPackFilePreview {
   sourceId: string;
   fetchedAt: string;
   contentHash: string;
-  pageCites: PackPageCite[];
+  pageCites: AppendixPageCite[];
 }
 
 export type EmailAppendixPreview = EmailPackFilePreview;

@@ -2,7 +2,8 @@ import {
   CONTENT_SHA256_LABEL,
   PACK_PROOF_FETCHED_LABEL,
   PACK_PROOF_SOURCE_LABEL,
-  packPageCiteLabel,
+  appendixCiteVisible,
+  isUnpinnedAppendixCite,
   packProofChrome,
   visiblePackProof,
   type DeskPackFile,
@@ -39,9 +40,17 @@ export function PackProofList({ files }: { files: readonly DeskPackFile[] }) {
             </dl>
             {chrome.pageCites.length > 0 && (
               <span className="packet-chips">
-                {chrome.pageCites.map((cite) => (
-                  <span className="page-chip" key={`${file.contentHash}:${cite.revisionId}:${cite.page}`}>{packPageCiteLabel(cite)}</span>
-                ))}
+                {chrome.pageCites.map((cite) => {
+                  const visible = appendixCiteVisible(cite);
+                  const key = isUnpinnedAppendixCite(cite)
+                    ? `${file.contentHash}:unpinned:${cite.label}:${cite.reason}`
+                    : `${file.contentHash}:${cite.revisionId}:${cite.page}`;
+                  return (
+                    <span className="page-chip" data-pin-status={visible.status} key={key}>
+                      {visible.status === "Unpinned" ? `Unpinned · ${visible.text} · ${visible.reason}` : visible.text}
+                    </span>
+                  );
+                })}
               </span>
             )}
             <LegacyPageCiteNotice message={file.citeNotice} />

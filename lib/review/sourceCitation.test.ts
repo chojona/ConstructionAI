@@ -31,4 +31,25 @@ describe("pinned source citation", () => {
       pageNumber: 0,
     })).toBeNull();
   });
+
+  it("adds Rev once when the stored label does not already start with it", () => {
+    expect(pinnedSourceCitation({
+      documentTitle: "Drainage Plan",
+      revisionLabel: "A",
+      revisionId: "rev_a",
+      pageNumber: 2,
+    })).toBe("Drainage Plan · Rev A · p. 2");
+    expect(pinnedSourceCitation({
+      documentTitle: "Drainage Plan",
+      revisionLabel: "Rev A",
+      revisionId: "rev_a",
+      pageNumber: 2,
+    })).toBe("Drainage Plan · Rev A · p. 2");
+    expect(pinnedSourceCitation({
+      documentTitle: "Drainage Plan",
+      revisionLabel: "Revision C",
+      revisionId: "rev_c",
+      pageNumber: 2,
+    })).toBe("Drainage Plan · Revision C · p. 2");
+  });
 });
