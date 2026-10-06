@@ -91,6 +91,20 @@ model Session {
   @@index([userId])
 }
 
+/// Failed sign-in and invitation attempts inside the lockout window.
+/// email is empty when an accept token does not identify a person.
+/// Rows are not tied to User, so an unknown email counts the same as a known one.
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  email     String
+  ip        String
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([ip, createdAt])
+  @@index([createdAt])
+}
+
 model Project {
   id             String   @id @default(cuid())
   organizationId String

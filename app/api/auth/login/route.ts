@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { attachSession } from "@/lib/auth/httpSession";
-import { loginWithPassword } from "@/lib/auth/login";
+import { loginWithPassword, parseLoginRequest } from "@/lib/auth/login";
+import { clientIp, isLoginCredentialFailure, runLimitedAuthAttempt } from "@/lib/auth/loginRateLimit";
 import { errorResponse, readJsonBody } from "@/lib/http";
 
 export const runtime = "nodejs";
@@ -8,7 +9,14 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await loginWithPassword(await readJsonBody(request));
+    const body = await readJsonBody(request);
+    const { email } = parseLoginRequest(body);
+    const session = await runLimitedAuthAttempt({
+      email,
+      ip: clientIp(request),
+      countsFailure: isLoginCredentialFailure,
+      run: () => loginWithPassword(body),
+    });
     const response = NextResponse.json({
       user: {
         id: session.userId,
