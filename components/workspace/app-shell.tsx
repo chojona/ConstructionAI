@@ -29,7 +29,23 @@ type Project = {
   openCount: number;
 };
 
-export function AppShell({ projects, children }: { projects: Project[]; children: React.ReactNode }) {
+export function SidebarFooter({ viewer }: { viewer: { label: string } | null }) {
+  return (
+    <div className="sidebar-footer">
+      {viewer ? (
+        <>
+          <span className="sidebar-member" title={viewer.label}>{viewer.label}</span>
+          <SignOutButton />
+        </>
+      ) : (
+        <Link href="/login">Sign in</Link>
+      )}
+      <span className="status-dot" />Source intelligence<small>Decisions grounded in documents</small>
+    </div>
+  );
+}
+
+export function AppShell({ projects, viewer, children }: { projects: Project[]; viewer: { label: string } | null; children: React.ReactNode }) {
   const pathname = usePathname();
   const collapsed = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -81,11 +97,7 @@ export function AppShell({ projects, children }: { projects: Project[]; children
           <Link className={`nav-row ${pathname === "/projects" ? "is-active" : ""}`} aria-current={pathname === "/projects" ? "page" : undefined} aria-label="Projects" href="/projects"><FolderKanban size={16} aria-hidden /><span className="nav-label">Projects</span></Link>
           <Link className={`nav-row ${pathname === "/changes" ? "is-active" : ""}`} aria-current={pathname === "/changes" ? "page" : undefined} aria-label="Changes" href="/changes"><Layers3 size={16} aria-hidden /><span className="nav-copy">Changes<small>Needs attention</small></span></Link>
         </nav>
-        <div className="sidebar-footer">
-          <Link href="/login">Sign in</Link>
-          <SignOutButton />
-          <span className="status-dot" />Source intelligence<small>Decisions grounded in documents</small>
-        </div>
+        <SidebarFooter viewer={viewer} />
       </aside>
       <div className="workspace-body" id="workspace" tabIndex={-1}>{children}</div>
       <dialog ref={dialog} className="command-dialog" aria-labelledby="command-title" onClose={() => trigger.current?.focus()} onClick={(event) => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
