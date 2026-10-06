@@ -32,7 +32,7 @@ const EMAIL_UPDATE_DRAFT_FILES = new Set([
 export const EMAIL_UI_SURFACES = [
   "components/review/draft-email.tsx",
   "components/review/export-packet.tsx",
-  "app/projects/[projectId]/emails/[emailSendId]/page.tsx",
+  "app/(desk)/projects/[projectId]/emails/[emailSendId]/page.tsx",
 ];
 
 const SCAN_ROOTS = ["app", "components", "lib"];

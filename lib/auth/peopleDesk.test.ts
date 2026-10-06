@@ -33,7 +33,7 @@ vi.mock("@/lib/auth/prismaMembership", () => ({
   membershipStore: { findMembership, listActiveMemberships, listMembershipsForUser, listPeople },
 }));
 
-import PeoplePage from "@/app/people/page";
+import PeoplePage from "@/app/(desk)/people/page";
 import { AppShell } from "@/components/workspace/app-shell";
 import { peopleUpdatedLabel } from "./peopleLabels";
 
