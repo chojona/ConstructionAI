@@ -1,3 +1,5 @@
+import { citePinStatus, displayRevision, formatCiteLabel, sheetCiteDisplay, type CitePinStatus } from "./citeLabel";
+
 export const EXPORT_BLOCKED_MESSAGE = "Approve at least one change to export.";
 export const EXPORT_OPEN_MESSAGE = "Finish open reviews before exporting.";
 export const ADD_ACC_EXPORT_LABEL = "Add pack chapter";
@@ -51,6 +53,7 @@ export interface ApprovedChangePreview {
     excerpt: string;
     documentPageId?: string | null;
     contentHash?: string | null;
+    documentTitle?: string | null;
   }>;
 }
 
@@ -65,6 +68,11 @@ export interface PackPageCite {
   page: string;
   documentPageId: string | null;
   contentHash: string | null;
+  /**
+   * Display only. Canonical pins omit this so stored JSON stays the revision pin.
+   * Resolved from the accepted change when the chip is rendered.
+   */
+  documentTitle?: string;
 }
 
 /** One DocumentPage row used to validate a markup label. Page count is `pages.length`. */
@@ -162,6 +170,7 @@ export function factPageCites(evidence: readonly {
   page?: string;
   documentPageId?: string | null;
   contentHash?: string | null;
+  documentTitle?: string | null;
 }[]): PackPageCite[] {
   const cites: PackPageCite[] = [];
   const seen = new Set<string>();
@@ -178,7 +187,8 @@ export function factPageCites(evidence: readonly {
     const key = `${cite.revisionId}\n${cite.page.toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    cites.push(cite);
+    const documentTitle = item.documentTitle?.trim() ?? "";
+    cites.push(documentTitle ? { ...cite, documentTitle } : cite);
   }
   return cites;
 }
@@ -221,8 +231,87 @@ export function canonicalAppendixPageCite(value: unknown): AppendixPageCite | nu
   return canonicalPackPageCite(value);
 }
 
-export function packPageCiteLabel(cite: Pick<PackPageCite, "revisionLabel" | "page">) {
-  return `Rev ${cite.revisionLabel} · p. ${cite.page}`;
+export function packPageCiteChip(cite: Pick<PackPageCite, "revisionLabel" | "page"> & {
+  revisionId?: string | null;
+  documentTitle?: string | null;
+}): { label: string; status: CitePinStatus } {
+  const input = {
+    documentTitle: cite.documentTitle,
+    revisionLabel: cite.revisionLabel,
+    revisionId: cite.revisionId,
+    page: cite.page,
+  };
+  return { label: formatCiteLabel(input), status: citePinStatus(input) };
+}
+
+export function packPageCiteLabel(cite: Pick<PackPageCite, "revisionLabel" | "page"> & {
+  revisionId?: string | null;
+  documentTitle?: string | null;
+}) {
+  return packPageCiteChip(cite).label;
+}
+
+export function documentTitlesFromChanges(changes: readonly {
+  document?: { title?: string | null } | null;
+  evidence?: readonly { revisionId?: string | null }[] | null;
+  revisions?: readonly { id?: string | null }[] | null;
+}[] | null | undefined) {
+  const titles = new Map<string, string>();
+  for (const change of changes ?? []) {
+    const title = change.document?.title?.trim() ?? "";
+    if (!title) continue;
+    for (const revision of change.revisions ?? []) {
+      const id = revision.id?.trim();
+      if (id) titles.set(id, title);
+    }
+    for (const item of change.evidence ?? []) {
+      const id = item.revisionId?.trim();
+      if (id) titles.set(id, title);
+    }
+  }
+  return titles;
+}
+
+export function citeWithDocumentTitle(cite: AppendixPageCite, titles: ReadonlyMap<string, string>): AppendixPageCite {
+  if (isUnpinnedAppendixCite(cite)) return cite;
+  const documentTitle = cite.documentTitle?.trim() || titles.get(cite.revisionId)?.trim() || "";
+  if (!documentTitle || cite.documentTitle === documentTitle) return cite;
+  return { ...cite, documentTitle };
+}
+
+function citeKeepingDocumentTitle(row: AppendixPageCite, source: unknown): AppendixPageCite {
+  if (isUnpinnedAppendixCite(row)) return row;
+  const documentTitle = source && typeof source === "object" && "documentTitle" in source && typeof source.documentTitle === "string"
+    ? source.documentTitle.trim()
+    : "";
+  return documentTitle ? { ...row, documentTitle } : row;
+}
+
+function attachUnknownCiteTitle(cite: unknown, titles: ReadonlyMap<string, string>) {
+  if (!cite || typeof cite !== "object") return cite;
+  const record = cite as { revisionId?: unknown; documentTitle?: unknown };
+  const revisionId = typeof record.revisionId === "string" ? record.revisionId : "";
+  const existing = typeof record.documentTitle === "string" ? record.documentTitle.trim() : "";
+  const documentTitle = existing || (revisionId ? titles.get(revisionId) : "") || "";
+  if (!documentTitle) return cite;
+  return { ...record, documentTitle };
+}
+
+/** Desk files whose page chips can name the document that owns each revision. */
+export function deskPackFilesFromPacket(packet: {
+  chapters?: Parameters<typeof deskPackFiles>[0];
+  appendices?: Parameters<typeof deskPackFiles>[0];
+  changes?: Parameters<typeof documentTitlesFromChanges>[0];
+} | null | undefined) {
+  const titles = documentTitlesFromChanges(packet?.changes);
+  const files = (input: Parameters<typeof deskPackFiles>[0]) => deskPackFiles((input ?? []).map((file) => ({
+    ...file,
+    pageCites: (file.pageCites ?? []).map((cite) => attachUnknownCiteTitle(cite, titles)),
+  })));
+  return {
+    chapters: files(packet?.chapters),
+    appendices: files(packet?.appendices),
+  };
 }
 
 /** Pinned numeric cites use packPageCiteLabel. Sheet labels and unpinned rows do not. */
@@ -231,9 +320,17 @@ export function appendixCiteVisible(cite: AppendixPageCite): { status: "Pinned" 
     return { status: "Unpinned", text: cite.display, reason: cite.reason };
   }
   if (!INTEGER_PAGE.test(cite.page)) {
-    return { status: "Unpinned", text: `Sheet ${cite.page}`, reason: SHEET_NOT_MATCHED };
+    return { status: "Unpinned", text: sheetCiteDisplay(cite.page), reason: SHEET_NOT_MATCHED };
   }
-  return { status: "Pinned", text: packPageCiteLabel(cite), reason: null };
+  const titled = citePinStatus({
+    documentTitle: cite.documentTitle,
+    revisionLabel: cite.revisionLabel,
+    revisionId: cite.revisionId,
+    page: cite.page,
+  });
+  if (titled === "Pinned") return { status: "Pinned", text: packPageCiteLabel(cite), reason: null };
+  const revision = displayRevision(cite.revisionLabel) ?? cite.revisionLabel;
+  return { status: "Pinned", text: `${revision} · p. ${cite.page}`, reason: null };
 }
 
 export function storedPageCiteStrings(cites: readonly unknown[]): string[] | null {
@@ -406,10 +503,12 @@ function integerPage(label: string) {
 }
 
 function pageNotInReason(revisions: readonly MarkupRevisionPages[]) {
-  const labels = revisions.map((revision) => revision.revisionLabel).filter((label) => label.length > 0);
+  const labels = revisions
+    .map((revision) => displayRevision(revision.revisionLabel))
+    .filter((label): label is string => Boolean(label));
   if (labels.length === 0) return "not in Rev";
-  if (labels.length === 1) return `not in Rev ${labels[0]}`;
-  return `not in Rev ${labels.join(" or Rev ")}`;
+  if (labels.length === 1) return `not in ${labels[0]}`;
+  return `not in ${labels.join(" or ")}`;
 }
 
 function soleRevision(revisions: readonly MarkupRevisionPages[]) {
@@ -424,7 +523,7 @@ function unpinnedMarkup(
   return {
     status: "Unpinned",
     label,
-    display: INTEGER_PAGE.test(label) ? `p. ${label}` : `Sheet ${label}`,
+    display: sheetCiteDisplay(label),
     reason,
     revisionId: revision?.revisionId ?? null,
     revisionLabel: revision?.revisionLabel ?? null,
@@ -441,7 +540,7 @@ function canonicalUnpinnedCite(row: Partial<MarkupUnpinnedCite>): MarkupUnpinned
   return {
     status: "Unpinned",
     label: row.label,
-    display: INTEGER_PAGE.test(row.label) ? `p. ${row.label}` : `Sheet ${row.label}`,
+    display: sheetCiteDisplay(row.label),
     reason: row.reason,
     revisionId,
     revisionLabel,
@@ -535,10 +634,11 @@ export function deskPackFiles(files: readonly {
 }[] | undefined): DeskPackFile[] {
   return (files ?? []).map((file) => {
     const raw = file.pageCites ?? [];
-    const pageCites = raw.flatMap((cite) => {
+    const pageCites: AppendixPageCite[] = [];
+    for (const cite of raw) {
       const row = canonicalAppendixPageCite(cite);
-      return row ? [row] : [];
-    });
+      if (row) pageCites.push(citeKeepingDocumentTitle(row, cite));
+    }
     const legacy = pageCites.length === 0 ? legacyBarePageTokens(raw) : null;
     return {
       title: file.title,
@@ -575,9 +675,9 @@ export function packProofChrome(file: DeskPackFile) {
     sourceId: file.sourceId.trim(),
     fetchedAt: file.fetchedAt,
     sha256: shortContentSha256(file.contentHash),
-    pageCites: file.pageCites.flatMap((cite) => {
+    pageCites: file.pageCites.flatMap((cite): AppendixPageCite[] => {
       const row = canonicalAppendixPageCite(cite);
-      return row ? [row] : [];
+      return row ? [citeKeepingDocumentTitle(row, cite)] : [];
     }),
   };
 }
