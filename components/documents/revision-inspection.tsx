@@ -11,7 +11,13 @@ import {
   revisionSignals,
   type RevisionFindingView,
 } from "@/lib/documents/revisionExperience";
+import { formatCiteLabel } from "@/lib/review/citeLabel";
 import type { EvidenceLocation } from "@/lib/review/evidenceLocation";
+
+type InspectionFinding = RevisionFindingView & {
+  before?: { evidence: EvidenceLocation[] } | null;
+  after?: { evidence: EvidenceLocation[] } | null;
+};
 
 const toneClass = {
   ready: "status-processed",
@@ -46,7 +52,7 @@ export function RevisionInspection({
   };
   siblings: RevisionRecord[];
   runs: Pick<ExtractionRunRecord, "attemptNumber" | "status" | "failureMessage">[];
-  findings: readonly RevisionFindingView[];
+  findings: readonly InspectionFinding[];
   uploadedLabel: string;
   returnTo: string | null;
   navigation?: ReactNode;
@@ -124,7 +130,7 @@ export function RevisionInspection({
               <li key={`${item.label}-${index}`}>
                 <p className="row-title">{item.label}</p>
                 <p className="row-meta">{changeKind(item)}</p>
-                <EvidenceJumps evidence={item.evidence} returnTo={returnTo} />
+                <EvidenceJumps evidence={jumpEvidence(item)} viewedRevisionId={revision.id} returnTo={returnTo} />
               </li>
             ))}
           </ul>
@@ -136,11 +142,43 @@ export function RevisionInspection({
   );
 }
 
-function EvidenceJumps({ evidence, returnTo }: { evidence: EvidenceLocation[]; returnTo: string | null }) {
+function jumpEvidence(item: InspectionFinding): EvidenceLocation[] {
+  const sided = [...(item.before?.evidence ?? []), ...(item.after?.evidence ?? [])];
+  const items = sided.length > 0 ? sided : item.evidence;
+  const seen = new Set<string>();
+  const unique: EvidenceLocation[] = [];
+  for (const evidence of items) {
+    const key = `${evidence.revisionId}\n${evidence.documentPageId ?? ""}\n${evidence.pageNumber}\n${evidence.startOffset}\n${evidence.endOffset}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(evidence);
+  }
+  return unique;
+}
+
+function EvidenceJumps({
+  evidence,
+  viewedRevisionId,
+  returnTo,
+}: {
+  evidence: EvidenceLocation[];
+  viewedRevisionId: string;
+  returnTo: string | null;
+}) {
   const links = evidence.flatMap((item) => {
     const href = evidenceHref(item, returnTo);
     if (!href) return [];
-    return [{ href, label: `Page ${item.pageNumber}`, key: `${item.revisionId}-${item.documentPageId}-${item.startOffset}` }];
+    return [{
+      href,
+      label: formatCiteLabel({
+        surface: "jump",
+        revisionLabel: item.revisionLabel,
+        revisionId: item.revisionId,
+        viewedRevisionId,
+        page: item.pageNumber,
+      }),
+      key: `${item.revisionId}-${item.documentPageId}-${item.startOffset}`,
+    }];
   });
   if (links.length === 0) return null;
   return (

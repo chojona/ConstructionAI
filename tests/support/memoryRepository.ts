@@ -18,7 +18,7 @@ import type {
 } from "@/lib/domain/repository";
 import { PACK_MISSING_MESSAGE } from "@/lib/email/emailSendView";
 import { EXPORT_BLOCKED_MESSAGE } from "@/lib/review/exportPacket";
-import { PACK_CITE_UNPINNED_MESSAGE, canonicalPackPageCite, type PackPageCite } from "@/lib/review/exportPacketView";
+import { PACK_CITE_UNPINNED_MESSAGE, canonicalAppendixPageCite, type AppendixPageCite } from "@/lib/review/exportPacketView";
 import type {
   DocumentDetail,
   DocumentRecord,
@@ -582,13 +582,13 @@ function copyExportPacketChapter(chapter: StoredExportPacketChapter): StoredExpo
   };
 }
 
-function pageCitesFor(input: SaveExportPacketChapterInput): PackPageCite[] {
+function pageCitesFor(input: SaveExportPacketChapterInput): AppendixPageCite[] {
   if (input.role !== "bluebeam-markup") return [];
-  const cites = [...(input.pageCites ?? [])].map((cite) => canonicalPackPageCite(cite));
+  const cites = [...(input.pageCites ?? [])].map((cite) => canonicalAppendixPageCite(cite));
   if (cites.length === 0 || cites.some((cite) => cite === null)) {
     throw new DomainError("INVALID_INPUT", PACK_CITE_UNPINNED_MESSAGE, 400);
   }
-  return cites.filter((cite): cite is PackPageCite => cite !== null);
+  return cites.filter((cite): cite is AppendixPageCite => cite !== null);
 }
 
 function copyEmailSend(email: EmailSendRecord): EmailSendRecord {

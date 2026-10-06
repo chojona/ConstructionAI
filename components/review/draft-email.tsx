@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useId, useState } from "react";
 import Link from "next/link";
+import { CiteChip } from "@/components/review/cite-chip";
 import { PackProofList } from "@/components/review/pack-proof";
-import { packPageCiteLabel } from "@/lib/review/exportPacketView";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { DeskPackFile } from "@/lib/review/exportPacketView";
+import { packPageCiteChip, type DeskPackFile } from "@/lib/review/exportPacketView";
 import {
   ACTOR_REQUIRED,
   APPROVED_CHIP,
@@ -189,9 +189,16 @@ function DraftEmailPanel({
                       <span className="page-chip">{APPROVED_CHIP}</span>
                       {item.evidence.map((evidence) => (
                         evidence.revisionLabel ? (
-                          <span className="page-chip" key={`${item.decisionId}:${evidence.revisionId}:${evidence.pageNumber}:${evidence.excerpt}`} title={evidence.excerpt}>
-                            {packPageCiteLabel({ revisionLabel: evidence.revisionLabel, page: String(evidence.pageNumber) })}
-                          </span>
+                          <CiteChip
+                            key={`${item.decisionId}:${evidence.revisionId}:${evidence.pageNumber}:${evidence.excerpt}`}
+                            title={evidence.excerpt}
+                            {...packPageCiteChip({
+                              revisionId: evidence.revisionId,
+                              revisionLabel: evidence.revisionLabel,
+                              page: String(evidence.pageNumber),
+                              documentTitle: item.documentTitle,
+                            })}
+                          />
                         ) : null
                       ))}
                     </span>

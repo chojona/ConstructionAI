@@ -1,13 +1,17 @@
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { isSerializationConflict, serializationAttempts } from "@/lib/domain/transactionConflict";
 import type { CredentialStore, CredentialUser, InviteRecord } from "./credentials";
 import type {
   MembershipRecord,
   MembershipStatus,
+  OrgAdminRelease,
+  OrgAdminReleaseResult,
   OrgRole,
   PeopleStore,
   PersonMembership,
   PersonRecord,
+  ReviewerDirectoryEntry,
 } from "./roles";
 
 function toMembership(row: {
@@ -74,6 +78,65 @@ export class PrismaMembershipStore implements PeopleStore, CredentialStore {
   async setStatus(id: string, status: MembershipStatus) {
     const row = await this.db.orgMembership.update({ where: { id }, data: { status } });
     return toMembership(row);
+  }
+
+  async setRole(id: string, role: OrgRole) {
+    const row = await this.db.orgMembership.update({ where: { id }, data: { role } });
+    return toMembership(row);
+  }
+
+  async releaseOrgAdmin(membershipId: string, change: OrgAdminRelease): Promise<OrgAdminReleaseResult> {
+    for (let attempt = 0; attempt < serializationAttempts(); attempt += 1) {
+      try {
+        return await this.db.$transaction(async (tx) => {
+          const current = await tx.orgMembership.findUnique({ where: { id: membershipId } });
+          if (!current) return { outcome: "missing" };
+          const nextRole = "role" in change ? change.role : current.role;
+          const nextStatus = "status" in change ? change.status : current.status;
+          const dropsAdmin = current.role === "ORG_ADMIN"
+            && current.status === "ACTIVE"
+            && (nextRole !== "ORG_ADMIN" || nextStatus !== "ACTIVE");
+          if (dropsAdmin) {
+            await tx.$queryRaw`
+              SELECT "id" FROM "OrgMembership"
+              WHERE "organizationId" = ${current.organizationId}
+                AND "role" = 'ORG_ADMIN'::"OrgRole"
+                AND "status" = 'ACTIVE'::"MembershipStatus"
+              ORDER BY "id"
+              FOR UPDATE
+            `;
+            const locked = await tx.orgMembership.findUnique({ where: { id: membershipId } });
+            if (!locked) return { outcome: "missing" };
+            const stillDrops = locked.role === "ORG_ADMIN"
+              && locked.status === "ACTIVE"
+              && (nextRole !== "ORG_ADMIN" || nextStatus !== "ACTIVE");
+            if (stillDrops) {
+              const admins = await tx.orgMembership.count({
+                where: { organizationId: locked.organizationId, role: "ORG_ADMIN", status: "ACTIVE" },
+              });
+              if (admins <= 1) return { outcome: "blocked" };
+            }
+          }
+          const row = await tx.orgMembership.update({
+            where: { id: membershipId },
+            data: "status" in change ? { status: change.status } : { role: change.role },
+          });
+          return { outcome: "updated", membership: toMembership(row) };
+        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      } catch (error) {
+        if (isSerializationConflict(error) && attempt < serializationAttempts() - 1) continue;
+        throw error;
+      }
+    }
+    throw new Error("Org admin release did not finish.");
+  }
+
+  async acceptPending(id: string) {
+    const row = await this.db.orgMembership.findUnique({
+      where: { id },
+      select: { acceptTokenHash: true },
+    });
+    return Boolean(row?.acceptTokenHash);
   }
 
   async countActiveRole(organizationId: string, role: OrgRole) {
@@ -154,6 +217,20 @@ export class PrismaMembershipStore implements PeopleStore, CredentialStore {
       email: row.user.email,
       name: row.user.name,
       role: row.role,
+      status: row.status,
+      updatedAt: row.updatedAt,
+    }));
+  }
+
+  async listReviewerDirectory(organizationId: string): Promise<ReviewerDirectoryEntry[]> {
+    const rows = await this.db.orgMembership.findMany({
+      where: { organizationId },
+      select: { userId: true, status: true, user: { select: { name: true, email: true } } },
+    });
+    return rows.map((row) => ({
+      userId: row.userId,
+      name: row.user.name,
+      email: row.user.email,
       status: row.status,
     }));
   }

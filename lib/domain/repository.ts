@@ -16,7 +16,7 @@ import type {
   RevisionChangeType,
   RevisionDetail,
 } from "./types";
-import type { PackPageCite } from "@/lib/review/exportPacketView";
+import type { AppendixPageCite } from "@/lib/review/exportPacketView";
 
 export interface CreateRevisionRecordInput {
   documentId: string;
@@ -120,7 +120,7 @@ export interface SaveExportPacketChapterInput {
   storageKey: string;
   filename: string;
   byteSize: number;
-  pageCites?: readonly PackPageCite[];
+  pageCites?: readonly AppendixPageCite[];
   reviewDecisionIds: string[];
 }
 
@@ -135,7 +135,7 @@ export interface StoredExportPacketChapter {
   storageKey: string;
   filename: string;
   byteSize: number;
-  pageCites: PackPageCite[];
+  pageCites: AppendixPageCite[];
   /** Bare page strings from before cites were pinned. Empty once the row is pinned. */
   legacyPageLabels?: readonly string[];
   reviewDecisionIds: string[];
