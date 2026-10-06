@@ -2,6 +2,7 @@ import { CiteChip } from "@/components/review/cite-chip";
 import { FactBadges } from "@/components/review/fact-badges";
 import { PagePreview } from "@/components/review/page-preview";
 import type { DecidedRowChrome } from "@/lib/review/changeRow";
+import { knownDocRevLine } from "@/lib/review/citeLabel";
 import { DESK_EMPTY_MISSING_EVIDENCE } from "@/lib/review/exportPacketView";
 
 export function DecisionChangeList({
@@ -24,7 +25,7 @@ export function DecisionChangeList({
                 <span className="row-title">{row.title}</span>
                 <span className="row-meta">{row.documentTitle}</span>
               </span>
-              <CiteChip label={row.pageLabel} />
+              <CiteChip label={row.pageLabel} status={row.pinStatus} />
             </button>
           </li>
         );
@@ -35,16 +36,21 @@ export function DecisionChangeList({
 
 export function DecisionEvidence({ row, projectId }: { row: DecidedRowChrome; projectId: string }) {
   const missingExcerpt = !row.excerpt.trim() || row.excerpt === "No linked excerpt available.";
+  const docRev = row.pinStatus === "Unpinned" ? knownDocRevLine({
+    documentTitle: row.evidenceDocumentTitle || row.documentTitle,
+    revisionLabel: row.evidenceRevisionLabel || row.revisionLabel,
+  }) : null;
   return (
     <div className="evidence-rail-body">
       {row.pageNumber ? (
         <div className="evidence-rail-lead">
-          <CiteChip label={row.pageLabel} />
+          <CiteChip label={row.pageLabel} status={row.pinStatus} />
+          {docRev ? <p className="row-meta">{docRev}</p> : null}
           {missingExcerpt ? <p className="rail-empty rail-empty-inline">{DESK_EMPTY_MISSING_EVIDENCE}</p> : <p className="evidence-rail-excerpt">{row.excerpt}</p>}
           <PagePreview projectId={projectId} revisionId={row.revisionId} pageNumber={row.pageNumber} />
         </div>
       ) : missingExcerpt ? <p className="rail-empty rail-empty-inline">{DESK_EMPTY_MISSING_EVIDENCE}</p> : null}
-      {row.pageNumber ? null : <p className="row-meta">{row.documentTitle} · {row.revisionLabel}</p>}
+      {row.pageNumber || !docRev ? null : <p className="row-meta">{docRev}</p>}
       {row.badges?.length ? <FactBadges badges={row.badges} /> : null}
       <h3>{row.title}</h3>
     </div>

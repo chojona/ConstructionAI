@@ -124,6 +124,21 @@ describe("pack page cites", () => {
     expect(Object.keys(accepted).slice(0, 3)).toEqual(["revisionId", "revisionLabel", "page"]);
   });
 
+  it("keeps one cite when the same revision and page are listed twice", () => {
+    const evidence = {
+      revisionId: "rev_a",
+      revisionLabel: "A",
+      pageNumber: 3,
+      documentPageId: "page_a",
+      contentHash: hashA,
+      documentTitle: "Drainage Plan",
+    };
+    expect(factPageCites([evidence, { ...evidence }])).toEqual([{
+      ...pin("rev_a", "A", "3", "page_a", hashA),
+      documentTitle: "Drainage Plan",
+    }]);
+  });
+
   it("pins an in-range markup page and leaves out-of-range, sheet, and unmatched labels unpinned", () => {
     const onA = pin("rev_a", "A", "1", "page_a1", hashA);
     const onB = pin("rev_b", "B", "4", "page_b1", hashB);

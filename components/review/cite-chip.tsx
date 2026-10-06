@@ -1,5 +1,13 @@
-import { citeChipClassName } from "@/lib/review/citeLabel";
+import type { CitePinStatus } from "@/lib/review/citeLabel";
 
-export function CiteChip({ label, title }: { label: string; title?: string }) {
-  return <span className={citeChipClassName(label)} title={title}>{label}</span>;
+export function CiteChip({
+  label,
+  status,
+  title,
+}: {
+  label: string;
+  status: CitePinStatus;
+  title?: string;
+}) {
+  return <span className="page-chip" data-pin-status={status} title={title}>{label}</span>;
 }

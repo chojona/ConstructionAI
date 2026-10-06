@@ -46,7 +46,10 @@ describe("change rows", () => {
       documentTitle: "Special provisions",
       revisionLabel: "Rev A → Rev B",
       pageLabel: "Special provisions · Rev B · p. 1",
+      pinStatus: "Pinned",
       pageNumber: 1,
+      evidenceDocumentTitle: "Special provisions",
+      evidenceRevisionLabel: "Rev B",
       excerpt: "Structural excavation 5100 CY.",
       revisionId: "rev_b",
       sourceCitation: "Special provisions · Rev B · p. 1",
@@ -71,6 +74,29 @@ describe("change rows", () => {
     expect(html.match(/Special provisions/g)?.length).toBeGreaterThanOrEqual(2);
     expect(html).not.toMatch(/>Approved</);
     expect(html).not.toContain("AI-suggested");
+    expect(html).toContain('data-pin-status="Pinned"');
+  });
+
+  it("shows the document and revision on the rail when the lead chip is unpinned", () => {
+    const shared = {
+      subjectKey: "proposed-fact:excavation",
+      label: "excavation: 1250 CY",
+      documentTitle: "Special provisions",
+      revisionLabel: "Addendum 2",
+      subject: { type: "revision_change" as const, changeType: "MODIFIED" as const },
+      before: null,
+      after: { category: "quantity" as const, evidence: [{ pageNumber: 3, excerpt: "Structural excavation 4200 CY.", revisionLabel: "A", documentTitle: "Special provisions" }] },
+      evidence: [],
+    };
+    const [accepted] = decidedRowChrome([{ ...shared, currentDecision: { decision: "ACCEPTED" } }]);
+    expect(accepted?.pageLabel).toBe(UNPINNED_CITE_LABEL);
+    expect(accepted?.pinStatus).toBe("Unpinned");
+    const html = renderToStaticMarkup(createElement(DecisionEvidence, { row: accepted!, projectId: "project_1" }));
+    expect(html).toContain(">Unpinned<");
+    expect(html).toContain('data-pin-status="Unpinned"');
+    expect(html).toContain("Special provisions · Rev A");
+    expect(html).not.toContain("Rev Rev");
+    expect(html).not.toContain(">p. 3<");
   });
 
   it("cites the pinned revision on the evidence, not the comparison label", () => {

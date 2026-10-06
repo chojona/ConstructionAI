@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { RevisionInspection } from "@/components/documents/revision-inspection";
 import type { EvidenceLocation } from "./evidenceLocation";
-import { formatCiteLabel, UNPINNED_CITE_LABEL } from "./citeLabel";
+import { citePinStatus, displayRevision, formatCiteLabel, UNPINNED_CITE_LABEL } from "./citeLabel";
 
 const before: EvidenceLocation = {
   documentPageId: "page_a",
@@ -26,6 +26,23 @@ const after: EvidenceLocation = {
   revisionLabel: "A",
   documentTitle: "Special provisions",
 };
+
+describe("displayRevision", () => {
+  it("prefixes a short code once and leaves longer labels and issue names", () => {
+    expect(displayRevision("A")).toBe("Rev A");
+    expect(displayRevision("2")).toBe("Rev 2");
+    expect(displayRevision("B1")).toBe("Rev B1");
+    expect(displayRevision("Rev A")).toBe("Rev A");
+    expect(displayRevision("Revision C")).toBe("Revision C");
+    expect(displayRevision("IFC")).toBe("IFC");
+    expect(displayRevision("IFB")).toBe("IFB");
+    expect(displayRevision("Bid")).toBe("Bid");
+    expect(displayRevision("Addendum 2")).toBe("Addendum 2");
+    expect(`not in ${displayRevision("A")}`).toBe("not in Rev A");
+    expect(`not in ${displayRevision("Rev A")}`).toBe("not in Rev A");
+    expect(`not in ${displayRevision("Revision C")}`).not.toContain("Rev Rev");
+  });
+});
 
 describe("formatCiteLabel", () => {
   it("builds Doc · Rev · p. N and adds Rev only once", () => {
@@ -53,6 +70,24 @@ describe("formatCiteLabel", () => {
       revisionId: "rev_b",
       page: 4,
     })).toBe("Earthworks specification · Rev. B (IFC) — add. 2 · p. 4");
+    expect(formatCiteLabel({
+      documentTitle: "Plans",
+      revisionLabel: "IFC",
+      revisionId: "rev_ifc",
+      page: 1,
+    })).toBe("Plans · IFC · p. 1");
+    expect(formatCiteLabel({
+      documentTitle: "Plans",
+      revisionLabel: "Addendum 2",
+      revisionId: "rev_add",
+      page: 2,
+    })).toBe("Plans · Addendum 2 · p. 2");
+    expect(citePinStatus({
+      documentTitle: "Unpinned",
+      revisionLabel: "A",
+      revisionId: "rev_a",
+      page: 2,
+    })).toBe("Pinned");
     expect(formatCiteLabel({
       documentTitle: "Special provisions",
       revisionLabel: "Rev A",
@@ -105,6 +140,22 @@ describe("formatCiteLabel", () => {
       viewedRevisionId: "rev_b",
       page: 3,
     })).toBe("Revision C · p. 3");
+    expect(formatCiteLabel({
+      surface: "jump",
+      revisionLabel: "Rev A",
+      revisionId: null,
+      page: 3,
+    })).toBe(UNPINNED_CITE_LABEL);
+    expect(formatCiteLabel({
+      surface: "jump",
+      revisionLabel: "A",
+      page: 3,
+    })).toBe(UNPINNED_CITE_LABEL);
+    expect(citePinStatus({
+      surface: "jump",
+      revisionLabel: "Rev A",
+      page: 3,
+    })).toBe("Unpinned");
   });
 });
 

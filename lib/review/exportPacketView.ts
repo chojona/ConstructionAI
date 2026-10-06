@@ -1,4 +1,4 @@
-import { formatCiteLabel } from "./citeLabel";
+import { citePinStatus, formatCiteLabel, type CitePinStatus } from "./citeLabel";
 
 export const EXPORT_BLOCKED_MESSAGE = "Approve at least one change to export.";
 export const EXPORT_OPEN_MESSAGE = "Finish open reviews before exporting.";
@@ -186,6 +186,7 @@ export function factPageCites(evidence: readonly {
     if (!cite) continue;
     const key = `${cite.revisionId}\n${cite.page.toLowerCase()}`;
     if (seen.has(key)) continue;
+    seen.add(key);
     const documentTitle = item.documentTitle?.trim() ?? "";
     cites.push(documentTitle ? { ...cite, documentTitle } : cite);
   }
@@ -230,16 +231,24 @@ export function canonicalAppendixPageCite(value: unknown): AppendixPageCite | nu
   return canonicalPackPageCite(value);
 }
 
-export function packPageCiteLabel(cite: Pick<PackPageCite, "revisionLabel" | "page"> & {
+export function packPageCiteChip(cite: Pick<PackPageCite, "revisionLabel" | "page"> & {
   revisionId?: string | null;
   documentTitle?: string | null;
-}) {
-  return formatCiteLabel({
+}): { label: string; status: CitePinStatus } {
+  const input = {
     documentTitle: cite.documentTitle,
     revisionLabel: cite.revisionLabel,
     revisionId: cite.revisionId,
     page: cite.page,
-  });
+  };
+  return { label: formatCiteLabel(input), status: citePinStatus(input) };
+}
+
+export function packPageCiteLabel(cite: Pick<PackPageCite, "revisionLabel" | "page"> & {
+  revisionId?: string | null;
+  documentTitle?: string | null;
+}) {
+  return packPageCiteChip(cite).label;
 }
 
 export function documentTitlesFromChanges(changes: readonly {

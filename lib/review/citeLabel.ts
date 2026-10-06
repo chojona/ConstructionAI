@@ -1,6 +1,8 @@
 /** Visible cite when the lead is not pinned to one document revision. */
 export const UNPINNED_CITE_LABEL = "Unpinned";
 
+export type CitePinStatus = "Pinned" | "Unpinned";
+
 export type CiteLabelInput = {
   documentTitle?: string | null;
   revisionLabel?: string | null;
@@ -15,35 +17,80 @@ export type CiteLabelInput = {
   surface?: "cite" | "jump";
 };
 
+const REVISION_NAME_UNPREFIXED = new Set(["ifc", "ifb", "bid"]);
+
 /**
- * One cite label for change rows, the evidence rail, revision jumps, and pack chips.
- * `Rev` is added once. A stored label that already starts with "Rev" (Rev A, Revision C) is kept.
+ * Revision text for a cite or a reason (`not in ${displayRevision(label)}`).
+ * `Rev` is added only for a short code (A, 2, B1). Stored labels that already
+ * start with "Rev", run longer than three characters, contain a space, or are
+ * IFC / IFB / Bid stay as written so nothing doubles.
  */
-export function formatCiteLabel(input: CiteLabelInput): string {
-  const page = pageToken(input.page);
-  const revisionId = input.revisionId?.trim() ?? "";
-  const revision = displayRevision(input.revisionLabel);
-  if (input.surface === "jump") {
-    if (!page) return UNPINNED_CITE_LABEL;
-    const viewedRevisionId = input.viewedRevisionId?.trim() ?? "";
-    if (revisionId && viewedRevisionId && revisionId === viewedRevisionId) return `p. ${page}`;
-    if (!revision) return UNPINNED_CITE_LABEL;
-    return `${revision} · p. ${page}`;
-  }
-  const documentTitle = input.documentTitle?.trim() ?? "";
-  if (!documentTitle || !revision || !revisionId || !page) return UNPINNED_CITE_LABEL;
-  return `${documentTitle} · ${revision} · p. ${page}`;
-}
-
-export function citeChipClassName(label: string) {
-  return label === UNPINNED_CITE_LABEL ? "page-chip is-unpinned" : "page-chip";
-}
-
-function displayRevision(revisionLabel: string | null | undefined) {
+export function displayRevision(revisionLabel: string | null | undefined): string | null {
   const label = revisionLabel?.trim() ?? "";
   if (!label) return null;
   if (/^rev/i.test(label)) return label;
-  return `Rev ${label}`;
+  if (REVISION_NAME_UNPREFIXED.has(label.toLowerCase())) return label;
+  if (label.length > 3 || /\s/.test(label)) return label;
+  if (/^[A-Za-z0-9]{1,3}$/.test(label)) return `Rev ${label}`;
+  return label;
+}
+
+/** Document and revision line for an unpinned rail, when either is known. */
+export function knownDocRevLine(input: {
+  documentTitle?: string | null;
+  revisionLabel?: string | null;
+}): string | null {
+  const documentTitle = input.documentTitle?.trim() ?? "";
+  const revision = displayRevision(input.revisionLabel);
+  if (documentTitle && revision) return `${documentTitle} · ${revision}`;
+  return documentTitle || revision;
+}
+
+type CiteParts = {
+  page: string | null;
+  revisionId: string;
+  revision: string | null;
+  documentTitle: string;
+  viewedRevisionId: string;
+  surface: "cite" | "jump";
+};
+
+function citeParts(input: CiteLabelInput): CiteParts {
+  return {
+    page: pageToken(input.page),
+    revisionId: input.revisionId?.trim() ?? "",
+    revision: displayRevision(input.revisionLabel),
+    documentTitle: input.documentTitle?.trim() ?? "",
+    viewedRevisionId: input.viewedRevisionId?.trim() ?? "",
+    surface: input.surface ?? "cite",
+  };
+}
+
+/** Pin state from the cite fields. The rendered word "Unpinned" is not consulted. */
+export function citePinStatus(input: CiteLabelInput): CitePinStatus {
+  const parts = citeParts(input);
+  if (parts.surface === "jump") {
+    if (!parts.page || !parts.revisionId) return "Unpinned";
+    if (parts.viewedRevisionId && parts.revisionId === parts.viewedRevisionId) return "Pinned";
+    return parts.revision ? "Pinned" : "Unpinned";
+  }
+  if (!parts.documentTitle || !parts.revision || !parts.revisionId || !parts.page) return "Unpinned";
+  return "Pinned";
+}
+
+/**
+ * One cite label for change rows, the evidence rail, revision jumps, and pack chips.
+ */
+export function formatCiteLabel(input: CiteLabelInput): string {
+  const parts = citeParts(input);
+  if (parts.surface === "jump") {
+    if (!parts.page || !parts.revisionId) return UNPINNED_CITE_LABEL;
+    if (parts.viewedRevisionId && parts.revisionId === parts.viewedRevisionId) return `p. ${parts.page}`;
+    if (!parts.revision) return UNPINNED_CITE_LABEL;
+    return `${parts.revision} · p. ${parts.page}`;
+  }
+  if (citePinStatus(input) === "Unpinned") return UNPINNED_CITE_LABEL;
+  return `${parts.documentTitle} · ${parts.revision} · p. ${parts.page}`;
 }
 
 function pageToken(page: number | string | null | undefined) {

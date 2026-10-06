@@ -26,7 +26,7 @@ import {
   deskPackFilesFromPacket,
   exportPacketAction,
   subjectExportVisible,
-  packPageCiteLabel,
+  packPageCiteChip,
   visiblePackProof,
   visiblePacketChanges,
   type ApprovedChangePreview,
@@ -189,7 +189,7 @@ function MarkupAppendixForm({
       {subjectKey && pageCites.length > 0 ? <input type="hidden" name="subjectKey" value={subjectKey} /> : null}
       {pageCites.length > 0 ? (
         <p className="packet-chips" aria-label="Page">
-          {pageCites.map((cite) => <CiteChip key={`${cite.revisionId}:${cite.page}`} label={packPageCiteLabel(cite)} />)}
+          {pageCites.map((cite) => <CiteChip key={`${cite.revisionId}:${cite.page}`} {...packPageCiteChip(cite)} />)}
         </p>
       ) : <p className="packet-blocked">{APPENDIX_PAGE_MISSING_MESSAGE}</p>}
       <Button type="submit" variant="outline" disabled={pending || pageCites.length === 0}>{ADD_PACK_APPENDIX_LABEL}</Button>

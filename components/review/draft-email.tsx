@@ -6,7 +6,7 @@ import { CiteChip } from "@/components/review/cite-chip";
 import { PackProofList } from "@/components/review/pack-proof";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { packPageCiteLabel, type DeskPackFile } from "@/lib/review/exportPacketView";
+import { packPageCiteChip, type DeskPackFile } from "@/lib/review/exportPacketView";
 import {
   ACTOR_REQUIRED,
   APPROVED_CHIP,
@@ -192,7 +192,7 @@ function DraftEmailPanel({
                           <CiteChip
                             key={`${item.decisionId}:${evidence.revisionId}:${evidence.pageNumber}:${evidence.excerpt}`}
                             title={evidence.excerpt}
-                            label={packPageCiteLabel({
+                            {...packPageCiteChip({
                               revisionId: evidence.revisionId,
                               revisionLabel: evidence.revisionLabel,
                               page: String(evidence.pageNumber),

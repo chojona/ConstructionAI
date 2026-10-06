@@ -1,4 +1,4 @@
-import { formatCiteLabel } from "./citeLabel";
+import { citePinStatus, formatCiteLabel, type CitePinStatus } from "./citeLabel";
 import { queueBadges, type DeskBadge } from "./factBadge";
 import { pinnedSourceCitation } from "./sourceCitation";
 
@@ -28,14 +28,19 @@ export function changeRowTitle(finding: RowFinding) {
   return `${label} ${changeType === "ADDED" ? "added" : changeType === "REMOVED" ? "removed" : "changed"}`;
 }
 
-export function changePageChip(finding: RowFinding) {
+export function changePageCite(finding: RowFinding): { label: string; status: CitePinStatus } {
   const lead = changeEvidenceLead(finding);
-  return formatCiteLabel({
+  const input = {
     documentTitle: lead?.documentTitle,
     revisionLabel: lead?.revisionLabel,
     revisionId: lead?.revisionId,
     page: lead?.page,
-  });
+  };
+  return { label: formatCiteLabel(input), status: citePinStatus(input) };
+}
+
+export function changePageChip(finding: RowFinding) {
+  return changePageCite(finding).label;
 }
 
 export function changeEvidenceLead(finding: RowFinding) {
@@ -68,9 +73,13 @@ export interface DecidedRowChrome {
   documentTitle: string;
   revisionLabel: string;
   pageLabel: string;
+  pinStatus: CitePinStatus;
   pageNumber: number | null;
   excerpt: string;
   revisionId: string | null;
+  /** Lead document and revision when the chip is unpinned and the rail still names them. */
+  evidenceDocumentTitle?: string | null;
+  evidenceRevisionLabel?: string | null;
   sourceCitation?: string | null;
   badges?: readonly DeskBadge[];
 }
@@ -78,14 +87,18 @@ export interface DecidedRowChrome {
 /** List and drawer fields open change cards already show: document, revision, and page. */
 export function openRowChrome(finding: RowFinding & { documentTitle: string; revisionLabel: string }) {
   const lead = changeEvidenceLead(finding);
+  const cite = changePageCite(finding);
   const pageNumber = lead?.page && lead.page > 0 ? lead.page : null;
   return {
     documentTitle: finding.documentTitle,
     revisionLabel: finding.revisionLabel,
-    pageLabel: changePageChip(finding),
+    pageLabel: cite.label,
+    pinStatus: cite.status,
     pageNumber,
     excerpt: lead?.excerpt ?? "",
     revisionId: lead?.revisionId ?? null,
+    evidenceDocumentTitle: lead?.documentTitle ?? null,
+    evidenceRevisionLabel: lead?.revisionLabel ?? null,
     sourceCitation: lead ? pinnedSourceCitation({
       documentTitle: lead.documentTitle || finding.documentTitle,
       revisionLabel: lead.revisionLabel,
