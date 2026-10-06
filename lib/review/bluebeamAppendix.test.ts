@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -28,6 +28,14 @@ import {
   visiblePackProof,
 } from "./exportPacketView";
 import { currentApprovedChangePacket, exportApprovedChangePacket, recordReviewDecision } from "./service";
+
+function readAppCss() {
+  const app = new URL("../../app/", import.meta.url);
+  const styles = readdirSync(new URL("styles/", app))
+    .filter((name) => name.endsWith(".css"))
+    .map((name) => readFileSync(new URL(`styles/${name}`, app), "utf8"));
+  return [readFileSync(new URL("globals.css", app), "utf8"), ...styles].join("\n");
+}
 
 const BANNED_COPY = /\b(dsc|fa|force account|force-account|change orders?|co|pco|entitlement|candidate|unpaid|claim|detection)\b/i;
 
@@ -83,7 +91,7 @@ describe("Bluebeam markup summary appendix", () => {
     expect(view).not.toContain("Add pack chapter appendix");
     expect(view).not.toMatch(/Add pack appendix[\s\S]*Add pack chapter|name="kind"[^>]*>\s*<option[^>]*>\s*Pack chapter/);
     expect(copySource).not.toMatch(BANNED_COPY);
-    const unpinnedRule = readFileSync("app/globals.css", "utf8").match(/\.page-chip\[data-pin-status="Unpinned"\]\s*\{[^}]+\}/)?.[0] ?? "";
+    const unpinnedRule = readAppCss().match(/\.page-chip\[data-pin-status="Unpinned"\]\s*\{[^}]+\}/)?.[0] ?? "";
     expect(unpinnedRule).toContain("dashed");
     expect(unpinnedRule).toContain("var(--color-ink-muted)");
     expect(unpinnedRule).toContain("var(--color-line-strong)");
