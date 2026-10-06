@@ -214,7 +214,7 @@ export function ChangeReview({
                     </section>
                   ) : null}
                   {evidenceLead.page > 0 && (
-                    <PagePreview projectId={projectId} revisionId={evidenceLead.revisionId} pageNumber={evidenceLead.page} />
+                    <PagePreview projectId={projectId} revisionId={evidenceLead.revisionId} pageNumber={evidenceLead.page} excerpt={evidenceLead.excerpt} />
                   )}
                 </div>
               )}

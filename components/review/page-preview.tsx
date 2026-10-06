@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  hasLinkedPreviewExcerpt,
   PAGE_PREVIEW_OPEN_LABEL,
   PAGE_PREVIEW_UNAVAILABLE_MESSAGE,
   previewFailureMessage,
@@ -23,17 +24,28 @@ export function PagePreview({
   projectId,
   revisionId,
   pageNumber,
+  excerpt = "",
+  failureCode = null,
 }: {
   projectId: string;
   revisionId: string | null;
   pageNumber: number;
+  excerpt?: string | null;
+  /** Server error already known for this page. Omit while the image can still load. */
+  failureCode?: string | null;
 }) {
   const canPreview = Boolean(revisionId) && Number.isInteger(pageNumber) && pageNumber > 0;
   const src = canPreview && revisionId ? pagePreviewSrc(projectId, revisionId, pageNumber) : null;
+  const linkedExcerpt = hasLinkedPreviewExcerpt(excerpt);
   const [failure, setFailure] = useState<{ src: string; message: string } | null>(null);
   const href = revisionId ? revisionDocumentHref(revisionId) : null;
-  const notice = failure?.src === src ? failure.message : PAGE_PREVIEW_UNAVAILABLE_MESSAGE;
-  const unavailable = !src || failure?.src === src;
+  const reported = failure?.src === src
+    ? failure.message
+    : failureCode
+      ? previewFailureMessage({ error: { code: failureCode } }, linkedExcerpt)
+      : null;
+  const notice = reported ?? PAGE_PREVIEW_UNAVAILABLE_MESSAGE;
+  const unavailable = !src || reported !== null;
 
   return (
     <div className="page-preview">
@@ -52,7 +64,7 @@ export function PagePreview({
               void fetch(requested).then(async (response) => {
                 const body: unknown = await response.json().catch(() => null);
                 setFailure((current) => current?.src === requested
-                  ? { src: requested, message: previewFailureMessage(body) }
+                  ? { src: requested, message: previewFailureMessage(body, linkedExcerpt) }
                   : current);
               }).catch(() => undefined);
             }}

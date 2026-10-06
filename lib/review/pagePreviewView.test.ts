@@ -3,10 +3,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { ChangeReview } from "@/components/review/change-review";
 import { DecisionEvidence } from "@/components/review/decision-change-list";
-import { PagePreview, PagePreviewNotice } from "@/components/review/page-preview";
+import { PagePreview } from "@/components/review/page-preview";
 import type { AttentionItemDto } from "@/lib/review/dto";
 import type { DecidedRowChrome } from "./changeRow";
-import { PAGE_PREVIEW_TEXT_UNAVAILABLE_MESSAGE, PAGE_PREVIEW_UNAVAILABLE_MESSAGE, previewFailureMessage } from "./pagePreviewCopy";
+import { PAGE_PREVIEW_OPEN_LABEL, PAGE_PREVIEW_UNAVAILABLE_MESSAGE } from "./pagePreviewCopy";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh() { return undefined; } }),
@@ -162,19 +162,34 @@ describe("page preview rail", () => {
     expect(missing).toContain("No linked excerpt for this item.");
   });
 
-  it("shows the text-draw failure instead of a blank page", () => {
-    expect(previewFailureMessage({
-      error: { code: "PAGE_PREVIEW_TEXT_UNAVAILABLE", message: "ignored" },
-    })).toBe(PAGE_PREVIEW_TEXT_UNAVAILABLE_MESSAGE);
-    expect(previewFailureMessage({ error: { code: "PAGE_PREVIEW_UNAVAILABLE" } })).toBe(PAGE_PREVIEW_UNAVAILABLE_MESSAGE);
-
-    const html = renderToStaticMarkup(createElement(PagePreviewNotice, {
-      message: PAGE_PREVIEW_TEXT_UNAVAILABLE_MESSAGE,
+  it("shows the text-draw failure when the row has a linked excerpt", () => {
+    const html = renderToStaticMarkup(createElement(PagePreview, {
+      projectId: "project_1",
+      revisionId: "rev_1",
+      pageNumber: 2,
+      excerpt: "Excavation quantity is 1,250 CY.",
+      failureCode: "PAGE_PREVIEW_TEXT_UNAVAILABLE",
     }));
-    expect(html).toContain("page-preview-unavailable");
     expect(html).toContain("draw this page");
     expect(html).toContain("extracted text is still available");
+    expect(html).toContain(PAGE_PREVIEW_OPEN_LABEL);
+    expect(html).toContain('href="/revisions/rev_1"');
     expect(html).not.toContain("<img");
-    expect(html).not.toContain("page-preview-scroll");
+    expect(html).not.toContain(PAGE_PREVIEW_UNAVAILABLE_MESSAGE);
+  });
+
+  it("shows the generic preview failure when the row has no linked excerpt", () => {
+    const html = renderToStaticMarkup(createElement(PagePreview, {
+      projectId: "project_1",
+      revisionId: "rev_1",
+      pageNumber: 2,
+      excerpt: "No linked excerpt available.",
+      failureCode: "PAGE_PREVIEW_TEXT_UNAVAILABLE",
+    }));
+    expect(html).toContain(PAGE_PREVIEW_UNAVAILABLE_MESSAGE);
+    expect(html).toContain(PAGE_PREVIEW_OPEN_LABEL);
+    expect(html).toContain('href="/revisions/rev_1"');
+    expect(html).not.toContain("extracted text is still available");
+    expect(html).not.toContain("<img");
   });
 });

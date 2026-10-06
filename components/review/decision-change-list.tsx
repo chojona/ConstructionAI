@@ -41,7 +41,7 @@ export function DecisionEvidence({ row, projectId }: { row: DecidedRowChrome; pr
           <span className="page-chip">{row.pageLabel}</span>
           {missingExcerpt ? <p className="rail-empty rail-empty-inline">{DESK_EMPTY_MISSING_EVIDENCE}</p> : <p className="evidence-rail-excerpt">{row.excerpt}</p>}
           {row.sourceCitation ? <p className="source-citation">{row.sourceCitation}</p> : null}
-          <PagePreview projectId={projectId} revisionId={row.revisionId} pageNumber={row.pageNumber} />
+          <PagePreview projectId={projectId} revisionId={row.revisionId} pageNumber={row.pageNumber} excerpt={row.excerpt} />
         </div>
       ) : missingExcerpt ? <p className="rail-empty rail-empty-inline">{DESK_EMPTY_MISSING_EVIDENCE}</p> : null}
       {row.sourceCitation ? null : <p className="row-meta">{row.documentTitle} · {row.revisionLabel}</p>}
