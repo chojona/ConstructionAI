@@ -217,6 +217,11 @@ describe("revision page jumps", () => {
       uploadedLabel: "Oct 2, 2026",
       returnTo: null,
     }));
+    expect(html).toContain("Upload 2 of 1");
+    expect(html).toContain(">Current<");
+    expect(html).not.toContain("Revision 2");
+    expect(html).not.toContain("Ready");
+    expect(html).not.toContain("Latest");
     expect(html).toContain("Rev A · p. 3");
     expect(html).toContain('href="/revisions/rev_a?');
     expect(html).toContain(">p. 4<");

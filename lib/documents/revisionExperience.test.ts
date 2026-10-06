@@ -34,17 +34,26 @@ function finding(overrides: Partial<RevisionFindingView> & Pick<RevisionFindingV
 
 describe("describeReading", () => {
   it("explains a scanned file without internal codes", () => {
-    const copy = describeReading("FAILED", "SCANNED_OR_EMPTY", "No usable embedded text was found. OCR is not available in Phase 1.");
-    expect(copy.label).toBe("Needs a new file");
+    const copy = describeReading("FAILED", "SCANNED_OR_EMPTY", "No usable embedded text was found. OCR is not available in Phase 1.", true);
+    expect(copy.label).toBe("Failed");
     expect(copy.summary).toMatch(/selectable text/i);
     expect(copy.action).toMatch(/not a scan/i);
-    expect(`${copy.label} ${copy.summary} ${copy.action}`).not.toMatch(/SCANNED|OCR|Phase 1|storage/i);
+    expect(`${copy.label} ${copy.summary} ${copy.action}`).not.toMatch(/SCANNED|OCR|Phase 1|storage|Ready|Latest/i);
   });
 
-  it("keeps ready and in-progress states actionable in plain language", () => {
-    expect(describeReading("PROCESSED", null, null)).toMatchObject({ label: "Ready", tone: "ready", action: null });
-    expect(describeReading("PROCESSING", null, null).summary).toMatch(/being read/i);
-    expect(describeReading("UPLOADED", null, null).label).toBe("Uploaded");
+  it("uses the register status words for the latest revision", () => {
+    expect(describeReading("PROCESSED", null, null, true)).toMatchObject({ label: "Current", tone: "ready", action: null });
+    expect(describeReading("PROCESSING", null, null, true)).toMatchObject({ label: "Processing", tone: "waiting" });
+    expect(describeReading("PROCESSING", null, null, true).summary).toMatch(/being read/i);
+    expect(describeReading("UPLOADED", null, null, true)).toMatchObject({ label: "Processing", tone: "waiting" });
+    expect(describeReading("FAILED", null, null, true).label).toBe("Failed");
+  });
+
+  it("labels every older revision Superseded", () => {
+    expect(describeReading("PROCESSED", null, null, false)).toMatchObject({ label: "Superseded", tone: "idle" });
+    expect(describeReading("FAILED", "SCANNED_OR_EMPTY", "No usable embedded text was found.", false).label).toBe("Superseded");
+    expect(describeReading("PROCESSING", null, null, false).label).toBe("Superseded");
+    expect(describeReading("UPLOADED", null, null, false).label).toBe("Superseded");
   });
 });
 

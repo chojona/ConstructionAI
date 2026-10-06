@@ -79,7 +79,10 @@ test("documents list omits an unset type", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Revision A" })).toBeVisible();
   const reading = page.locator(".state-panel", { has: page.locator("#reading-status") });
   const analysis = page.locator(".state-panel", { has: page.locator("#analysis-status") });
-  await expect(reading.locator(".status-label")).toHaveText("Ready");
+  await expect(reading.locator(".status-label")).toHaveText("Current");
+  await expect(page.getByText("Ready", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Latest", { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/Revision \d+/)).toHaveCount(0);
   await expect(analysis.locator(".status-label")).toHaveText("No extracts");
   await expect(analysis).not.toHaveClass(/state-ready/);
   await expect(page.getByText("Analyzed")).toHaveCount(0);
