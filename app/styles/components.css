@@ -1,0 +1,43 @@
+/* Shared buttons, empty states, panels, fields, and status pills. */
+
+.empty { display: grid; justify-items: start; gap: 4px; border: 1px dashed var(--color-line-strong); border-radius: 6px; padding: 20px 16px; color: var(--color-ink-secondary); text-align: left; font-size: 13px; line-height: 1.5; }
+.empty-compact { margin: 0; padding: 2px 0 0; color: var(--color-ink-secondary); font-size: 13px; line-height: 1.4; }
+.empty strong { color: var(--color-ink); font-size: 13px; font-weight: 650; }
+.empty-solid { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--color-line); border-radius: 10px; background: var(--color-surface); padding: 10px 12px; box-shadow: var(--shadow-card); }
+.empty-solid p { margin: 0; color: var(--color-ink); font-size: 13px; font-weight: 650; }
+.empty-solid .primary-link { margin-top: 0; }
+.primary-link { display: inline-flex; align-items: center; height: 32px; margin-top: 10px; padding: 0 12px; border-radius: 8px; background: var(--color-brand); color: var(--color-brand-ink); font-size: 12px; font-weight: 600; }
+button.primary-link { border: 0; cursor: pointer; min-height: 36px; min-width: 36px; }
+.primary-link:hover { background: var(--color-brand-hover); }
+/* Order-locked: command-palette empty state stays with the shared empty styles. */
+.command-results .empty { justify-items: center; text-align: center; border: 0; background: transparent; padding: 20px 12px; }
+.panel { border: 1px solid var(--color-line); border-radius: 12px; background: var(--color-surface); padding: 16px; box-shadow: var(--shadow-card); }
+details.create-panel { width: min(100%, 380px); }
+details.create-panel:not([open]) { width: auto; border: 0; background: transparent; padding: 0; box-shadow: none; }
+details.create-panel > summary { list-style: none; cursor: pointer; }
+summary.primary-summary { display: inline-flex; align-items: center; gap: 6px; width: fit-content; height: 32px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--color-brand); color: var(--color-brand-ink); font-size: 12px; font-weight: 600; }
+summary.primary-summary:hover { background: var(--color-brand-hover); }
+details.create-panel > summary::-webkit-details-marker { display: none; }
+details.create-panel[open] > summary { margin-bottom: 18px; }
+.form-stack { display: grid; gap: 12px; }
+.form-stack label { display: grid; gap: 6px; font-size: 12px; font-weight: 600; }
+.form-stack small, .field-help { color: var(--color-ink-secondary); font-size: 12px; font-weight: 450; line-height: 1.45; }
+.field { display: block; width: 100%; height: 32px; border: 1px solid var(--color-line-strong); border-radius: 8px; background: var(--color-surface); padding: 0 10px; color: var(--color-ink); font-size: 13px; }
+.evidence-rail .field, .evidence-panel .field { background: var(--color-canvas); }
+.field::placeholder { color: var(--color-ink-muted); }
+.field:disabled { opacity: .65; }
+.field[type="file"] { height: auto; padding: 8px; font-size: 11px; }
+.field::file-selector-button { margin-right: 10px; border: 1px solid var(--color-line-strong); background: var(--color-surface-subtle); color: var(--color-ink); border-radius: 4px; padding: 5px 8px; }
+.form-error { margin: 8px 0 0; color: var(--color-danger); font-size: 13px; }
+/* Order-locked: login card and sidebar footer links stay after the form controls. */
+.auth-page { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+.auth-card { width: min(100%, 420px); }
+.auth-card h1 { margin: 0; font-size: 22px; }
+.auth-card .lede { margin-bottom: 16px; }
+.sidebar-footer a, .sidebar-footer .text-button { display: inline; margin-right: 10px; color: var(--color-info); font-size: 12px; font-weight: 600; background: none; border: 0; padding: 0; }
+.field-help { margin: 0 0 12px; }
+.status-processed { background: var(--color-success-subtle); color: var(--color-success); }
+.status-failed { background: var(--color-danger-subtle); color: var(--color-danger); }
+.status-pending { background: var(--color-info-subtle); color: var(--color-info); }
+.status-muted { background: var(--color-surface-subtle); color: var(--color-ink-secondary); }
+.status-attention { background: var(--color-attention-subtle); color: var(--color-attention); }

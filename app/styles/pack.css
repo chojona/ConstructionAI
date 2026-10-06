@@ -1,0 +1,47 @@
+/* Pack export and proof. */
+
+/* Order-locked: the rail decision footer stays directly above pack export. */
+.decision-sticky { margin-top: auto; display: grid; gap: 8px; padding: 12px 17px; border-top: 1px solid var(--color-line); background: var(--surface-context); position: sticky; bottom: 0; }
+.sticky-reviewer { display: grid; gap: 4px; font-size: 11px; font-weight: 650; }
+.sticky-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-height: 32px; }
+.packet-export { display: grid; gap: 8px; margin-bottom: 10px; }
+.packet-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-height: 32px; }
+.packet-chapter { display: grid; gap: 6px; }
+.packet-appendix-note { margin: 0; color: var(--color-ink-secondary); font-size: 12px; line-height: 1.4; }
+.packet-chapter-label { display: grid; gap: 4px; color: var(--color-ink-secondary); font-size: 11px; font-weight: 650; }
+.packet-proof { display: grid; gap: 8px; margin: 8px 0 0; padding: 0; list-style: none; }
+.packet-proof li { display: grid; gap: 4px; min-width: 0; padding: 8px 10px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-surface); }
+.packet-proof-title { font-size: 13px; font-weight: 650; line-height: 1.35; overflow-wrap: anywhere; }
+.packet-proof-fields { display: grid; gap: 2px; margin: 0; }
+.packet-proof-fields div { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 8px; align-items: baseline; }
+.packet-proof-fields dt { margin: 0; color: var(--color-ink-secondary); font-size: 11px; font-weight: 650; }
+.packet-proof-fields dd { margin: 0; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+/* Order-locked: fact list stays between pack proof and the email panel. */
+.fact-list { display: grid; gap: 4px; margin: 0 0 10px; padding: 0; list-style: none; }
+.fact-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; width: 100%; min-width: 0; padding: 6px 8px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-surface); color: inherit; text-align: left; }
+.fact-row:hover { background: var(--color-surface-subtle); }
+.fact-row.is-active { border-color: var(--color-brand); background: var(--color-warning-subtle); outline: 1px solid var(--color-brand); outline-offset: -1px; }
+.fact-row.is-active:hover { background: var(--color-warning-subtle); }
+.fact-row-copy { min-width: 0; flex: 1; display: grid; }
+/* Order-locked: email panel stays between the fact list and the ledger. */
+.email-panel { position: fixed; top: 0; right: 0; z-index: 30; display: flex; flex-direction: column; width: min(420px, 100vw); height: 100dvh; border-left: 1px solid var(--color-line); background: var(--surface-context); }
+.email-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--color-line); }
+.email-panel-head h2 { margin: 0; font-size: 14px; font-weight: 650; line-height: 1.3; }
+.email-panel-body { min-height: 0; overflow: auto; display: grid; align-content: start; gap: 10px; padding: 12px; }
+.email-form { display: grid; gap: 10px; }
+textarea.field.email-body { height: auto; min-height: 68px; padding: 8px 10px; line-height: 1.45; resize: vertical; }
+.email-toast { margin: 0; padding: 8px 10px; border-radius: 6px; background: var(--color-success-subtle); color: var(--color-success); font-size: 13px; line-height: 1.4; }
+.email-toast a { color: inherit; font-weight: 650; }
+/* Order-locked: ledger stays between the email panel and the pack preview. */
+.ledger { display: grid; gap: 8px; margin: 12px 0 16px; max-width: 720px; }
+.ledger div { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 8px; align-items: baseline; }
+.ledger dt { margin: 0; color: var(--color-ink-secondary); font-size: 12px; font-weight: 650; }
+.ledger dd { margin: 0; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; white-space: pre-wrap; }
+.ledger-note { color: var(--color-ink-secondary); font-size: 12px; }
+.change-list-pane .packet-blocked { margin: 0 0 10px; }
+.packet-kicker { margin: 0; color: var(--color-ink-secondary); font-size: 11px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; }
+.packet-preview { display: grid; gap: 6px; max-height: 88px; margin: 0; padding: 0; overflow: auto; list-style: none; }
+.packet-preview li { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.packet-summary { min-width: 0; flex: 1; font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+.packet-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.packet-blocked { margin: 0; color: var(--color-ink-secondary); font-size: 12px; line-height: 1.4; }

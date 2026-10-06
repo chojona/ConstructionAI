@@ -1,10 +1,18 @@
 import { createElement } from "react";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ApprovalSignoffText } from "@/components/review/approval-signoff";
 import { approvalSignoff, signoffForReviewer } from "./approvalSignoff";
 import type { ReviewerDirectoryEntry } from "./roles";
+
+function readAppCss() {
+  const app = new URL("../../app/", import.meta.url);
+  const styles = readdirSync(new URL("styles/", app))
+    .filter((name) => name.endsWith(".css"))
+    .map((name) => readFileSync(new URL(`styles/${name}`, app), "utf8"));
+  return [readFileSync(new URL("globals.css", app), "utf8"), ...styles].join("\n");
+}
 
 function jane(overrides: Partial<ReviewerDirectoryEntry> = {}): ReviewerDirectoryEntry {
   return {
@@ -65,7 +73,7 @@ describe("approval sign-off", () => {
     expect(html).toContain('class="approval-signoff-disabled"');
     expect(html).not.toMatch(/badge|pill|status-danger|color-danger/i);
 
-    const css = readFileSync(new URL("../../app/globals.css", import.meta.url), "utf8");
+    const css = readAppCss();
     const rule = css.match(/\.approval-signoff-disabled \{[^}]+\}/)?.[0] ?? "";
     expect(rule).toContain("var(--color-ink-secondary)");
     expect(rule).not.toMatch(/background|border-radius|badge|pill|--color-danger|--color-warning/);
