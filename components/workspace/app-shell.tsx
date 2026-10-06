@@ -29,14 +29,25 @@ type Project = {
   openCount: number;
 };
 
-export function SidebarFooter({ viewer }: { viewer: { label: string } | null }) {
+export function SidebarFooter({
+  viewer,
+  canManagePeople = false,
+}: {
+  viewer: { label: string } | null;
+  canManagePeople?: boolean;
+}) {
+  const pathname = usePathname();
   return (
     <div className="sidebar-footer">
       <ul className="sidebar-account">
         {viewer ? (
           <>
             <li className="sidebar-account-row sidebar-member" title={viewer.label}>{viewer.label}</li>
-            {/* Org-admin People link is inserted here, directly above Sign out. */}
+            {canManagePeople ? (
+              <li className="sidebar-account-row">
+                <Link href="/people" aria-current={pathname === "/people" ? "page" : undefined}>People</Link>
+              </li>
+            ) : null}
             <li className="sidebar-account-row"><SignOutButton /></li>
           </>
         ) : (
@@ -48,7 +59,12 @@ export function SidebarFooter({ viewer }: { viewer: { label: string } | null }) 
   );
 }
 
-export function AppShell({ projects, viewer, children }: { projects: Project[]; viewer: { label: string } | null; children: React.ReactNode }) {
+export function AppShell({ projects, viewer, canManagePeople, children }: {
+  projects: Project[];
+  viewer: { label: string } | null;
+  canManagePeople: boolean;
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const collapsed = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -57,6 +73,7 @@ export function AppShell({ projects, viewer, children }: { projects: Project[]; 
   const commands = [
     { href: "/projects", name: "Projects", detail: "Workspace" },
     { href: "/changes", name: "Changes", detail: "Needs attention" },
+    ...(canManagePeople ? [{ href: "/people", name: "People", detail: "Organization" }] : []),
     ...projects.map((project) => ({ href: `/projects/${project.id}`, name: project.name, detail: projectNumberLabel(project.projectNumber) })),
   ].filter((command) => `${command.name} ${command.detail}`.toLowerCase().includes(query.toLowerCase()));
 
@@ -100,7 +117,7 @@ export function AppShell({ projects, viewer, children }: { projects: Project[]; 
           <Link className={`nav-row ${pathname === "/projects" ? "is-active" : ""}`} aria-current={pathname === "/projects" ? "page" : undefined} aria-label="Projects" href="/projects"><FolderKanban size={16} aria-hidden /><span className="nav-label">Projects</span></Link>
           <Link className={`nav-row ${pathname === "/changes" ? "is-active" : ""}`} aria-current={pathname === "/changes" ? "page" : undefined} aria-label="Changes" href="/changes"><Layers3 size={16} aria-hidden /><span className="nav-copy">Changes<small>Needs attention</small></span></Link>
         </nav>
-        <SidebarFooter viewer={viewer} />
+        <SidebarFooter viewer={viewer} canManagePeople={canManagePeople} />
       </aside>
       <div className="workspace-body" id="workspace" tabIndex={-1}>{children}</div>
       <dialog ref={dialog} className="command-dialog" aria-labelledby="command-title" onClose={() => trigger.current?.focus()} onClick={(event) => { if (event.target === event.currentTarget) dialog.current?.close(); }}>

@@ -1,3 +1,5 @@
+import { signoffForReviewer, type ApprovalSignoff } from "@/lib/auth/approvalSignoff";
+import type { ReviewerDirectoryEntry } from "@/lib/auth/roles";
 import { queueBadges, type DeskBadge } from "./factBadge";
 import { pinnedSourceCitation } from "./sourceCitation";
 
@@ -52,7 +54,7 @@ export interface DecidedFinding extends RowFinding {
   documentTitle: string;
   revisionLabel: string;
   label: string;
-  currentDecision: { decision: string } | null;
+  currentDecision: { decision: string; reviewerId?: string } | null;
 }
 
 export interface DecidedRowChrome {
@@ -67,6 +69,7 @@ export interface DecidedRowChrome {
   revisionId: string | null;
   sourceCitation?: string | null;
   badges?: readonly DeskBadge[];
+  signoff?: ApprovalSignoff | null;
 }
 
 /** List and drawer fields open change cards already show: document, revision, and page. */
@@ -90,16 +93,21 @@ export function openRowChrome(finding: RowFinding & { documentTitle: string; rev
   };
 }
 
-export function decidedRowChrome(findings: readonly DecidedFinding[]): DecidedRowChrome[] {
+export function decidedRowChrome(
+  findings: readonly DecidedFinding[],
+  directory: readonly ReviewerDirectoryEntry[] = [],
+): DecidedRowChrome[] {
   const rows: DecidedRowChrome[] = [];
   for (const finding of findings) {
     const decision = finding.currentDecision?.decision;
     if (decision !== "ACCEPTED" && decision !== "DISMISSED") continue;
+    const reviewerId = finding.currentDecision?.reviewerId;
     rows.push({
       key: finding.subjectKey,
       decision,
       title: finding.label,
       ...openRowChrome(finding),
+      signoff: decision === "ACCEPTED" && reviewerId ? signoffForReviewer(reviewerId, directory) : null,
     });
   }
   return rows;

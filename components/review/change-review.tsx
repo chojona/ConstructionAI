@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
+import { ApprovalSignoffText } from "@/components/review/approval-signoff";
 import { DecisionChangeList, DecisionEvidence } from "@/components/review/decision-change-list";
+import type { ApprovalSignoff } from "@/lib/auth/approvalSignoff";
 import { FactBadges } from "@/components/review/fact-badges";
 import { PagePreview } from "@/components/review/page-preview";
 import { EvidenceQuotes } from "@/components/review/evidence-quotes";
@@ -50,17 +52,19 @@ export function ChangeReview({
   appendices = [],
   citeNotice = null,
   summary,
+  signoffs = [],
 }: {
   projectId: string;
   items: AttentionItemDto[];
   uploadHref: string;
   approved?: readonly ApprovedChangePreview[];
   decided?: readonly DecidedRowChrome[];
-  notes?: readonly { key: string; text: string }[];
+  notes?: readonly { key: string; before: string; name: string; disabled: boolean; after: string }[];
   chapters?: readonly DeskPackFile[];
   appendices?: readonly DeskPackFile[];
   citeNotice?: string | null;
   summary?: ReviewSummaryCounts;
+  signoffs?: readonly (ApprovalSignoff & { subjectKey: string })[];
 }) {
   const router = useRouter();
   const [selectedKey, setSelectedKey] = useState("");
@@ -166,7 +170,7 @@ export function ChangeReview({
           <div className="review-summary-stat"><strong>{counts.rejectedToday}</strong><span>{REJECTED_TODAY_LABEL}</span></div>
         </section>
         <LegacyPageCiteNotice message={citeNotice} />
-        <ExportPacketControl projectId={projectId} changes={approved} actorId={reviewerId} openCount={items.length} chapters={chapters} appendices={appendices} appendixSubjectKey={appendixFact.subjectKey} appendixPageCites={appendixFact.pageCites} />
+        <ExportPacketControl projectId={projectId} changes={approved} actorId={reviewerId} openCount={items.length} chapters={chapters} appendices={appendices} appendixSubjectKey={appendixFact.subjectKey} appendixPageCites={appendixFact.pageCites} signoffs={signoffs} />
         {(decided.length > 0 || notes.length > 0) && (
           <>
             {decided.length > 0 && (
@@ -175,7 +179,7 @@ export function ChangeReview({
                 <DecisionChangeList rows={decided} activeKey={activeKey} onSelect={openDecided} />
               </>
             )}
-            {notes.length > 0 && <div className="retired">{notes.map((note) => <p key={note.key}>{note.text}</p>)}</div>}
+            {notes.length > 0 && <div className="retired">{notes.map((note) => <p key={note.key}>{note.before}<ApprovalSignoffText name={note.name} disabled={note.disabled} />{note.after}</p>)}</div>}
           </>
         )}
         {items.length === 0 ? <EmptyChanges href={uploadHref} /> : (

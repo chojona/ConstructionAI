@@ -8,6 +8,7 @@ const {
   listActiveMemberships,
   listMembershipsForUser,
   findValidSession,
+  listReviewerDirectory,
   getProject,
   listProjects,
   getProjectReview,
@@ -25,6 +26,7 @@ const {
   listActiveMemberships: vi.fn(),
   listMembershipsForUser: vi.fn(),
   findValidSession: vi.fn(),
+  listReviewerDirectory: vi.fn(),
   getProject: vi.fn(),
   listProjects: vi.fn(),
   getProjectReview: vi.fn(),
@@ -50,7 +52,7 @@ vi.mock("next/headers", () => ({
 }));
 
 vi.mock("@/lib/auth/prismaMembership", () => ({
-  membershipStore: { findMembership, listActiveMemberships, listMembershipsForUser, findValidSession },
+  membershipStore: { findMembership, listActiveMemberships, listMembershipsForUser, findValidSession, listReviewerDirectory },
 }));
 
 vi.mock("@/lib/projects/service", () => ({ getProject, listProjects }));
@@ -106,6 +108,7 @@ beforeEach(() => {
   listMembershipsForUser.mockImplementation(async (userId: string) =>
     rows.filter((row) => row.userId === userId));
   findValidSession.mockResolvedValue(null);
+  listReviewerDirectory.mockResolvedValue([]);
   getProject.mockReset();
   getProject.mockResolvedValue({
     id: "project_1",
@@ -263,13 +266,21 @@ describe("server-rendered desks", () => {
 
     const shell = await loadAppShell();
     expect(shell.projects.map((project) => project.id)).toEqual(["project_1"]);
+    expect(shell.viewer).toBeNull();
+    expect(shell.canManagePeople).toBe(false);
     expect(listProjects).toHaveBeenCalledWith("org_a");
+  });
+
+  it("marks people management on the shell for an org admin", async () => {
+    rows.push(member("ORG_ADMIN", "user_admin"));
+    setHeaders({ "x-user-id": "user_admin", "x-organization-id": "org_a" });
+    await expect(loadAppShell()).resolves.toMatchObject({ viewer: null, canManagePeople: true });
   });
 
   it("leaves the shell empty when the caller is not a member", async () => {
     rows.push(member("ORG_ADMIN", "user_b", "org_b"));
     setHeaders({ "x-user-id": "user_b", "x-organization-id": "org_a" });
-    await expect(loadAppShell()).resolves.toEqual({ projects: [], viewer: null });
+    await expect(loadAppShell()).resolves.toEqual({ projects: [], viewer: null, canManagePeople: false });
     expect(listProjects).not.toHaveBeenCalled();
   });
 
@@ -302,7 +313,7 @@ describe("server-rendered desks", () => {
         digest: "NEXT_HTTP_ERROR_FALLBACK;401",
       });
       expect(listHeavyJobSourceObjects).not.toHaveBeenCalled();
-      await expect(loadAppShell()).resolves.toEqual({ projects: [], viewer: null });
+      await expect(loadAppShell()).resolves.toEqual({ projects: [], viewer: null, canManagePeople: false });
       expect(listProjects).not.toHaveBeenCalled();
     } finally {
       if (previous === undefined) delete process.env.AUTH_TRUST_USER_HEADER;

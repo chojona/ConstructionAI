@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authorizeRequest, withLedgerActor } from "@/lib/auth/membership";
 import { readEmailSend, updateEmailDraft } from "@/lib/email/service";
-import { errorResponse } from "@/lib/http";
+import { errorResponse, readJsonBody } from "@/lib/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,7 +31,7 @@ export async function PATCH(
       access.organizationId,
       projectId,
       emailSendId,
-      withLedgerActor(access, await request.json()),
+      withLedgerActor(access, await readJsonBody(request)),
     );
     return NextResponse.json({ email });
   } catch (error) {

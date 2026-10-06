@@ -1,5 +1,6 @@
 import { pageAccessRequest } from "@/lib/auth/pageAccess";
 import { authorizeRequest } from "@/lib/auth/membership";
+import { roleAllows } from "@/lib/auth/roles";
 import { currentSessionViewer, type SessionViewer } from "@/lib/auth/sessionViewer";
 import { isDomainError } from "@/lib/domain/errors";
 import { listProjects } from "@/lib/projects/service";
@@ -19,7 +20,11 @@ export interface ShellProject {
  *  session cookie, not x-user-id. forbidden() cannot run in the root layout,
  *  so the page gate renders the 403 or the 401 sign-in page.
  */
-export async function loadAppShell(): Promise<{ projects: ShellProject[]; viewer: SessionViewer | null }> {
+export async function loadAppShell(): Promise<{
+  projects: ShellProject[];
+  viewer: SessionViewer | null;
+  canManagePeople: boolean;
+}> {
   const viewer = await currentSessionViewer();
   try {
     const access = await authorizeRequest(await pageAccessRequest(), "read");
@@ -34,10 +39,10 @@ export async function loadAppShell(): Promise<{ projects: ShellProject[]; viewer
         openCount: listAttention(review.findings).length,
       };
     }));
-    return { projects: cards, viewer };
+    return { projects: cards, viewer, canManagePeople: roleAllows(access.role, "manage_people") };
   } catch (error) {
     if (isDomainError(error) && (error.code === "FORBIDDEN" || error.code === "UNAUTHENTICATED")) {
-      return { projects: [], viewer };
+      return { projects: [], viewer, canManagePeople: false };
     }
     throw error;
   }
