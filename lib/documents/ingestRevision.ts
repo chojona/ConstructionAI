@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { ZodError, z } from "zod";
+import { requireDocumentAccess } from "@/lib/access/projectAccess";
 import { DomainError } from "@/lib/domain/errors";
 import { constructionRepository } from "@/lib/domain/prismaRepository";
 import type { ConstructionRepository } from "@/lib/domain/repository";
@@ -44,8 +45,7 @@ export async function ingestRevision(
   const storage = dependencies.storage ?? getDocumentStorage();
   const extract = dependencies.extract ?? extractPdfDocumentCached;
   return withProcessingRun(dependencies.timings, "ingest", async (run) => {
-    const document = await repository.getDocument(organizationId, documentId);
-    if (!document) throw new DomainError("NOT_FOUND", "Document not found.", 404);
+    const document = await requireDocumentAccess({ organizationId }, documentId, repository);
 
     const accepted = await run.stage("upload_validation", async () => {
       const revisionLabel = parseRevisionLabel(rawInput.revisionLabel);
@@ -101,10 +101,10 @@ export async function ingestRevision(
 
     const usableText = hasUsableText(extracted.pages);
     return run.stage("storage", async () => {
-      const stored = await storage.put({ documentId, bytes: rawInput.bytes });
+      const stored = await storage.put({ documentId: document.id, bytes: rawInput.bytes });
       try {
         return await repository.createRevision({
-          documentId,
+          documentId: document.id,
           revisionLabel: accepted.revisionLabel,
           originalFilename: accepted.originalFilename,
           mimeType: "application/pdf",
