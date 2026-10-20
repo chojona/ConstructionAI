@@ -118,7 +118,7 @@ body { margin: 0; color: var(--color-text-primary); font-family: var(--font-inte
 a { color: inherit; text-decoration: none; }
 input, select { font: inherit; }
 button, summary { cursor: pointer; }
-button:disabled { cursor: not-allowed; }
+button:disabled, button[aria-disabled="true"] { cursor: not-allowed; }
 :focus-visible { outline: var(--size-border-focus) solid var(--color-focus); outline-offset: var(--size-border-focus); }
 /* Order-locked: palette and list focus offsets stay with the base :focus-visible rule. */
 .search-trigger:focus, .command-search input:focus { box-shadow: none; }

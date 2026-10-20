@@ -132,21 +132,33 @@ const bannedPrefixes = ["[PLACEHOLDER", "[CTO", "[DO NOT PUBLISH", "[NOTE", "[AT
 
 const bannedLiterals = ["CTO CONFIRM", "CTO RESULT", "DO NOT PUBLISH", "PLACEHOLDER", "ATTORNEY QUESTION"] as const;
 
-/** Drop class and style attributes so design-token utilities are not read as copy. */
-function legalCopySource(html: string): string {
-  return html.replace(/\s(?:class|style)\s*=\s*(?:"[^"]*"|'[^']*')/g, "");
+/** Remove class and style attributes from tags only, leaving text content intact. */
+function stripClassAndStyleInTags(html: string): string {
+  return html.replace(/<[^>]*>/g, (tag) => tag.replace(/\s(?:class|style)\s*=\s*(?:"[^"]*"|'[^']*')/g, ""));
+}
+
+const contentUtility = /(?:^|\s)(?:[\w-]+:)*content-\[/;
+
+function classAttributes(html: string): string[] {
+  const values: string[] = [];
+  for (const tag of html.match(/<[^>]*>/g) ?? []) {
+    const match = /\sclass\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(tag);
+    if (match) values.push(match[1] ?? match[2] ?? "");
+  }
+  return values;
 }
 
 /** Tags and bracketed blanks that must never ship in legal HTML. */
 export function findLegalCopyViolations(html: string): string[] {
-  const copy = legalCopySource(html);
   const hits: string[] = [];
   for (const prefix of bannedPrefixes) {
-    if (copy.includes(prefix)) hits.push(prefix);
+    if (html.includes(prefix)) hits.push(prefix);
   }
   for (const literal of bannedLiterals) {
-    if (copy.includes(literal)) hits.push(literal);
+    if (html.includes(literal)) hits.push(literal);
   }
+  if (classAttributes(html).some((value) => contentUtility.test(value))) hits.push("content-[");
+  const copy = stripClassAndStyleInTags(html);
   for (const match of copy.match(/\[[^\]\n]+\]/g) ?? []) {
     hits.push(match);
   }

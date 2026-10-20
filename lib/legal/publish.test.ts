@@ -188,6 +188,14 @@ describe("legal copy publish guard", () => {
     const html = `<button class="h-[var(--size-target-min)] text-[length:var(--font-size-md)]">Sign in</button><span style="outline: var(--size-border-focus) solid var(--color-focus)">ok</span>`;
     expect(findLegalCopyViolations(html)).toEqual([]);
     expect(findLegalCopyViolations(`${html}<p>[legal entity name]</p>`)).toContain("[legal entity name]");
+    expect(findLegalCopyViolations(`<a title="[YEAR]">Terms</a>`)).toContain("[YEAR]");
+    expect(findLegalCopyViolations(`<button aria-label="[NOTE] draft">Close</button>`)).toContain("[NOTE]");
+  });
+
+  it("flags content utilities in class attributes and bracket blanks written as text", () => {
+    expect(findLegalCopyViolations(`<span class="before:content-['[PLACEHOLDER]']"></span>`).length).toBeGreaterThan(0);
+    expect(findLegalCopyViolations(`<span class="after:content-['ok']"></span>`)).toContain("content-[");
+    expect(findLegalCopyViolations(`<p>Write class="[support email]" here</p>`)).toContain("[support email]");
   });
 
   it("reads dangerouslySetInnerHTML as text", () => {

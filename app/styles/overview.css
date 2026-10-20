@@ -8,7 +8,7 @@
 .project-list .project-card.needs-attention { background: var(--color-warning-subtle); }
 .project-list .project-card.needs-attention:hover { background: var(--color-attention-subtle); }
 .project-list .project-card.is-active { background: var(--color-bg-selected); box-shadow: inset 3px 0 var(--color-focus); }
-.project-list .project-card:focus-visible { outline: var(--size-border-focus) solid var(--color-focus); outline-offset: var(--size-border-focus); }
+.project-list .project-card:focus-visible { outline: var(--size-border-focus) solid var(--color-focus); outline-offset: -2px; }
 .project-list .project-card-name { font-size: 12px; font-weight: 600; }
 .project-list .project-card-number, .project-list .project-card-docs { color: var(--color-ink-secondary); font-size: 12px; font-weight: 500; }
 .project-card-status { min-width: 0; }
