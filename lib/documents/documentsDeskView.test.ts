@@ -55,6 +55,8 @@ describe("documents desk current revision", () => {
     expect(filtered).toContain('<td class="col-rev">B</td>');
     expect(filtered).not.toContain('<td class="col-rev">C</td>');
     expect(filtered).toContain("<dt>Current rev</dt><dd>B</dd>");
+    expect(filtered).toContain("<dt>Pages</dt><dd>9</dd>");
+    expect(filtered).not.toContain("<dt>Pages</dt><dd>8</dd>");
     expect(filtered).toContain('status-processed">Current<');
     expect(filtered).toContain("Newest upload C");
     expect(filtered).toContain('status-failed">Failed<');
@@ -80,6 +82,16 @@ describe("documents desk current revision", () => {
     expect(html).not.toContain("status-failed");
   });
 
+  it("shows an em dash for pages when the only revision failed", () => {
+    const html = renderDesk(plan([rev("rev-c", "C", 1, "FAILED", 8)]), "all", "rev-c");
+
+    expect(html).toContain("No current revision");
+    expect(html).toContain("<dt>Pages</dt><dd>—</dd>");
+    expect(html).not.toContain("<dt>Pages</dt><dd>8</dd>");
+    expect(html).not.toContain("status-processed");
+    expect(html).toContain('status-failed">Failed<');
+  });
+
   it("shows no current revision when nothing is processed", () => {
     const document = plan([rev("rev-b", "B", 1, "FAILED", 2), processingC]);
     const html = renderDesk(document, "all", "rev-c");
@@ -89,6 +101,9 @@ describe("documents desk current revision", () => {
     expect(html).toContain("Newest upload C");
     expect(html).toContain('status-pending">Processing<');
     expect(html).toContain('status-failed">Failed<');
+    expect(html).toContain("<dt>Pages</dt><dd>—</dd>");
+    expect(html).not.toContain("<dt>Pages</dt><dd>2</dd>");
+    expect(html).not.toContain("<dt>Pages</dt><dd>8</dd>");
     expect(html).not.toContain("status-processed");
     expect(html).not.toContain("<dt>Current rev</dt>");
     expect(html).not.toContain("Current revision uploaded");
