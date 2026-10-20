@@ -9,14 +9,21 @@ import { PilotLanding } from "@/components/legal/pilot-landing";
 import { PrivacyNote } from "@/components/legal/privacy-note";
 import { SignupConsent } from "@/components/legal/signup-consent";
 import { TermsOfUse } from "@/components/legal/terms-of-use";
-import { MAX_PDF_PAGES } from "@/lib/documents/extractPdf";
+import { MAX_PDF_PAGES } from "@/lib/documents/pdfLimits";
 import { MAX_UPLOAD_BYTES } from "@/lib/documents/uploadLimit";
 import {
+  companyFieldError,
+  consentError,
   consentUpdates,
+  dotFieldError,
   draftBanner,
+  emailFieldError,
   findLegalCopyViolations,
+  hostingRequestLogs,
   loginRecordFallback,
+  pilotFeatureLabel,
   privacyFileDeletion,
+  roleFieldError,
   termsFileDeletion,
   waitlistInstruction,
   waitlistSignupSource,
@@ -41,7 +48,8 @@ import {
   renderLegalSurfaces,
   scanLegalTree,
 } from "@/lib/legal/scan";
-import { unpublishedLegalSentences } from "@/lib/legal/unpublishedSentences.fixture";
+import { unpublishedLegalSentences, unpublishedSentencePieces } from "@/lib/legal/unpublishedSentences.fixture";
+import { waitlistFieldErrors } from "@/lib/legal/waitlistForm";
 
 const repoRoot = path.resolve(import.meta.dirname, "../..");
 const envKeys = [
@@ -82,15 +90,23 @@ afterEach(() => {
 describe("legal copy publish guard", () => {
   it("keeps every DO NOT PUBLISH sentence out of the rendered surfaces", () => {
     const html = textOf(renderLegalSurfaces(filledLegalFacts));
+    const landing = textOf(renderToStaticMarkup(createElement(PilotLanding, { showLegalLinks: true })));
     expect(unpublishedLegalSentences.length).toBeGreaterThan(0);
     for (const sentence of unpublishedLegalSentences) {
-      expect(html, sentence).not.toContain(sentence);
+      const pieces = unpublishedSentencePieces(sentence);
+      expect(pieces.length).toBeGreaterThan(0);
+      for (const piece of pieces) {
+        expect(html, piece).not.toContain(piece);
+        expect(landing, piece).not.toContain(piece);
+      }
     }
     expect(html).toContain(loginRecordFallback);
     expect(html).toContain(privacyFileDeletion);
     expect(html).toContain(termsFileDeletion);
     expect(html).toContain(waitlistSignupSource);
     expect(html).toContain("up to five optional questions");
+    expect(html).toContain(hostingRequestLogs);
+    expect(html).not.toContain("log retention");
     expect(html).not.toContain("Before you upload");
     expect(html).not.toContain("Continue to upload");
     expect(html).not.toContain("You're getting this because you joined");
@@ -102,13 +118,13 @@ describe("legal copy publish guard", () => {
     expect(footer).not.toContain("©");
   });
 
-  it("states the shared upload limits and leaves the unpublished limit sentence out", () => {
+  it("publishes the shared upload limit sentence", () => {
     const html = textOf(renderToStaticMarkup(createElement(PrivacyNote, { facts: filledLegalFacts })));
-    expect(html).toContain(`${MAX_UPLOAD_BYTES.toLocaleString("en-US")} bytes`);
-    expect(html).toContain(`${(MAX_UPLOAD_BYTES / 1_000_000).toFixed(1)} MB`);
-    expect(html).toContain(`${MAX_PDF_PAGES} pages`);
-    expect(html).not.toContain(unpublishedLegalSentences[1]);
-    expect(html).not.toContain(unpublishedLegalSentences[2]);
+    const megabytes = (MAX_UPLOAD_BYTES / 1_000_000).toFixed(1);
+    const sentence = `Document uploads: PDF, up to ${megabytes} MB and ${MAX_PDF_PAGES} pages; appendices can also be Bluebeam CSV.`;
+    expect(html).toContain(sentence);
+    expect(html).not.toContain("If a file is too large to upload");
+    expect(readFileSync(path.join(repoRoot, "components/legal/privacy-note.tsx"), "utf8")).not.toContain("extractPdf");
   });
 
   it("passes assertLegalCopyPublishable when every blank is filled with accepted values", () => {
@@ -126,9 +142,20 @@ describe("legal copy publish guard", () => {
     expect(legalFactRejected("supportEmail", "not-an-email")).toBe(true);
     expect(legalFactRejected("effectiveDate", "soon")).toBe(true);
     expect(legalFactRejected("effectiveDate", "2026-13-40")).toBe(true);
+    expect(legalFactRejected("effectiveDate", "February 30, 2026")).toBe(true);
+    expect(legalFactRejected("effectiveDate", "2026-02-30")).toBe(true);
+    expect(legalFactRejected("effectiveDate", "February 29, 2026")).toBe(true);
+    expect(legalFactRejected("effectiveDate", "February 29, 2024")).toBe(false);
     expect(legalFactRejected("copyrightYear", "26")).toBe(true);
     const rejected: LegalFacts = { ...filledLegalFacts, contactEmail: "contact@fixture.example" };
     expect(() => assertLegalCopyPublishable(rejected)).toThrow(/contactEmail/);
+  });
+
+  it("allows an unset contact email and copyright year", () => {
+    const facts = { ...filledLegalFacts, contactEmail: null, copyrightYear: null };
+    expect(legalFactRejected("contactEmail", null)).toBe(false);
+    expect(legalFactRejected("copyrightYear", null)).toBe(false);
+    expect(() => assertLegalCopyPublishable(facts)).not.toThrow();
   });
 
   it("throws from assertLegalCopyPublishable when one blank is left", () => {
@@ -197,21 +224,21 @@ describe("legal copy publish guard", () => {
       renderToStaticMarkup(createElement(TermsOfUse, { facts: emptyLegalFacts })),
       renderToStaticMarkup(createElement(LegalFooterLinks)),
       renderToStaticMarkup(createElement(SignupConsent)),
-      renderToStaticMarkup(createElement(PayEstimateCard, { pilot: true })),
-      renderToStaticMarkup(createElement(PayEstimateCard, { pilot: false })),
+      renderToStaticMarkup(createElement(PayEstimateCard)),
       renderToStaticMarkup(createElement(PilotLanding, { showLegalLinks: true })),
     ];
-    for (const html of surfaces) {
-      findLegalCopyViolations(html);
-    }
-    expect(findLegalCopyViolations(surfaces[0]).some((hit) => hit.includes("[legal entity name]"))).toBe(true);
-    expect(findLegalCopyViolations(surfaces[1]).some((hit) => hit.includes("[warranty disclaimer"))).toBe(true);
+    const privacyHits = findLegalCopyViolations(surfaces[0]);
+    const termsHits = findLegalCopyViolations(surfaces[1]);
+    expect(privacyHits).toContain("[legal entity name]");
+    expect(termsHits.some((hit) => hit.includes("[warranty disclaimer"))).toBe(true);
+    expect(privacyHits.length).toBeGreaterThan(1);
+    expect(termsHits.length).toBeGreaterThan(1);
     expect(findLegalCopyViolations(textOf(renderLegalSurfaces(emptyLegalFacts))).length).toBeGreaterThan(0);
     for (const html of surfaces.slice(2)) {
       expect(html).not.toContain("Every gap");
+      expect(findLegalCopyViolations(html)).toEqual([]);
     }
-    expect(textOf(surfaces[6])).toContain(waitlistInstruction);
-    expect(findLegalCopyViolations(surfaces[6])).toEqual([]);
+    expect(textOf(surfaces[5])).toContain(waitlistInstruction);
   });
 
   it("finds no bracket tags on filled privacy, terms, footer, consent, card B, and the landing", () => {
@@ -220,7 +247,7 @@ describe("legal copy publish guard", () => {
       renderToStaticMarkup(createElement(TermsOfUse, { facts: filledLegalFacts })),
       renderToStaticMarkup(createElement(LegalFooterLinks)),
       renderToStaticMarkup(createElement(SignupConsent)),
-      renderToStaticMarkup(createElement(PayEstimateCard, { pilot: true })),
+      renderToStaticMarkup(createElement(PayEstimateCard)),
       renderToStaticMarkup(createElement(PilotLanding)),
     ];
     for (const html of surfaces) expect(findLegalCopyViolations(html)).toEqual([]);
@@ -308,6 +335,50 @@ describe("legal copy publish guard", () => {
     expect(shown).toContain(draftBanner);
     applyEnv({ LEGAL_ATTORNEY_REVIEWED: "true" });
     expect(textOf(renderLegalSurfaces(filledLegalFacts))).not.toContain(draftBanner);
+  });
+});
+
+describe("waitlist field validation", () => {
+  const complete = { email: "ada@northline.example", company: "Northline", role: "Estimator", dotWork: "yes", consent: true };
+
+  it("accepts a complete form", () => {
+    expect(waitlistFieldErrors(complete)).toEqual({});
+  });
+
+  it("asks for a work email when that field is empty", () => {
+    expect(waitlistFieldErrors({ ...complete, email: "  " })).toEqual({ email: emailFieldError });
+  });
+
+  it("asks for a company when that field is empty", () => {
+    expect(waitlistFieldErrors({ ...complete, company: "" })).toEqual({ company: companyFieldError });
+  });
+
+  it("asks for a role when that field is empty", () => {
+    expect(waitlistFieldErrors({ ...complete, role: "" })).toEqual({ role: roleFieldError });
+  });
+
+  it("asks for Yes or No when that choice is empty", () => {
+    expect(waitlistFieldErrors({ ...complete, dotWork: "" })).toEqual({ dot: dotFieldError });
+  });
+
+  it("keeps the consent error when the box is unchecked", () => {
+    expect(waitlistFieldErrors({ ...complete, consent: false })).toEqual({ consent: consentError });
+  });
+
+  it("renders every required control and both pilot badges", () => {
+    const html = renderToStaticMarkup(createElement(PilotLanding));
+    expect(html.match(new RegExp(pilotFeatureLabel, "g"))).toHaveLength(2);
+    expect(html).toContain('name="dot-work"');
+    expect(html.match(/name="dot-work"/g)).toHaveLength(2);
+    expect(html).toContain(emailFieldError);
+    expect(html).toContain(companyFieldError);
+    expect(html).toContain(roleFieldError);
+    expect(html).toContain(dotFieldError);
+    expect(html).toContain('data-field="email"');
+    expect(html).toContain('data-field="company"');
+    expect(html).toContain('data-field="role"');
+    expect(html).toContain("required");
+    expect(html).toContain(waitlistInstruction);
   });
 });
 

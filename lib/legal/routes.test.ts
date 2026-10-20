@@ -12,7 +12,8 @@ vi.mock("next/navigation", async () => {
 });
 
 import { SidebarFooter } from "@/components/workspace/app-shell";
-import { cardBCaption, cardBText, consentError, consentUpdates, draftBanner, findLegalCopyViolations, waitlistInstruction, waitlistSignupSource } from "@/lib/legal/copy";
+import { cardBCaption, cardBText, consentError, consentUpdates, draftBanner, findLegalCopyViolations, hostingRequestLogs, pilotFeatureLabel, waitlistInstruction, waitlistSignupSource } from "@/lib/legal/copy";
+import { unpublishedLegalSentences, unpublishedSentencePieces } from "@/lib/legal/unpublishedSentences.fixture";
 import { legalFactEnvKeys } from "@/lib/legal/facts";
 import { filledLegalFactEnv } from "@/lib/legal/filledLegalFacts.fixture";
 import { legalLinksEnabled, resetLegalPublishWarningForTests } from "@/lib/legal/publish";
@@ -125,16 +126,13 @@ describe("legal routes", () => {
     expect(legalLinksEnabled()).toBe(true);
   });
 
-  it("renders the landing from its own flag and the legal pages from theirs", async () => {
+  it("keeps the home redirect when the landing flag is on without the legal flag", async () => {
     applyEnv({ PILOT_LANDING_PUBLISHED: "true" });
-    const landingOnly = textOf(renderToStaticMarkup(await home()));
-    expect(landingOnly).toContain(waitlistInstruction);
-    expect(landingOnly).toContain(cardBText);
-    expect(landingOnly).not.toContain("Every gap");
-    expect(landingOnly).not.toContain('class="legal-footer"');
-    expect(landingOnly).toContain('href="/privacy"');
+    await expect(home()).rejects.toSatisfy((error: unknown) => digestOf(error).startsWith("NEXT_REDIRECT") && digestOf(error).includes("/projects"));
     await expect(privacy()).rejects.toSatisfy((error: unknown) => digestOf(error).includes("404"));
+  });
 
+  it("renders the landing from its own flag and the legal pages from theirs", async () => {
     applyEnv({ LEGAL_PAGES_PUBLISHED: "true", PILOT_LANDING_PUBLISHED: "true", ...filledLegalFactEnv() });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const privacyMeta = await import("@/app/privacy/page");
@@ -163,7 +161,16 @@ describe("legal routes", () => {
     expect(privacyText).toContain(waitlistSignupSource);
     expect(privacyText).toContain("up to five optional questions");
     expect(privacyText).toContain("hash of your invite link, which expires after 14 days");
+    expect(privacyText).toContain(hostingRequestLogs);
+    expect(privacyText).not.toContain("log retention");
     expect(privacyText).toContain("The app keeps project records, including uploaded files, as a fixed history");
+    for (const sentence of unpublishedLegalSentences) {
+      for (const piece of unpublishedSentencePieces(sentence)) {
+        expect(privacyText, piece).not.toContain(piece);
+        expect(termsText, piece).not.toContain(piece);
+        expect(homeText, piece).not.toContain(piece);
+      }
+    }
     expect(privacyText).toContain("Northline Contracting LLC");
     expect(privacyText).not.toContain("up to 30 days");
     expect(privacyText).not.toContain("Contact");
@@ -172,7 +179,7 @@ describe("legal routes", () => {
     expect(termsText).toContain("ConstructionAI keeps a fixed history of uploads and decisions");
     expect(termsText).toContain("Texas law governs.");
     expect(termsText).not.toContain("We won't sell Your Content");
-    expect(homeText).toContain("Pilot feature");
+    expect(homeHtml.match(new RegExp(pilotFeatureLabel, "g"))).toHaveLength(2);
     expect(homeText).toContain(cardBText);
     expect(homeText).toContain(cardBCaption);
     expect(homeText).toContain(waitlistInstruction);

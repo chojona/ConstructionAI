@@ -5,7 +5,7 @@ export function SignupConsent() {
   return (
     <div className="consent-block" data-legal="consent">
       <label className="consent-check">
-        <input type="checkbox" data-consent="terms" defaultChecked={false} />
+        <input type="checkbox" required data-consent="terms" defaultChecked={false} />
         <span>I agree to the <a href="/terms">Terms</a> and <a href="/privacy">Privacy Policy</a>.</span>
       </label>
       <p className="consent-error" data-consent-error role="alert" hidden>{consentError}</p>

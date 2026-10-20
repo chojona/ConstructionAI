@@ -47,7 +47,9 @@
 .consent-check { display: flex; align-items: center; gap: 8px; min-height: 44px; font-size: 14px; font-weight: 450; }
 .consent-check input { width: 20px; height: 20px; margin-top: 0; }
 .consent-check input[aria-invalid="true"] { outline: 2px solid var(--color-danger); outline-offset: 1px; }
-.consent-error { margin: 0 0 0 24px; color: var(--color-danger); font-size: 13px; font-weight: 650; line-height: 1.4; }
+.consent-error, .field-error { margin: 0; color: var(--color-danger); font-size: 13px; font-weight: 650; line-height: 1.4; }
+.consent-error { margin-left: 24px; }
+.field[aria-invalid="true"], .waitlist-choice input[aria-invalid="true"] { outline: 2px solid var(--color-danger); outline-offset: 1px; }
 .waitlist-submit { width: 100%; min-height: 44px; font-size: 15px; }
 .waitlist-help { text-align: center; }
 

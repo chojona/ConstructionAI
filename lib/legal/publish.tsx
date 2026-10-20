@@ -6,7 +6,7 @@ export function legalFlagOn(env: NodeJS.ProcessEnv = process.env): boolean {
 }
 
 export function pilotLandingEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.PILOT_LANDING_PUBLISHED === "true";
+  return legalFlagOn(env) && env.PILOT_LANDING_PUBLISHED === "true";
 }
 
 /** Banner stays up until an attorney review is recorded. The wording lives in the copy module. */

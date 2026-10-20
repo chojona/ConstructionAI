@@ -10,6 +10,14 @@ export const cardAText = "Upload your plan set and addenda. See which sheet revi
 
 export const consentError = "Check the box to agree to the Terms and Privacy Policy.";
 
+export const emailFieldError = "Enter your work email.";
+
+export const companyFieldError = "Enter your company.";
+
+export const roleFieldError = "Choose your role.";
+
+export const dotFieldError = "Choose Yes or No.";
+
 export const consentNotice = "We'll email you about the waitlist and pilot. You can unsubscribe anytime.";
 
 export const consentUpdates = "Email me product updates.";
@@ -33,6 +41,8 @@ export const optionalQuestionCount = "After you sign up, you can answer up to fi
 export const noPhoneOrUploads = "We don't ask for a phone number on the waitlist, and we don't accept file uploads there.";
 
 export const filesYouUploadLead = "PDF files (for example plan sets and specs), Bluebeam markup summaries as PDF or CSV files, the original file name, the document title and revision label you enter, and the text we read from each PDF page.";
+
+export const hostingRequestLogs = "Our hosting provider (Vercel) keeps standard request logs, including IP address, to run and secure the service.";
 
 export const bluebeamCsvLead = "CSV markup summaries you upload can include";
 
@@ -107,6 +117,10 @@ export function landingAndDialogText(): string {
     consentUpdates,
     consentNotice,
     consentError,
+    emailFieldError,
+    companyFieldError,
+    roleFieldError,
+    dotFieldError,
     consentVersionNote,
   ].join("");
 }

@@ -53,6 +53,28 @@ export const legalFactEnvKeys: Record<LegalFactKey, string> = {
 
 const emailFactKeys = new Set<LegalFactKey>(["privacyContactEmail", "supportEmail", "contactEmail"]);
 
+/** Not drawn anywhere. Empty is allowed. A value that is present still has to be valid. */
+const optionalLegalFactKeys = new Set<LegalFactKey>(["contactEmail", "copyrightYear"]);
+
+const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+function roundTrips(year: number, monthIndex: number, day: number): boolean {
+  const parsed = new Date(year, monthIndex, day);
+  return parsed.getFullYear() === year && parsed.getMonth() === monthIndex && parsed.getDate() === day;
+}
+
+function validEffectiveDate(trimmed: string): boolean {
+  const named = /^([A-Z][a-z]+) (\d{1,2}), (\d{4})$/.exec(trimmed);
+  if (named) {
+    const monthIndex = monthNames.indexOf(named[1]);
+    if (monthIndex < 0) return false;
+    return roundTrips(Number(named[3]), monthIndex, Number(named[2]));
+  }
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (!iso) return false;
+  return roundTrips(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+}
+
 function unset(value: string | undefined): string | null {
   const trimmed = value?.trim() ?? "";
   return trimmed.length > 0 ? trimmed : null;
@@ -77,13 +99,10 @@ export function readLegalFacts(env: NodeJS.ProcessEnv = process.env): LegalFacts
 /** Reject stand-ins and values that are not a real email, date, or year. */
 export function legalFactRejected(key: LegalFactKey, value: string | null): boolean {
   const trimmed = value?.trim() ?? "";
-  if (!trimmed) return true;
+  if (!trimmed) return !optionalLegalFactKeys.has(key);
   if (/\bTBD\b/i.test(trimmed) || /fixture\.example/i.test(trimmed) || trimmed.includes("Fixture")) return true;
   if (emailFactKeys.has(key) && !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(trimmed)) return true;
-  if (key === "effectiveDate") {
-    const shaped = /^[A-Z][a-z]+ \d{1,2}, \d{4}$/.test(trimmed) || /^\d{4}-\d{2}-\d{2}$/.test(trimmed);
-    if (!shaped || Number.isNaN(Date.parse(trimmed))) return true;
-  }
+  if (key === "effectiveDate" && !validEffectiveDate(trimmed)) return true;
   if (key === "copyrightYear" && !/^\d{4}$/.test(trimmed)) return true;
   return false;
 }

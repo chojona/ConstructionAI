@@ -77,7 +77,7 @@ function pageFrame(note: ReactElement) {
 /**
  * Renders privacy, terms, the footer, the consent block, card B, and the landing/dialog strings.
  * Does not apply the publish guard. Unfilled facts stay in the markup as bracketed blanks.
- * Contact and the copyright year are required facts, but the footer shows only the two document links.
+ * Contact and the copyright year are optional while the footer shows only the two document links.
  */
 export function renderLegalSurfaces(facts: LegalFacts): string {
   return scanLegalTree(
@@ -88,7 +88,7 @@ export function renderLegalSurfaces(facts: LegalFacts): string {
       pageFrame(createElement(TermsOfUse, { facts })),
       createElement(LegalFooterLinks),
       createElement(SignupConsent),
-      createElement(PayEstimateCard, { pilot: true }),
+      createElement(PayEstimateCard),
       landingAndDialogText(),
     ),
   );

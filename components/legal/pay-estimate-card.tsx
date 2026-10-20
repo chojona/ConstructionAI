@@ -1,15 +1,15 @@
-import { cardBCaption, cardBText, optionTwoLabel, pilotFeatureLabel } from "@/lib/legal/copy";
+import { cardBCaption, cardBText, joinWaitlistLabel, optionTwoLabel, pilotFeatureLabel } from "@/lib/legal/copy";
 
-export function PayEstimateCard({ pilot, onJoin }: { pilot: boolean; onJoin?: () => void }) {
+export function PayEstimateCard({ onJoin }: { onJoin?: () => void }) {
   return (
-    <article className="pilot-card" data-legal="card-b" data-pilot={pilot ? "true" : "false"}>
+    <article className="pilot-card" data-legal="card-b">
       <div className="pilot-kicker">
         <span>{optionTwoLabel}</span>
-        {pilot ? <span className="pilot-feature">{pilotFeatureLabel}</span> : null}
+        <span className="pilot-feature">{pilotFeatureLabel}</span>
       </div>
       <p>{cardBText}</p>
-      {pilot ? <p className="pilot-caption">{cardBCaption}</p> : null}
-      <button type="button" className="pilot-join" data-join="b" onClick={onJoin}>Join the waitlist</button>
+      <p className="pilot-caption">{cardBCaption}</p>
+      <button type="button" className="pilot-join" data-join="b" onClick={onJoin}>{joinWaitlistLabel}</button>
     </article>
   );
 }

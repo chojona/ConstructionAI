@@ -1,8 +1,9 @@
-import { MAX_PDF_PAGES } from "@/lib/documents/extractPdf";
+import { MAX_PDF_PAGES } from "@/lib/documents/pdfLimits";
 import { MAX_UPLOAD_BYTES } from "@/lib/documents/uploadLimit";
 import {
   bluebeamCsvLead,
   filesYouUploadLead,
+  hostingRequestLogs,
   legalVersion,
   loginRecordFallback,
   noPhoneOrUploads,
@@ -15,8 +16,8 @@ import type { LegalFacts } from "@/lib/legal/facts";
 import { FactEmail, FactText } from "@/components/legal/fact";
 
 export function PrivacyNote({ facts }: { facts: LegalFacts }) {
-  const uploadBytes = MAX_UPLOAD_BYTES.toLocaleString("en-US");
   const uploadMegabytes = (MAX_UPLOAD_BYTES / 1_000_000).toFixed(1);
+  const uploadLimitSentence = `Document uploads: PDF, up to ${uploadMegabytes} MB and ${MAX_PDF_PAGES} pages; appendices can also be Bluebeam CSV.`;
   return (
     <article className="legal-doc" data-legal="privacy">
       <p className="eyebrow">Legal</p>
@@ -51,7 +52,7 @@ export function PrivacyNote({ facts }: { facts: LegalFacts }) {
           <li><strong>Account details:</strong> your email, your name if you give it, a hash of your password (not the password itself), your access level in the app (admin, reviewer, contributor, or viewer), and whether your invite is pending, active, or disabled. While your invite is pending, we also keep a hash of your invite link, which expires after 14 days.</li>
           <li><strong>Sign-in records:</strong> a session record so you stay signed in. The cookie holds a token and our database keeps only a hash of it. A session lasts 14 days from sign-in; after that you sign in again.</li>
           <li><strong>Failed sign-in attempts:</strong> the email entered and the IP address, for failed sign-ins and failed attempts to use an invite link, so we can slow down repeated failed attempts. {loginRecordFallback}</li>
-          <li><strong>Files you upload:</strong> {filesYouUploadLead} Each PDF can be up to {uploadBytes} bytes (about {uploadMegabytes} MB) and {MAX_PDF_PAGES} pages.</li>
+          <li><strong>Files you upload:</strong> {filesYouUploadLead} {uploadLimitSentence}</li>
           <li><strong>Bluebeam markup summaries:</strong> {bluebeamCsvLead} <FactText id="bluebeamCsvColumns" facts={facts} />.</li>
           <li><strong>Your review work:</strong> the items the app suggests from your documents, and the accept, dismiss, or flag decisions your team makes on them, with who made each decision, when, and any reason or note added to it.</li>
           <li><strong>Packs and email drafts:</strong> approved packs your team exports, files attached to them, and email drafts your team writes in the app, including recipient addresses. The app records these drafts but does not send email.</li>
@@ -62,6 +63,7 @@ export function PrivacyNote({ facts }: { facts: LegalFacts }) {
         <h2>1.4 Where your data is kept</h2>
         <p>The app runs on Vercel. Account and project records are kept in a Neon PostgreSQL database. Uploaded files and exported packs are kept with an S3-compatible object storage provider. <FactText id="storageProviderDetail" facts={facts} /></p>
         <p>Service providers that handle data for us: Vercel (hosting), Neon (database), and <FactText id="storageProvider" facts={facts} />.</p>
+        <p>{hostingRequestLogs}</p>
       </section>
 
       <section>
