@@ -132,16 +132,22 @@ const bannedPrefixes = ["[PLACEHOLDER", "[CTO", "[DO NOT PUBLISH", "[NOTE", "[AT
 
 const bannedLiterals = ["CTO CONFIRM", "CTO RESULT", "DO NOT PUBLISH", "PLACEHOLDER", "ATTORNEY QUESTION"] as const;
 
+/** Drop class and style attributes so design-token utilities are not read as copy. */
+function legalCopySource(html: string): string {
+  return html.replace(/\s(?:class|style)\s*=\s*(?:"[^"]*"|'[^']*')/g, "");
+}
+
 /** Tags and bracketed blanks that must never ship in legal HTML. */
 export function findLegalCopyViolations(html: string): string[] {
+  const copy = legalCopySource(html);
   const hits: string[] = [];
   for (const prefix of bannedPrefixes) {
-    if (html.includes(prefix)) hits.push(prefix);
+    if (copy.includes(prefix)) hits.push(prefix);
   }
   for (const literal of bannedLiterals) {
-    if (html.includes(literal)) hits.push(literal);
+    if (copy.includes(literal)) hits.push(literal);
   }
-  for (const match of html.match(/\[[^\]\n]+\]/g) ?? []) {
+  for (const match of copy.match(/\[[^\]\n]+\]/g) ?? []) {
     hits.push(match);
   }
   return hits;
