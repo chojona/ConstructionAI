@@ -1,0 +1,64 @@
+/* Legal pages, pilot landing, and waitlist consent. */
+
+.legal-shell { min-height: 100vh; background: var(--color-canvas); }
+.legal-page, .pilot-landing { min-height: 100vh; display: flex; flex-direction: column; background: var(--color-canvas); }
+.legal-banner { margin: 0; padding: 12px 48px; background: #fbf3e4; border-bottom: 1px solid #d79a32; color: #3e3a32; font-size: 14px; font-weight: 600; line-height: 1.4; }
+.legal-top { padding: 18px 48px 0; }
+.legal-logo { display: inline-flex; align-items: center; gap: 10px; color: var(--color-ink); font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+.legal-doc { width: min(720px, calc(100% - 96px)); margin: 28px auto 48px; }
+.legal-doc .eyebrow, .pilot-landing .eyebrow { font-size: 12px; }
+.legal-doc h1 { font-size: 40px; line-height: 1.12; font-weight: 650; letter-spacing: -0.03em; max-width: 18ch; }
+.legal-doc h2 { margin: 28px 0 8px; font-size: 18px; font-weight: 650; letter-spacing: -0.02em; }
+.legal-doc p, .legal-doc li { font-size: 16px; line-height: 1.55; }
+.legal-doc ul { margin: 8px 0 0; padding-left: 22px; }
+.legal-doc li + li { margin-top: 6px; }
+.legal-doc a, .consent-check a, .legal-footer a { color: var(--color-info); text-decoration: underline; text-underline-offset: 2px; }
+.legal-version { margin-top: 8px; color: var(--color-ink-secondary); font-size: 14px; }
+.legal-blank { background: #ffe7c2; color: #9a5b00; border-radius: 4px; padding: 0 4px; font-weight: 650; }
+.legal-footer { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: auto; padding: 16px 48px 20px; border-top: 1px solid var(--color-line); }
+.legal-footer a { display: inline-flex; align-items: center; min-height: 44px; }
+.sidebar-footer .legal-footer { margin: 8px 0 10px; padding: 0; border-top: 0; gap: 4px 12px; }
+.sidebar-footer .legal-footer a { font-size: 12px; min-height: 44px; }
+
+.pilot-main { width: min(920px, calc(100% - 48px)); margin: 48px auto auto; }
+.pilot-main h1 { max-width: 16ch; margin-bottom: 28px; font-size: 44px; line-height: 1.08; font-weight: 650; letter-spacing: -0.035em; }
+.pilot-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.pilot-card { display: flex; flex-direction: column; gap: 14px; min-height: 280px; padding: 22px; border: 1px solid var(--color-line); border-radius: 16px; background: var(--color-surface); box-shadow: var(--shadow-card); }
+.pilot-card > p:not(.pilot-caption) { margin: 0; font-size: 21px; line-height: 1.45; }
+.pilot-kicker { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--color-ink-secondary); font-size: 12px; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; }
+.pilot-feature { padding: 2px 8px; border-radius: 999px; background: #f6e2b8; color: #8a5a12; font-size: 12px; font-weight: 650; letter-spacing: 0; text-transform: none; }
+.pilot-caption { color: var(--color-ink-secondary); font-size: 13px; line-height: 1.45; }
+.pilot-join, .waitlist-submit { border: 0; border-radius: 8px; background: var(--color-brand); color: var(--color-brand-ink); font-weight: 700; cursor: pointer; }
+.pilot-join { align-self: flex-start; margin-top: auto; min-height: 48px; padding: 8px 14px; font-size: 14px; }
+.pilot-join:hover, .waitlist-submit:hover { background: var(--color-brand-hover); }
+.waitlist-dialog { width: min(440px, calc(100vw - 32px)); padding: 22px 22px 18px; border: 0; border-radius: 16px; background: var(--color-surface); color: var(--color-ink); box-shadow: 0 18px 50px rgba(16, 24, 20, 0.28); }
+.waitlist-dialog::backdrop { background: rgba(28, 34, 32, 0.55); }
+.waitlist-form { display: grid; gap: 12px; }
+.waitlist-form label { display: grid; gap: 6px; font-size: 13px; font-weight: 650; }
+.waitlist-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.waitlist-head h2 { margin: 0; font-size: 20px; letter-spacing: -0.02em; }
+.waitlist-picked { margin: 0; padding: 12px 14px; border-radius: 10px; background: var(--color-surface-subtle); color: var(--color-ink-secondary); font-size: 14px; font-weight: 450; line-height: 1.45; }
+.waitlist-required, .waitlist-help, .consent-note, .consent-version { margin: 0; color: var(--color-ink-secondary); font-size: 13px; font-weight: 450; line-height: 1.45; }
+.waitlist-error-summary { margin: 0; color: var(--color-danger); font-size: 13px; font-weight: 650; line-height: 1.45; }
+.pilot-dialog .field { height: 44px; min-height: 44px; }
+.waitlist-choice { margin: 0; padding: 0; border: 0; display: grid; gap: 8px; }
+.waitlist-choice legend { padding: 0; font-size: 13px; font-weight: 650; }
+.waitlist-choice label { display: flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 450; }
+.waitlist-choice input { width: 20px; height: 20px; }
+.waitlist-dialog .icon-button { width: 44px; height: 44px; padding: 0; }
+.consent-check { display: flex; align-items: center; gap: 8px; min-height: 44px; font-size: 14px; font-weight: 450; }
+.consent-check input { width: 20px; height: 20px; margin-top: 0; }
+.consent-check input[aria-invalid="true"] { outline: 2px solid var(--color-danger); outline-offset: 1px; }
+.consent-error, .field-error { margin: 0; color: var(--color-danger); font-size: 13px; font-weight: 650; line-height: 1.4; }
+.consent-error { margin-left: 24px; }
+.field[aria-invalid="true"], .waitlist-choice input[aria-invalid="true"] { outline: 2px solid var(--color-danger); outline-offset: 1px; }
+.waitlist-submit { width: 100%; min-height: 44px; font-size: 15px; }
+.waitlist-help { text-align: center; }
+
+@media (max-width: 800px) {
+  .legal-doc h1, .pilot-main h1 { font-size: 32px; }
+  .legal-banner, .legal-top, .legal-footer { padding-left: 16px; padding-right: 16px; }
+  .legal-doc, .pilot-main { width: min(100% - 32px, 680px); }
+  .pilot-cards { grid-template-columns: 1fr; }
+  .pilot-main { margin-top: 28px; }
+}

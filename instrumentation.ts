@@ -7,4 +7,8 @@ export async function register(): Promise<void> {
     "./lib/auth/productionTrustHeader"
   );
   assertAuthTrustUserHeaderForbiddenInProduction();
+  if (process.env.NEXT_RUNTIME === "nodejs" && process.env.LEGAL_PAGES_PUBLISHED === "true") {
+    const { assertLegalCopyPublishable } = await import("./lib/legal/scan");
+    assertLegalCopyPublishable();
+  }
 }

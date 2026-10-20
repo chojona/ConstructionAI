@@ -1,6 +1,8 @@
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
+import { readdir, readFile } from "node:fs/promises";
 import { createServer } from "node:net";
+import path from "node:path";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -10,6 +12,9 @@ const repoRoot = process.cwd();
 function serverEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env };
   delete env.AUTH_TRUST_USER_HEADER;
+  delete env.LEGAL_PAGES_PUBLISHED;
+  delete env.PILOT_LANDING_PUBLISHED;
+  delete env.LEGAL_ATTORNEY_REVIEWED;
   return env;
 }
 
@@ -102,5 +107,19 @@ describe("unsigned desk document status", () => {
     const response = await get("/login");
     expect(response.status).toBe(200);
     expect(response.body).toContain("Sign in");
+  });
+
+  it("leaves the retired pay-estimate sentence out of client chunks", async () => {
+    const root = path.join(repoRoot, ".next/static");
+    const entries = await readdir(root, { recursive: true });
+    const offenders: string[] = [];
+    for (const entry of entries) {
+      const relative = entry.toString();
+      if (!relative.endsWith(".js")) continue;
+      const full = path.join(root, relative);
+      const text = await readFile(full, "utf8");
+      if (text.includes("Every gap")) offenders.push(relative);
+    }
+    expect(offenders).toEqual([]);
   });
 });

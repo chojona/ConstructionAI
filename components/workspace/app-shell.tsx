@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowRight, FolderKanban, HardHat, Layers3, PanelLeftClose, PanelLeftOpen, Search, X } from "lucide-react";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { LegalFooterLinks } from "@/components/legal/legal-chrome";
 import { projectNumberLabel } from "@/lib/projects/card";
 import { readSidebarCollapsed, writeSidebarCollapsed } from "@/lib/workspace/sidebarState";
 
@@ -32,9 +33,11 @@ type Project = {
 export function SidebarFooter({
   viewer,
   canManagePeople = false,
+  showLegalLinks = false,
 }: {
   viewer: { label: string } | null;
   canManagePeople?: boolean;
+  showLegalLinks?: boolean;
 }) {
   const pathname = usePathname();
   return (
@@ -54,15 +57,17 @@ export function SidebarFooter({
           <li className="sidebar-account-row"><Link href="/login">Sign in</Link></li>
         )}
       </ul>
+      {showLegalLinks ? <LegalFooterLinks /> : null}
       <span className="status-dot" />Source intelligence<small>Decisions grounded in documents</small>
     </div>
   );
 }
 
-export function AppShell({ projects, viewer, canManagePeople, children }: {
+export function AppShell({ projects, viewer, canManagePeople, showLegalLinks = false, children }: {
   projects: Project[];
   viewer: { label: string } | null;
   canManagePeople: boolean;
+  showLegalLinks?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -102,6 +107,9 @@ export function AppShell({ projects, viewer, canManagePeople, children }: {
   if (pathname === "/login" || pathname === "/accept") {
     return <div className="auth-page">{children}</div>;
   }
+  if (pathname === "/" || pathname === "/privacy" || pathname === "/terms") {
+    return <div className="legal-shell">{children}</div>;
+  }
 
   return (
     <div className={`app-shell${collapsed ? " is-collapsed" : ""}`}>
@@ -117,7 +125,7 @@ export function AppShell({ projects, viewer, canManagePeople, children }: {
           <Link className={`nav-row ${pathname === "/projects" ? "is-active" : ""}`} aria-current={pathname === "/projects" ? "page" : undefined} aria-label="Projects" href="/projects"><FolderKanban size={16} aria-hidden /><span className="nav-label">Projects</span></Link>
           <Link className={`nav-row ${pathname === "/changes" ? "is-active" : ""}`} aria-current={pathname === "/changes" ? "page" : undefined} aria-label="Changes" href="/changes"><Layers3 size={16} aria-hidden /><span className="nav-copy">Changes<small>Needs attention</small></span></Link>
         </nav>
-        <SidebarFooter viewer={viewer} canManagePeople={canManagePeople} />
+        <SidebarFooter viewer={viewer} canManagePeople={canManagePeople} showLegalLinks={showLegalLinks} />
       </aside>
       <div className="workspace-body" id="workspace" tabIndex={-1}>{children}</div>
       <dialog ref={dialog} className="command-dialog" aria-labelledby="command-title" onClose={() => trigger.current?.focus()} onClick={(event) => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
