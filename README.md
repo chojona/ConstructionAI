@@ -23,7 +23,15 @@ Sign in at [http://localhost:3000/login](http://localhost:3000/login). Project, 
 
 ## Deploy to Vercel with Neon
 
-Vercel detects the Next.js app automatically; `vercel.json` pins the framework preset. Import the repository into Vercel, then create a Neon PostgreSQL database and add these environment variables to the Vercel project:
+Vercel detects the Next.js app automatically. `vercel.json` pins the framework preset and sets the build command to `npm run vercel-build`.
+
+Preview and Production must use different databases. Create a Neon branch for Preview and set that branch's pooled and direct connection strings as Preview-only `DATABASE_URL` and `DIRECT_DATABASE_URL`. Production keeps its own values. Do not attach the production URL to Preview. A preview build has no path that migrates or seeds the database.
+
+`scripts/vercel-build.mjs` always runs `prisma generate` and `next build`. It runs `prisma migrate deploy` only when `VERCEL_ENV` is exactly `production`, and it logs the branch it took (`production-migrate` or `skip-migrate`). Preview, development, a missing `VERCEL_ENV`, and any other value do not migrate (fail closed). The build never runs the seed.
+
+`npm run db:seed` is manual. Use it on a dev database after migrations. The seed refuses to start when `VERCEL_ENV` or `NODE_ENV` is `production` unless `ALLOW_PROD_SEED=1` is set.
+
+Import the repository into Vercel, then create a Neon PostgreSQL database and add these environment variables to the Vercel project:
 
 - `DATABASE_URL`: Neon pooled connection string. The app passes it to the PostgreSQL driver adapter.
 - `DIRECT_DATABASE_URL`: Neon direct (non-pooled) connection string. Prisma Migrate reads it from `prisma.config.ts`.
@@ -35,14 +43,16 @@ Vercel detects the Next.js app automatically; `vercel.json` pins the framework p
 - `OBJECT_STORAGE_ENDPOINT`: optional endpoint override for MinIO, R2, or another non-AWS store.
 - `OBJECT_STORAGE_FORCE_PATH_STYLE`: optional `true` or `false`. When omitted, path-style is on if an endpoint is set.
 
-For a database that is not built on Vercel, apply the checked-in migrations with `DIRECT_DATABASE_URL` set:
+For a database that is not built on Vercel, apply the checked-in migrations with `DIRECT_DATABASE_URL` set, then seed by hand:
 
 ```bash
 npx prisma migrate deploy
 npm run db:seed
 ```
 
-The Vercel build runs `prisma migrate deploy` and `npm run db:seed` before `next build`. Migrate uses `DIRECT_DATABASE_URL` when it is set and `DATABASE_URL` otherwise. Seed upserts the organization selected by `APP_ORGANIZATION_ID`, or `org_demo` when that variable is unset, and an active org-admin membership for `alex.chen@northstar.example`. When `DEMO_USER_PASSWORD` is set, seed stores a password hash for that person. It loads HeavyJob fixture snapshots onto the demo project `project_heavyjob_demo`. For `org_demo`, seed also loads the demo portfolio. Running `npm run db:seed` again adds any missing rows, stores each demo revision PDF in the shared object store, and leaves review decisions and existing membership role or status that are already stored. `prisma generate` still runs during dependency installation.
+Prisma Migrate reads `prisma.config.ts`. When `DIRECT_DATABASE_URL` is set, migrate uses that direct (non-pooled) URL. Otherwise it uses `DATABASE_URL`. The Prisma schema does not declare `directUrl`. `prisma generate` does not open a connection. If neither URL is set, generate substitutes a non-connecting placeholder so dependency installation and Preview builds can emit the client. Migrate does not use that placeholder.
+
+Seed upserts the organization selected by `APP_ORGANIZATION_ID`, or `org_demo` when that variable is unset, and an active org-admin membership for `alex.chen@northstar.example`. When `DEMO_USER_PASSWORD` is set, seed stores a password hash for that person. It loads HeavyJob fixture snapshots onto the demo project `project_heavyjob_demo`. For `org_demo`, seed also loads the demo portfolio. Running `npm run db:seed` again adds any missing rows, stores each demo revision PDF in the shared object store, and leaves review decisions and existing membership role or status that are already stored. `prisma generate` still runs during dependency installation. Migrations on Vercel run only during a production deploy.
 
 After seeding, open:
 

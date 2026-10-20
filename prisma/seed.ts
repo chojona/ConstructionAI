@@ -1,8 +1,18 @@
-import { createPrismaClient } from "../lib/db";
-import { DEMO_USER_EMAIL, DEMO_USER_ID, DEMO_USER_NAME } from "../lib/auth/demoUser";
-import { hashPassword, MIN_PASSWORD_LENGTH } from "../lib/auth/password";
-import { DEMO_REVIEW_ORGANIZATION_ID, seedDemoReviewProject } from "../lib/demo/reviewProject";
-import { seedHeavyJobDemoProject } from "../lib/heavyjob/loadFixtures";
+import { assertSeedAllowed } from "../lib/deploy/seedGuard";
+
+try {
+  assertSeedAllowed();
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(message);
+  process.exit(1);
+}
+
+const { createPrismaClient } = await import("../lib/db");
+const { DEMO_USER_EMAIL, DEMO_USER_ID, DEMO_USER_NAME } = await import("../lib/auth/demoUser");
+const { hashPassword, MIN_PASSWORD_LENGTH } = await import("../lib/auth/password");
+const { DEMO_REVIEW_ORGANIZATION_ID, seedDemoReviewProject } = await import("../lib/demo/reviewProject");
+const { seedHeavyJobDemoProject } = await import("../lib/heavyjob/loadFixtures");
 
 const prisma = createPrismaClient();
 

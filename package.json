@@ -10,7 +10,7 @@
     "postinstall": "prisma generate && node scripts/link-typescript-for-eslint.mjs",
     "dev": "next dev",
     "build": "next build --webpack",
-    "vercel-build": "prisma migrate deploy && npm run db:seed && next build --webpack",
+    "vercel-build": "node scripts/vercel-build.mjs",
     "start": "next start",
     "lint": "eslint app components lib tests instrumentation.ts",
     "typecheck": "node ./node_modules/typescript/lib/tsc.js --noEmit",
