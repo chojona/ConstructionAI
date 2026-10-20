@@ -121,7 +121,7 @@ export function DocumentsDesk({
             aria-label="Revision"
             onChange={(event) => commit({ ...local, revision: event.target.value === "all" ? "all" : "latest" })}
           >
-            <option value="latest">Latest</option>
+            <option value="latest">Current</option>
             <option value="all">All</option>
           </select>
         </label>
@@ -205,7 +205,7 @@ function DocumentRegisterPanel({ document }: { document: RegisterDocumentDto | n
             <h3>{document.title}</h3>
             {document.issuedLabel ? <p className="register-issued">{document.issuedLabel}</p> : null}
             <dl className="register-counts">
-              <div><dt>Latest rev</dt><dd>{latest?.revisionLabel ?? "—"}</dd></div>
+              <div><dt>Current rev</dt><dd>{latest?.revisionLabel ?? "—"}</dd></div>
               <div><dt>Open changes</dt><dd>{document.openChangeCount}</dd></div>
               <div><dt>Revisions</dt><dd>{document.revisions.length}</dd></div>
               <div><dt>Pages</dt><dd>{latest?.pageCount ?? 0}</dd></div>

@@ -141,7 +141,7 @@ export function relativeRevisionTime(createdAt: Date, now: Date): string {
 }
 
 export function formatIssuedRevision(createdAt: Date) {
-  return `Latest revision issued ${issuedDate.format(createdAt)}`;
+  return `Current revision issued ${issuedDate.format(createdAt)}`;
 }
 
 /** Open Changes whose evidence or revised revision belongs to this document. */

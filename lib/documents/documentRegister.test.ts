@@ -155,7 +155,7 @@ describe("register counts and time", () => {
     expect(relativeRevisionTime(new Date("2026-10-05T15:00:00.000Z"), now)).toBe("1 hour ago");
     expect(relativeRevisionTime(new Date("2026-10-03T16:00:00.000Z"), now)).toBe("2 days ago");
     expect(relativeRevisionTime(new Date("2026-10-05T18:00:00.000Z"), now)).toBe("just now");
-    expect(formatIssuedRevision(new Date("2026-10-02T23:30:00.000Z"))).toBe("Latest revision issued Oct 2, 2026");
+    expect(formatIssuedRevision(new Date("2026-10-02T23:30:00.000Z"))).toBe("Current revision issued Oct 2, 2026");
   });
 
   it("attaches real counts and the latest issued line", () => {
@@ -171,7 +171,7 @@ describe("register counts and time", () => {
       { sources: [{ revisionId: "b" }], subject: { type: "proposed_fact" } },
     ], now);
     expect(record.openChangeCount).toBe(1);
-    expect(record.issuedLabel).toBe("Latest revision issued Oct 2, 2026");
+    expect(record.issuedLabel).toBe("Current revision issued Oct 2, 2026");
     expect(record.revisions.map((revision) => revision.pageCount)).toEqual([4, 9]);
   });
 });
