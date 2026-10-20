@@ -132,20 +132,21 @@ const bannedPrefixes = ["[PLACEHOLDER", "[CTO", "[DO NOT PUBLISH", "[NOTE", "[AT
 
 const bannedLiterals = ["CTO CONFIRM", "CTO RESULT", "DO NOT PUBLISH", "PLACEHOLDER", "ATTORNEY QUESTION"] as const;
 
-/** Remove class and style attributes from tags only, leaving text content intact. */
-function stripClassAndStyleInTags(html: string): string {
-  return html.replace(/<[^>]*>/g, (tag) => tag.replace(/\s(?:class|style)\s*=\s*(?:"[^"]*"|'[^']*')/g, ""));
-}
+// A bracket inside a class or style value is a design token only when every
+// piece is a number with an optional unit, "_", ",", ".", "-", var(--name),
+// a type hint glued to var(), or rgb()/rgba() of numbers. Any other letter stays.
+const designTokenBracket = /\[(?:-?\d+(?:\.\d+)?(?:px|rem|em)?|var\(--[a-z0-9-]+\)|[a-z]+:var\(--[a-z0-9-]+\)|rgba?\(\d+(?:\.\d+)?(?:,\d+(?:\.\d+)?){2,3}\)|[_.,-])+\]/gi;
 
-const contentUtility = /(?:^|\s)(?:[\w-]+:)*content-\[/;
-
-function classAttributes(html: string): string[] {
-  const values: string[] = [];
-  for (const tag of html.match(/<[^>]*>/g) ?? []) {
-    const match = /\sclass\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(tag);
-    if (match) values.push(match[1] ?? match[2] ?? "");
-  }
-  return values;
+/** Drop allowlisted design-token brackets from class and style values inside tags. */
+function omitDesignTokenBrackets(html: string): string {
+  return html.replace(/<[^>]*>/g, (tag) => tag.replace(
+    /(\s(?:class|style)\s*=\s*)("[^"]*"|'[^']*')/gi,
+    (_match, prefix: string, quoted: string) => {
+      const quote = quoted[0];
+      const value = quoted.slice(1, -1).replace(new RegExp(designTokenBracket.source, "gi"), "");
+      return `${prefix}${quote}${value}${quote}`;
+    },
+  ));
 }
 
 /** Tags and bracketed blanks that must never ship in legal HTML. */
@@ -157,9 +158,8 @@ export function findLegalCopyViolations(html: string): string[] {
   for (const literal of bannedLiterals) {
     if (html.includes(literal)) hits.push(literal);
   }
-  if (classAttributes(html).some((value) => contentUtility.test(value))) hits.push("content-[");
-  const copy = stripClassAndStyleInTags(html);
-  for (const match of copy.match(/\[[^\]\n]+\]/g) ?? []) {
+  const copy = omitDesignTokenBrackets(html);
+  for (const match of copy.match(/\[[^\[\]\n]+\]/g) ?? []) {
     hits.push(match);
   }
   return hits;

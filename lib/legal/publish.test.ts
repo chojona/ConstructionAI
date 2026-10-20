@@ -3,6 +3,7 @@ import path from "node:path";
 import { createElement, forwardRef, memo, useState, type ComponentType } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Button } from "@/components/ui/button";
 import { LegalFooterLinks } from "@/components/legal/legal-chrome";
 import { PayEstimateCard } from "@/components/legal/pay-estimate-card";
 import { PilotLanding } from "@/components/legal/pilot-landing";
@@ -192,10 +193,24 @@ describe("legal copy publish guard", () => {
     expect(findLegalCopyViolations(`<button aria-label="[NOTE] draft">Close</button>`)).toContain("[NOTE]");
   });
 
-  it("flags content utilities in class attributes and bracket blanks written as text", () => {
-    expect(findLegalCopyViolations(`<span class="before:content-['[PLACEHOLDER]']"></span>`).length).toBeGreaterThan(0);
-    expect(findLegalCopyViolations(`<span class="after:content-['ok']"></span>`)).toContain("content-[");
+  it("flags placeholder brackets that are not design tokens", () => {
+    expect(findLegalCopyViolations(`<span class="before:content-['[PLACEHOLDER]']"></span>`)).toContain("[PLACEHOLDER]");
     expect(findLegalCopyViolations(`<p>Write class="[support email]" here</p>`)).toContain("[support email]");
+    expect(findLegalCopyViolations(`<span class="before:[content:'[legal_entity_name]']">`)).toContain("[legal_entity_name]");
+    expect(findLegalCopyViolations(`<span class="before:content-(--x)" style="--x:'[legal entity name]'">`)).toContain("[legal entity name]");
+    expect(findLegalCopyViolations(`<span class="!before:content-['[support email]']">`)).toContain("[support email]");
+  });
+
+  it("renders every Button variant and size without flagging its design-token classes", () => {
+    const variants = ["default", "outline", "ghost"] as const;
+    const sizes = ["default", "sm", "lg"] as const;
+    for (const variant of variants) {
+      for (const size of sizes) {
+        const html = renderToStaticMarkup(createElement(Button, { variant, size }, "Continue"));
+        expect(html).toMatch(/px-\[(?:18|22)px\]/);
+        expect(findLegalCopyViolations(html)).toEqual([]);
+      }
+    }
   });
 
   it("reads dangerouslySetInnerHTML as text", () => {
