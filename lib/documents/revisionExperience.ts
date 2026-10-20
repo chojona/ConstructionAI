@@ -1,6 +1,6 @@
 import type { ExtractionRunStatus, RevisionStatus } from "@/lib/domain/types";
 import type { EvidenceLocation } from "@/lib/review/evidenceLocation";
-import { documentRegisterStatus, type DocumentRegisterStatus } from "@/lib/documents/documentRegister";
+import { documentRegisterStatus, type DocumentRegisterStatus, type RegisterRevisionRelation } from "@/lib/documents/documentRegister";
 
 export type ExperienceTone = "ready" | "waiting" | "failed" | "idle";
 
@@ -22,9 +22,9 @@ export function describeReading(
   status: RevisionStatus,
   failureCode: string | null,
   failureMessage: string | null,
-  isLatest: boolean,
+  relation: RegisterRevisionRelation,
 ): ExperienceCopy {
-  const label = documentRegisterStatus(isLatest, status) ?? "Failed";
+  const label = documentRegisterStatus(status, relation) ?? "Failed";
   const tone = toneForRegisterStatus(label);
   if (status === "FAILED") {
     if (failureCode === "SCANNED_OR_EMPTY") {

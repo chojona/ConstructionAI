@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { documentRowMeta } from "@/lib/documents/documentDesk";
 import {
+  currentRevision,
+  documentRegisterStatus,
   documentTypeOptions,
   emptyRegisterQuery,
   filterRegisterRows,
@@ -18,6 +20,7 @@ import {
   registerQueryString,
   registerRows,
   registerStatusClass,
+  revisionRelation,
   type RegisterDocumentDto,
   type RegisterQuery,
   type RegisterRow,
@@ -121,7 +124,7 @@ export function DocumentsDesk({
             aria-label="Revision"
             onChange={(event) => commit({ ...local, revision: event.target.value === "all" ? "all" : "latest" })}
           >
-            <option value="latest">Latest</option>
+            <option value="latest">Current</option>
             <option value="all">All</option>
           </select>
         </label>
@@ -194,7 +197,19 @@ export function DocumentsDesk({
 }
 
 function DocumentRegisterPanel({ document }: { document: RegisterDocumentDto | null }) {
-  const latest = document ? latestRevision(document.revisions) : null;
+  const revisions = document?.revisions.map((revision) => ({
+    id: revision.id,
+    revisionOrder: revision.revisionOrder,
+    status: revision.revisionStatus,
+    revisionLabel: revision.revisionLabel,
+    pageCount: revision.pageCount,
+  })) ?? [];
+  const current = currentRevision(revisions);
+  const newest = latestRevision(revisions);
+  const showNewest = Boolean(newest && newest.id !== current?.id);
+  const newestStatus = showNewest && newest
+    ? documentRegisterStatus(newest.status, revisionRelation(newest, revisions))
+    : null;
   const type = document ? documentRowMeta(document.documentType) : null;
   return (
     <aside className="evidence-rail" aria-label="Selected document">
@@ -205,10 +220,20 @@ function DocumentRegisterPanel({ document }: { document: RegisterDocumentDto | n
             <h3>{document.title}</h3>
             {document.issuedLabel ? <p className="register-issued">{document.issuedLabel}</p> : null}
             <dl className="register-counts">
-              <div><dt>Latest rev</dt><dd>{latest?.revisionLabel ?? "—"}</dd></div>
+              {current ? (
+                <div><dt>Current rev</dt><dd>{current.revisionLabel}</dd></div>
+              ) : (
+                <div className="register-newest"><span>No current revision</span></div>
+              )}
+              {showNewest && newest ? (
+                <div className="register-newest">
+                  <span>Newest upload {newest.revisionLabel}</span>
+                  {newestStatus ? <Badge className={registerStatusClass(newestStatus)}>{newestStatus}</Badge> : null}
+                </div>
+              ) : null}
               <div><dt>Open changes</dt><dd>{document.openChangeCount}</dd></div>
               <div><dt>Revisions</dt><dd>{document.revisions.length}</dd></div>
-              <div><dt>Pages</dt><dd>{latest?.pageCount ?? 0}</dd></div>
+              <div><dt>Pages</dt><dd>{current?.pageCount ?? newest?.pageCount ?? 0}</dd></div>
             </dl>
           </div>
           <div className="decision-sticky">

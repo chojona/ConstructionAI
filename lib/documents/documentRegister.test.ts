@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { RevisionStatus } from "@/lib/domain/types";
 import {
+  currentRevision,
   documentRegisterStatus,
   revisionIsLatest,
+  revisionRelation,
   documentTypeOptions,
   emptyRegisterQuery,
   filterRegisterRows,
@@ -20,17 +22,48 @@ import {
 const now = new Date("2026-10-05T16:00:00.000Z");
 
 describe("documentRegisterStatus", () => {
-  it("derives Current, Processing, and Failed from the latest revision only", () => {
-    expect(documentRegisterStatus(true, "PROCESSED")).toBe("Current");
-    expect(documentRegisterStatus(true, "PROCESSING")).toBe("Processing");
-    expect(documentRegisterStatus(true, "UPLOADED")).toBe("Processing");
-    expect(documentRegisterStatus(true, "FAILED")).toBe("Failed");
-    expect(documentRegisterStatus(true, null)).toBeNull();
+  it("labels the newest processed revision Current and older revisions Superseded", () => {
+    const revisions = [
+      { id: "a", revisionOrder: 1, status: "PROCESSED" as const },
+      { id: "b", revisionOrder: 2, status: "PROCESSED" as const },
+    ];
+    expect(currentRevision(revisions)?.id).toBe("b");
+    expect(documentRegisterStatus("PROCESSED", revisionRelation(revisions[1]!, revisions))).toBe("Current");
+    expect(documentRegisterStatus("PROCESSED", revisionRelation(revisions[0]!, revisions))).toBe("Superseded");
+    expect(documentRegisterStatus(null, "current")).toBeNull();
   });
 
-  it("marks every non-latest revision row Superseded", () => {
+  it("keeps a later failed or processing upload on its own status", () => {
+    const failed = [
+      { id: "b", revisionOrder: 2, status: "PROCESSED" as const },
+      { id: "c", revisionOrder: 3, status: "FAILED" as const },
+    ];
+    const processing = [
+      { id: "b", revisionOrder: 2, status: "PROCESSED" as const },
+      { id: "c", revisionOrder: 3, status: "PROCESSING" as const },
+    ];
+    const uploaded = [
+      { id: "b", revisionOrder: 2, status: "PROCESSED" as const },
+      { id: "c", revisionOrder: 3, status: "UPLOADED" as const },
+    ];
+    expect(documentRegisterStatus("FAILED", revisionRelation(failed[1]!, failed))).toBe("Failed");
+    expect(documentRegisterStatus("PROCESSED", revisionRelation(failed[0]!, failed))).toBe("Current");
+    expect(documentRegisterStatus("PROCESSING", revisionRelation(processing[1]!, processing))).toBe("Processing");
+    expect(documentRegisterStatus("UPLOADED", revisionRelation(uploaded[1]!, uploaded))).toBe("Processing");
+  });
+
+  it("gives every revision its own status when nothing is processed", () => {
+    const revisions = [
+      { id: "a", revisionOrder: 1, status: "FAILED" as const },
+      { id: "b", revisionOrder: 2, status: "PROCESSING" as const },
+      { id: "c", revisionOrder: 3, status: "UPLOADED" as const },
+    ];
+    expect(currentRevision(revisions)).toBeNull();
+    expect(documentRegisterStatus("FAILED", revisionRelation(revisions[0]!, revisions))).toBe("Failed");
+    expect(documentRegisterStatus("PROCESSING", revisionRelation(revisions[1]!, revisions))).toBe("Processing");
+    expect(documentRegisterStatus("UPLOADED", revisionRelation(revisions[2]!, revisions))).toBe("Processing");
     for (const status of ["PROCESSED", "PROCESSING", "UPLOADED", "FAILED"] as const satisfies readonly RevisionStatus[]) {
-      expect(documentRegisterStatus(false, status)).toBe("Superseded");
+      expect(documentRegisterStatus(status, "older")).toBe("Superseded");
     }
   });
 
@@ -55,7 +88,8 @@ describe("document register filters", () => {
   const documents = [
     doc("plan", "Drainage plan", "Plan", [
       rev("plan-a", "A", 1, "PROCESSED", "2026-09-01T00:00:00.000Z", 4),
-      rev("plan-b", "B", 2, "FAILED", "2026-10-04T16:00:00.000Z", 6),
+      rev("plan-b", "B", 2, "PROCESSED", "2026-10-02T00:00:00.000Z", 6),
+      rev("plan-c", "C", 3, "FAILED", "2026-10-04T16:00:00.000Z", 8),
     ]),
     doc("spec", "Earthworks specification", "Specification", [
       rev("spec-a", "Rev 04", 1, "PROCESSED", "2026-10-05T15:00:00.000Z", 2),
@@ -72,18 +106,18 @@ describe("document register filters", () => {
     expect(documentTypeOptions([{ documentType: "  Plan set  " }, { documentType: "" }, { documentType: null }])).toEqual(["Plan set"]);
   });
 
-  it("shows one latest row unless the revision filter is all", () => {
+  it("shows the newest processed revision unless the revision filter is all", () => {
     const latest = registerRows(documents, "latest");
     expect(latest.map((row) => [row.title, row.revisionLabel, row.status])).toEqual([
-      ["Drainage plan", "B", "Failed"],
+      ["Drainage plan", "B", "Current"],
       ["Earthworks specification", "Rev 04", "Current"],
-      ["Untitled sheet", "1", "Processing"],
       ["Cover only", null, null],
     ]);
 
     const history = registerRows(documents, "all");
     expect(history.map((row) => [row.revisionLabel, row.status])).toEqual([
-      ["B", "Failed"],
+      ["C", "Failed"],
+      ["B", "Current"],
       ["A", "Superseded"],
       ["Rev 04", "Current"],
       ["1", "Processing"],
@@ -93,7 +127,7 @@ describe("document register filters", () => {
 
   it("filters by type, status, and title without an unclassified bucket", () => {
     const rows = registerRows(documents, "all");
-    expect(filterRegisterRows(rows, { type: "Plan", status: null, query: "" }).map((row) => row.revisionLabel)).toEqual(["B", "A"]);
+    expect(filterRegisterRows(rows, { type: "Plan", status: null, query: "" }).map((row) => row.revisionLabel)).toEqual(["C", "B", "A"]);
     expect(filterRegisterRows(rows, { type: "Unclassified", status: null, query: "" })).toEqual([]);
     expect(filterRegisterRows(rows, { type: null, status: "Superseded", query: "" }).map((row) => row.revisionLabel)).toEqual(["A"]);
     expect(filterRegisterRows(rows, { type: null, status: "Current", query: "earth" }).map((row) => row.title)).toEqual(["Earthworks specification"]);
@@ -150,15 +184,16 @@ describe("register counts and time", () => {
     expect(count).toBe(2);
   });
 
-  it("formats relative update time and the issued line", () => {
+  it("formats relative update time and the uploaded line", () => {
     expect(relativeRevisionTime(new Date("2026-10-05T15:59:30.000Z"), now)).toBe("just now");
     expect(relativeRevisionTime(new Date("2026-10-05T15:00:00.000Z"), now)).toBe("1 hour ago");
     expect(relativeRevisionTime(new Date("2026-10-03T16:00:00.000Z"), now)).toBe("2 days ago");
     expect(relativeRevisionTime(new Date("2026-10-05T18:00:00.000Z"), now)).toBe("just now");
-    expect(formatIssuedRevision(new Date("2026-10-02T23:30:00.000Z"))).toBe("Latest revision issued Oct 2, 2026");
+    expect(formatIssuedRevision(new Date("2026-10-02T23:30:00.000Z"))).toBe("Current revision uploaded Oct 2, 2026");
+    expect(formatIssuedRevision(new Date("2026-10-02T23:30:00.000Z"))).not.toMatch(/issued|Latest/);
   });
 
-  it("attaches real counts and the latest issued line", () => {
+  it("dates the uploaded line from the newest processed revision", () => {
     const record = toRegisterDocument({
       id: "plan",
       title: "Drainage plan",
@@ -166,13 +201,26 @@ describe("register counts and time", () => {
       revisions: [
         { id: "a", revisionLabel: "A", revisionOrder: 1, status: "PROCESSED", createdAt: new Date("2026-09-01T00:00:00.000Z"), pageCount: 4 },
         { id: "b", revisionLabel: "B", revisionOrder: 2, status: "PROCESSED", createdAt: new Date("2026-10-02T00:00:00.000Z"), pageCount: 9 },
+        { id: "c", revisionLabel: "C", revisionOrder: 3, status: "FAILED", createdAt: new Date("2026-10-04T00:00:00.000Z"), pageCount: 8 },
       ],
     }, [
       { sources: [{ revisionId: "b" }], subject: { type: "proposed_fact" } },
     ], now);
     expect(record.openChangeCount).toBe(1);
-    expect(record.issuedLabel).toBe("Latest revision issued Oct 2, 2026");
-    expect(record.revisions.map((revision) => revision.pageCount)).toEqual([4, 9]);
+    expect(record.issuedLabel).toBe("Current revision uploaded Oct 2, 2026");
+    expect(record.revisions.map((revision) => revision.pageCount)).toEqual([4, 9, 8]);
+  });
+
+  it("omits the uploaded line when nothing is processed", () => {
+    const record = toRegisterDocument({
+      id: "plan",
+      title: "Drainage plan",
+      documentType: "Plan",
+      revisions: [
+        { id: "c", revisionLabel: "C", revisionOrder: 1, status: "FAILED", createdAt: new Date("2026-10-04T00:00:00.000Z"), pageCount: 1 },
+      ],
+    }, [], now);
+    expect(record.issuedLabel).toBeNull();
   });
 });
 

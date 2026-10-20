@@ -48,6 +48,8 @@
 .register-counts div { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
 .register-counts dt { margin: 0; color: var(--color-ink-secondary); font-size: 12px; font-weight: 650; }
 .register-counts dd { margin: 0; font-size: 13px; font-variant-numeric: tabular-nums; }
+.register-counts .register-newest { color: var(--color-ink-muted); font-size: 12px; font-weight: 450; }
+.register-counts .register-newest .status-label { font-weight: 650; }
 .page-documents .page-heading { margin-bottom: 12px; }
 .page-documents .lede { margin-top: 4px; }
 .page-documents .workspace-tabs { margin-bottom: 12px; }

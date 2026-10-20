@@ -64,20 +64,23 @@ const issuedDate = new Intl.DateTimeFormat("en-US", {
 
 const STATUS_SET = new Set<string>(REGISTER_STATUSES);
 
+/** Where a revision sits relative to the newest PROCESSED revision. */
+export type RegisterRevisionRelation = "current" | "older" | "later";
+
 /**
- * Latest processed revision → Current.
- * Latest PROCESSING or UPLOADED → Processing (still in flight; the register has no fifth label).
- * Latest FAILED → Failed.
- * Any non-latest revision row → Superseded.
+ * Newest PROCESSED revision → Current.
+ * Older revisions → Superseded.
+ * A later upload keeps Failed or Processing.
+ * When nothing is PROCESSED, there is no Current pill; each revision keeps Failed or Processing.
  * A document with no revision has no status.
  */
 export function documentRegisterStatus(
-  isLatest: boolean,
   revisionStatus: RevisionStatus | null,
+  relation: RegisterRevisionRelation,
 ): DocumentRegisterStatus | null {
   if (!revisionStatus) return null;
-  if (!isLatest) return "Superseded";
-  if (revisionStatus === "PROCESSED") return "Current";
+  if (relation === "older") return "Superseded";
+  if (relation === "current") return "Current";
   if (revisionStatus === "FAILED") return "Failed";
   return "Processing";
 }
@@ -97,13 +100,31 @@ export function latestRevision<T extends { id: string; revisionOrder: number }>(
   }, null);
 }
 
-/** Same latest-revision rule as the register. A revision missing from the list is included so a lone upload is current. */
+/** Newest upload by revision order, then id. A revision missing from the list is included. */
 export function revisionIsLatest(
   revision: { id: string; revisionOrder: number },
   revisions: readonly { id: string; revisionOrder: number }[],
 ): boolean {
   const family = revisions.some((item) => item.id === revision.id) ? revisions : [...revisions, revision];
   return latestRevision(family)?.id === revision.id;
+}
+
+/** Newest revision whose file was processed. A later failed or in-flight upload does not replace it. */
+export function currentRevision<T extends { id: string; revisionOrder: number; status: RevisionStatus }>(
+  revisions: readonly T[],
+): T | null {
+  return latestRevision(revisions.filter((revision) => revision.status === "PROCESSED"));
+}
+
+export function revisionRelation(
+  revision: { id: string; revisionOrder: number; status: RevisionStatus },
+  revisions: readonly { id: string; revisionOrder: number; status: RevisionStatus }[],
+): RegisterRevisionRelation {
+  const family = revisions.some((item) => item.id === revision.id) ? revisions : [...revisions, revision];
+  const current = currentRevision(family);
+  if (!current) return "later";
+  if (current.id === revision.id) return "current";
+  return isAfter(revision, current) ? "later" : "older";
 }
 
 /** Type filter values are the document types that exist. Missing types are omitted, never bucketed. */
@@ -141,7 +162,7 @@ export function relativeRevisionTime(createdAt: Date, now: Date): string {
 }
 
 export function formatIssuedRevision(createdAt: Date) {
-  return `Latest revision issued ${issuedDate.format(createdAt)}`;
+  return `Current revision uploaded ${issuedDate.format(createdAt)}`;
 }
 
 /** Open Changes whose evidence or revised revision belongs to this document. */
@@ -163,13 +184,13 @@ export function toRegisterDocument(
   findings: readonly OpenChangeFinding[],
   now: Date,
 ): RegisterDocumentDto {
-  const latest = latestRevision(document.revisions);
+  const current = currentRevision(document.revisions);
   return {
     id: document.id,
     title: document.title,
     documentType: document.documentType,
     openChangeCount: openChangesFromDocument(document.revisions.map((revision) => revision.id), findings),
-    issuedLabel: latest ? formatIssuedRevision(latest.createdAt) : null,
+    issuedLabel: current ? formatIssuedRevision(current.createdAt) : null,
     revisions: document.revisions.map((revision) => ({
       id: revision.id,
       revisionLabel: revision.revisionLabel,
@@ -187,9 +208,7 @@ export function registerRows(
 ): RegisterRow[] {
   const rows: RegisterRow[] = [];
   for (const document of documents) {
-    const latest = latestRevision(document.revisions);
-    const visible = revision === "all" ? [...document.revisions].sort(newestFirst) : latest ? [latest] : [];
-    if (!visible.length) {
+    if (!document.revisions.length) {
       rows.push({
         key: document.id,
         documentId: document.id,
@@ -203,8 +222,15 @@ export function registerRows(
       });
       continue;
     }
+    const family = document.revisions.map(statusRevision);
+    const current = currentRevision(family);
+    const visible = revision === "all"
+      ? [...document.revisions].sort(newestFirst)
+      : current
+        ? document.revisions.filter((item) => item.id === current.id)
+        : [];
     for (const item of visible) {
-      const isLatest = latest?.id === item.id;
+      const relation = revisionRelation(statusRevision(item), family);
       rows.push({
         key: revision === "all" ? `${document.id}:${item.id}` : document.id,
         documentId: document.id,
@@ -212,9 +238,9 @@ export function registerRows(
         documentType: document.documentType,
         revisionId: item.id,
         revisionLabel: item.revisionLabel,
-        status: documentRegisterStatus(isLatest, item.revisionStatus),
+        status: documentRegisterStatus(item.revisionStatus, relation),
         updatedLabel: item.updatedLabel,
-        isLatest,
+        isLatest: relation === "current",
       });
     }
   }
@@ -270,6 +296,18 @@ export function emptyRegisterQuery(): RegisterQuery {
 
 function newestFirst(left: { revisionOrder: number; id: string }, right: { revisionOrder: number; id: string }) {
   return right.revisionOrder - left.revisionOrder || left.id.localeCompare(right.id);
+}
+
+function isAfter(
+  revision: { id: string; revisionOrder: number },
+  other: { id: string; revisionOrder: number },
+) {
+  return revision.revisionOrder > other.revisionOrder
+    || (revision.revisionOrder === other.revisionOrder && revision.id > other.id);
+}
+
+function statusRevision(revision: RegisterRevisionDto) {
+  return { id: revision.id, revisionOrder: revision.revisionOrder, status: revision.revisionStatus };
 }
 
 function readRaw(params: Record<string, string | string[] | undefined>, key: string) {

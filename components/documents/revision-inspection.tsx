@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import type { ExtractionRunRecord, RevisionRecord } from "@/lib/domain/types";
-import { documentRegisterStatus, registerStatusClass, revisionIsLatest } from "@/lib/documents/documentRegister";
+import { documentRegisterStatus, registerStatusClass, revisionRelation } from "@/lib/documents/documentRegister";
 import {
   changeKind,
   changeSummary,
@@ -58,9 +58,9 @@ export function RevisionInspection({
   returnTo: string | null;
   navigation?: ReactNode;
 }) {
-  const isLatest = revisionIsLatest(revision, siblings);
-  const status = documentRegisterStatus(isLatest, revision.status) ?? "Failed";
-  const reading = describeReading(revision.status, revision.failureCode, revision.failureMessage, isLatest);
+  const relation = revisionRelation(revision, siblings);
+  const status = documentRegisterStatus(revision.status, relation) ?? "Failed";
+  const reading = describeReading(revision.status, revision.failureCode, revision.failureMessage, relation);
   const signals = revisionSignals(revision.id, findings);
   const ordered = [...siblings].sort((left, right) => left.revisionOrder - right.revisionOrder || left.id.localeCompare(right.id));
   const uploadTotal = ordered.some((item) => item.id === revision.id) ? ordered.length : ordered.length + 1;
