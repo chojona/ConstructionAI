@@ -1,5 +1,6 @@
 import { assertSeedAllowed } from "../lib/deploy/seedGuard";
 
+// Production-env and prod-host checks. Keep this ahead of every database import.
 try {
   assertSeedAllowed();
 } catch (error) {
