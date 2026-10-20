@@ -22,15 +22,48 @@ describe("shell nav item states", () => {
     expect(hover).toContain("background: var(--color-bg-hover)");
     expect(hover).toContain("color: var(--color-text-primary)");
     expect(hover).not.toContain("#1a232a");
+    expect(hover).not.toContain("rgba(");
     expect(active).toContain("background: var(--color-bg-selected)");
-    expect(active).toContain("color: var(--color-text-primary)");
+    expect(active).toContain("color: var(--color-text-secondary)");
     expect(current).toContain("background: var(--color-bg-selected)");
-    expect(current).toContain("color: var(--color-text-primary)");
+    expect(current).toContain("color: var(--color-text-secondary)");
     expect(focus).toContain("outline: var(--size-border-focus) solid var(--color-focus)");
     expect(focus).toContain("outline-offset: var(--size-border-focus)");
     expect(rule(shellCss, ".nav-row.is-active > svg")).toContain("color: var(--color-focus)");
-    expect(rule(shellCss, ".nav-row:hover .nav-copy small")).toContain("color: var(--color-text-secondary)");
+    expect(rule(shellCss, ".nav-row:hover .nav-copy small")).toContain("color: var(--color-text-primary)");
+    expect(rule(shellCss, ".nav-row.is-active .nav-copy small")).toContain("color: var(--color-text-secondary)");
     expect(rule(changesCss, ".app-shell.is-collapsed .nav-row")).toContain("width: var(--size-target-min)");
+  });
+
+  it("defines hover, selected, and text tokens on the dark sidebar", () => {
+    const sidebar = rule(shellCss, ".sidebar");
+    expect(sidebar).toContain("--color-bg-hover: rgba(255, 255, 255, 0.06)");
+    expect(sidebar).toContain("--color-bg-selected: var(--color-brand-25)");
+    expect(sidebar).toContain("--color-text-primary: #fff");
+    expect(sidebar).toContain("--color-text-secondary: var(--color-gray-900)");
+  });
+});
+
+describe("shell type size", () => {
+  it("keeps every font size at least 12px", () => {
+    const sizes = [
+      ...shellCss.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g),
+      ...shellCss.matchAll(/font:\s*[^;{}]*?(\d+(?:\.\d+)?)px/g),
+    ].map((match) => Number(match[1]));
+    expect(sizes.filter((size) => size < 12)).toEqual([]);
+    const symbol = rule(shellCss, ".project-symbol");
+    expect(symbol).toContain("font-size: var(--font-size-xs)");
+    expect(symbol).toContain("width: 24px");
+    expect(symbol).toContain("height: 24px");
+    expect(symbol).toContain("place-items: center");
+    expect(rule(shellCss, ".brand")).toContain("text-transform: none");
+    expect(rule(shellCss, ".brand")).toContain("white-space: nowrap");
+    expect(rule(shellCss, ".brand")).not.toContain("letter-spacing");
+    expect(rule(shellCss, ".brand small")).toContain("text-transform: none");
+    expect(rule(shellCss, ".brand small")).toContain("font-size: var(--font-size-xs)");
+    expect(rule(shellCss, "kbd")).toContain("font: 600 var(--font-size-xs)");
+    expect(rule(shellCss, ".sidebar-footer")).toContain("font-size: var(--font-size-xs)");
+    expect(rule(shellCss, ".sidebar-footer small")).toContain("font-size: var(--font-size-xs)");
   });
 });
 
@@ -70,6 +103,11 @@ describe("landing and legal styles", () => {
     expect(rule(legalCss, ".pilot-join:focus-visible, .waitlist-submit:focus-visible")).toContain("outline: var(--size-border-focus) solid var(--color-focus)");
     expect(rule(legalCss, ".pilot-join:focus-visible, .waitlist-submit:focus-visible")).toContain("outline-offset: var(--size-border-focus)");
     expect(rule(legalCss, ".pilot-join, .waitlist-submit")).toContain("min-height: var(--size-target-min)");
+    const list = rule(legalCss, ".legal-doc ul");
+    expect(list).toContain("list-style: disc");
+    expect(list).toContain("padding-left: 20px");
+    expect(list).toContain("margin: var(--space-2) 0 var(--space-2)");
+    expect(rule(legalCss, ".legal-doc li + li")).toContain("margin-top: 4px");
     const undersized = [...legalCss.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((match) => match[0]);
     expect(undersized).toEqual([]);
   });
