@@ -12,6 +12,7 @@ import { TermsOfUse } from "@/components/legal/terms-of-use";
 import { MAX_PDF_PAGES } from "@/lib/documents/pdfLimits";
 import { MAX_UPLOAD_BYTES } from "@/lib/documents/uploadLimit";
 import {
+  cardAText,
   companyFieldError,
   consentError,
   consentUpdates,
@@ -20,12 +21,15 @@ import {
   emailFieldError,
   findLegalCopyViolations,
   hostingRequestLogs,
+  landingAndDialogText,
   loginRecordFallback,
   pilotFeatureLabel,
   privacyFileDeletion,
   roleFieldError,
   termsFileDeletion,
   waitlistInstruction,
+  waitlistPickedPrefix,
+  waitlistRequired,
   waitlistSignupSource,
 } from "@/lib/legal/copy";
 import { filledLegalFactEnv, filledLegalFacts } from "@/lib/legal/filledLegalFacts.fixture";
@@ -238,7 +242,10 @@ describe("legal copy publish guard", () => {
       expect(html).not.toContain("Every gap");
       expect(findLegalCopyViolations(html)).toEqual([]);
     }
-    expect(textOf(surfaces[5])).toContain(waitlistInstruction);
+    expect(textOf(surfaces[5])).toContain(waitlistRequired);
+    expect(textOf(surfaces[5])).not.toContain(waitlistInstruction);
+    expect(landingAndDialogText()).toContain(waitlistRequired);
+    expect(landingAndDialogText()).toContain(waitlistInstruction);
   });
 
   it("finds no bracket tags on filled privacy, terms, footer, consent, card B, and the landing", () => {
@@ -378,7 +385,65 @@ describe("waitlist field validation", () => {
     expect(html).toContain('data-field="company"');
     expect(html).toContain('data-field="role"');
     expect(html).toContain("required");
-    expect(html).toContain(waitlistInstruction);
+    expect(html).toContain(waitlistRequired);
+    expect(html).not.toContain(waitlistInstruction);
+  });
+
+  it("shows card A on the landing page and in the You picked line", () => {
+    const html = renderToStaticMarkup(createElement(PilotLanding));
+    expect(cardAText).toBe("One page that shows the current revision of every sheet on the job, with its source, ready to send to the field.");
+    expect(html.split(cardAText).length - 1).toBe(2);
+    expect(html).toContain(`${waitlistPickedPrefix} ${cardAText}`);
+  });
+
+  it("links each inline error to its field", () => {
+    const html = renderToStaticMarkup(createElement(PilotLanding));
+    const tags = html.match(/<[^>]+>/g) ?? [];
+    const tag = (includes: string) => tags.find((item) => item.includes(includes)) ?? "";
+    expect(tag('data-field="email"')).toContain('aria-describedby="email"');
+    expect(tag('id="email"')).toContain('data-field-error="email"');
+    expect(tag('data-field="company"')).toContain('aria-describedby="company"');
+    expect(tag('id="company"')).toContain('data-field-error="company"');
+    expect(tag('data-field="role"')).toContain('aria-describedby="role"');
+    expect(tag('id="role"')).toContain('data-field-error="role"');
+    expect(tag("<fieldset")).toContain('aria-describedby="dot"');
+    expect(tag('id="dot"')).toContain('data-field-error="dot"');
+    expect(tag('data-consent="terms"')).toContain('aria-describedby="consent"');
+    expect(tag('id="consent"')).toContain("data-consent-error");
+    expect(tag('data-field="email"')).toContain('aria-invalid="false"');
+  });
+
+  it("shows the required line while resting and the error summary after a failed submit", () => {
+    const resting = renderToStaticMarkup(createElement(PilotLanding));
+    expect(resting).toContain(`class="waitlist-required">${waitlistRequired}`);
+    expect(resting).not.toContain(waitlistInstruction);
+    expect(resting).not.toContain("waitlist-error-summary");
+    expect(resting).toContain('id="email"');
+    expect(resting.match(/id="email"[^>]*hidden/)?.[0]).toBeTruthy();
+
+    const failed = renderToStaticMarkup(createElement(PilotLanding, {
+      initialErrors: {
+        email: emailFieldError,
+        company: companyFieldError,
+        role: roleFieldError,
+        dot: dotFieldError,
+        consent: consentError,
+      },
+    }));
+    expect(failed).toContain(`role="alert">${waitlistInstruction}`);
+    expect(failed).toContain('class="waitlist-error-summary"');
+    expect(failed).not.toContain(waitlistRequired);
+    expect(failed).not.toContain("All fields are required unless marked (optional).");
+    for (const id of ["email", "company", "role", "dot", "consent"]) {
+      const error = failed.match(new RegExp(`<p[^>]*id="${id}"[^>]*>`))?.[0] ?? "";
+      expect(error).not.toContain("hidden");
+      expect(error).toContain('role="alert"');
+    }
+    expect(failed).toContain(emailFieldError);
+    expect(failed).toContain(companyFieldError);
+    expect(failed).toContain(roleFieldError);
+    expect(failed).toContain(dotFieldError);
+    expect(failed).toContain(consentError);
   });
 });
 

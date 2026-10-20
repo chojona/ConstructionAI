@@ -12,7 +12,7 @@ vi.mock("next/navigation", async () => {
 });
 
 import { SidebarFooter } from "@/components/workspace/app-shell";
-import { cardBCaption, cardBText, consentError, consentUpdates, draftBanner, findLegalCopyViolations, hostingRequestLogs, pilotFeatureLabel, waitlistInstruction, waitlistSignupSource } from "@/lib/legal/copy";
+import { cardAText, cardBCaption, cardBText, consentError, consentUpdates, draftBanner, findLegalCopyViolations, hostingRequestLogs, pilotFeatureLabel, waitlistInstruction, waitlistPickedPrefix, waitlistRequired, waitlistSignupSource } from "@/lib/legal/copy";
 import { unpublishedLegalSentences, unpublishedSentencePieces } from "@/lib/legal/unpublishedSentences.fixture";
 import { legalFactEnvKeys } from "@/lib/legal/facts";
 import { filledLegalFactEnv } from "@/lib/legal/filledLegalFacts.fixture";
@@ -182,7 +182,10 @@ describe("legal routes", () => {
     expect(homeHtml.match(new RegExp(pilotFeatureLabel, "g"))).toHaveLength(2);
     expect(homeText).toContain(cardBText);
     expect(homeText).toContain(cardBCaption);
-    expect(homeText).toContain(waitlistInstruction);
+    expect(homeText.split(cardAText).length - 1).toBe(2);
+    expect(homeText).toContain(`${waitlistPickedPrefix} ${cardAText}`);
+    expect(homeText).toContain(waitlistRequired);
+    expect(homeText).not.toContain(waitlistInstruction);
     expect(homeText).not.toContain("All fields are required unless marked (optional).");
     expect(homeText).toContain(consentError);
     expect(homeHtml).toContain(consentUpdates);

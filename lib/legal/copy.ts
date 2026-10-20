@@ -6,7 +6,7 @@ export const cardBText = "Check your installed quantities against the DOT's mont
 
 export const cardBCaption = "You review and approve every line before it's used in a pay request. This isn't legal or claims advice.";
 
-export const cardAText = "Upload your plan set and addenda. See which sheet revision is current, with the source page for each.";
+export const cardAText = "One page that shows the current revision of every sheet on the job, with its source, ready to send to the field.";
 
 export const consentError = "Check the box to agree to the Terms and Privacy Policy.";
 
@@ -68,6 +68,8 @@ export const waitlistCloseLabel = "Close";
 
 export const waitlistPickedPrefix = "You picked:";
 
+export const waitlistRequired = "All fields are required.";
+
 export const waitlistInstruction = "Fill in your work email, company and role.";
 
 export const waitlistWorkEmailLabel = "Work email";
@@ -103,6 +105,7 @@ export function landingAndDialogText(): string {
     waitlistDialogTitle,
     waitlistCloseLabel,
     waitlistPickedPrefix,
+    waitlistRequired,
     waitlistInstruction,
     waitlistWorkEmailLabel,
     waitlistEmailPlaceholder,

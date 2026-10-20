@@ -25,7 +25,7 @@
 .pilot-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .pilot-card { display: flex; flex-direction: column; gap: 14px; min-height: 280px; padding: 22px; border: 1px solid var(--color-line); border-radius: 16px; background: var(--color-surface); box-shadow: var(--shadow-card); }
 .pilot-card > p:not(.pilot-caption) { margin: 0; font-size: 21px; line-height: 1.45; }
-.pilot-kicker { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--color-ink-muted); font-size: 12px; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; }
+.pilot-kicker { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--color-ink-secondary); font-size: 12px; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; }
 .pilot-feature { padding: 2px 8px; border-radius: 999px; background: #f6e2b8; color: #8a5a12; font-size: 12px; font-weight: 650; letter-spacing: 0; text-transform: none; }
 .pilot-caption { color: var(--color-ink-secondary); font-size: 13px; line-height: 1.45; }
 .pilot-join, .waitlist-submit { border: 0; border-radius: 8px; background: var(--color-brand); color: var(--color-brand-ink); font-weight: 700; cursor: pointer; }
@@ -39,6 +39,8 @@
 .waitlist-head h2 { margin: 0; font-size: 20px; letter-spacing: -0.02em; }
 .waitlist-picked { margin: 0; padding: 12px 14px; border-radius: 10px; background: var(--color-surface-subtle); color: var(--color-ink-secondary); font-size: 14px; font-weight: 450; line-height: 1.45; }
 .waitlist-required, .waitlist-help, .consent-note, .consent-version { margin: 0; color: var(--color-ink-secondary); font-size: 13px; font-weight: 450; line-height: 1.45; }
+.waitlist-error-summary { margin: 0; color: var(--color-danger); font-size: 13px; font-weight: 650; line-height: 1.45; }
+.pilot-dialog .field { height: 44px; min-height: 44px; }
 .waitlist-choice { margin: 0; padding: 0; border: 0; display: grid; gap: 8px; }
 .waitlist-choice legend { padding: 0; font-size: 13px; font-weight: 650; }
 .waitlist-choice label { display: flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 450; }

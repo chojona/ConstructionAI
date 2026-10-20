@@ -24,6 +24,7 @@ import {
   waitlistInstruction,
   waitlistNo,
   waitlistPickedPrefix,
+  waitlistRequired,
   waitlistRoleLabel,
   waitlistRolePlaceholder,
   waitlistWorkEmailLabel,
@@ -35,6 +36,7 @@ import { SignupConsent } from "@/components/legal/signup-consent";
 import { waitlistFieldErrors, type WaitlistField } from "@/lib/legal/waitlistForm";
 
 type Offer = "a" | "b";
+type FieldErrors = Partial<Record<WaitlistField, string>>;
 
 const picked: Record<Offer, string> = {
   a: cardAText,
@@ -48,23 +50,22 @@ const fieldErrors: Record<Exclude<WaitlistField, "consent">, string> = {
   dot: dotFieldError,
 };
 
-export function PilotLanding({ showLegalLinks = false }: { showLegalLinks?: boolean }) {
+export function PilotLanding({
+  showLegalLinks = false,
+  initialErrors = {},
+}: {
+  showLegalLinks?: boolean;
+  initialErrors?: FieldErrors;
+}) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [offer, setOffer] = useState<Offer>("a");
   const [dotWork, setDotWork] = useState<"" | "yes" | "no">("");
-
-  function clearErrors(form: ParentNode) {
-    for (const alert of form.querySelectorAll<HTMLElement>("[data-field-error], [data-consent-error]")) {
-      alert.hidden = true;
-    }
-    for (const control of form.querySelectorAll<HTMLElement>("[aria-invalid]")) {
-      control.setAttribute("aria-invalid", "false");
-    }
-  }
+  const [errors, setErrors] = useState<FieldErrors>(initialErrors);
+  const failed = Object.values(errors).some(Boolean);
 
   function open(next: Offer) {
     setOffer(next);
-    if (dialog.current) clearErrors(dialog.current);
+    setErrors({});
     dialog.current?.showModal();
   }
 
@@ -74,21 +75,8 @@ export function PilotLanding({ showLegalLinks = false }: { showLegalLinks?: bool
     const email = form.querySelector<HTMLInputElement>("[data-field=email]")?.value ?? "";
     const company = form.querySelector<HTMLInputElement>("[data-field=company]")?.value ?? "";
     const role = form.querySelector<HTMLSelectElement>("[data-field=role]")?.value ?? "";
-    const selectedDot = form.querySelector<HTMLInputElement>("[data-field=dot]:checked")?.value ?? "";
     const consent = Boolean(form.querySelector<HTMLInputElement>("[data-consent=terms]")?.checked);
-    const errors = waitlistFieldErrors({ email, company, role, dotWork: selectedDot, consent });
-    for (const field of ["email", "company", "role", "dot"] as const) {
-      const alert = form.querySelector<HTMLElement>(`[data-field-error="${field}"]`);
-      const invalid = Boolean(errors[field]);
-      if (alert) alert.hidden = !invalid;
-      for (const control of form.querySelectorAll<HTMLElement>(`[data-field="${field}"]`)) {
-        control.setAttribute("aria-invalid", invalid ? "true" : "false");
-      }
-    }
-    const consentAlert = form.querySelector<HTMLElement>("[data-consent-error]");
-    const consentBox = form.querySelector<HTMLInputElement>("[data-consent=terms]");
-    if (consentAlert) consentAlert.hidden = !errors.consent;
-    consentBox?.setAttribute("aria-invalid", errors.consent ? "true" : "false");
+    setErrors(waitlistFieldErrors({ email, company, role, dotWork, consent }));
   }
 
   return (
@@ -106,31 +94,37 @@ export function PilotLanding({ showLegalLinks = false }: { showLegalLinks?: bool
           <PayEstimateCard onJoin={() => open("b")} />
         </div>
       </main>
-      <dialog ref={dialog} className="waitlist-dialog" aria-labelledby="waitlist-title" onClick={(event) => { if (event.target === dialog.current) dialog.current?.close(); }}>
+      <dialog ref={dialog} className="waitlist-dialog pilot-dialog" aria-labelledby="waitlist-title" onClick={(event) => { if (event.target === dialog.current) dialog.current?.close(); }}>
         <form className="waitlist-form" onSubmit={join} noValidate>
           <div className="waitlist-head">
             <h2 id="waitlist-title">{waitlistDialogTitle}</h2>
             <button type="button" className="icon-button" aria-label={waitlistCloseLabel} onClick={() => dialog.current?.close()}><X size={18} /></button>
           </div>
           <p className="waitlist-picked">{waitlistPickedPrefix} {picked[offer]}</p>
-          <p className="waitlist-required">{waitlistInstruction}</p>
-          <label>{waitlistWorkEmailLabel}<input className="field" type="email" required autoComplete="off" placeholder={waitlistEmailPlaceholder} data-field="email" /></label>
-          <p className="field-error" data-field-error="email" role="alert" hidden>{fieldErrors.email}</p>
-          <label>{waitlistCompanyLabel}<input className="field" type="text" required autoComplete="off" placeholder={waitlistCompanyPlaceholder} data-field="company" /></label>
-          <p className="field-error" data-field-error="company" role="alert" hidden>{fieldErrors.company}</p>
+          {failed ? <p className="waitlist-error-summary" role="alert">{waitlistInstruction}</p> : <p className="waitlist-required">{waitlistRequired}</p>}
+          <label>{waitlistWorkEmailLabel}<input className="field" type="email" required autoComplete="off" placeholder={waitlistEmailPlaceholder} data-field="email" aria-invalid={Boolean(errors.email)} aria-describedby="email" /></label>
+          <p id="email" className="field-error" data-field-error="email" role="alert" hidden={!errors.email}>{fieldErrors.email}</p>
+          <label>{waitlistCompanyLabel}<input className="field" type="text" required autoComplete="off" placeholder={waitlistCompanyPlaceholder} data-field="company" aria-invalid={Boolean(errors.company)} aria-describedby="company" /></label>
+          <p id="company" className="field-error" data-field-error="company" role="alert" hidden={!errors.company}>{fieldErrors.company}</p>
           <label>{waitlistRoleLabel}
-            <select className="field" required defaultValue="" aria-label={waitlistRoleLabel} data-field="role">
+            <select className="field" required defaultValue="" aria-label={waitlistRoleLabel} data-field="role" aria-invalid={Boolean(errors.role)} aria-describedby="role">
               <option value="">{waitlistRolePlaceholder}</option>
             </select>
           </label>
-          <p className="field-error" data-field-error="role" role="alert" hidden>{fieldErrors.role}</p>
-          <fieldset className="waitlist-choice">
+          <p id="role" className="field-error" data-field-error="role" role="alert" hidden={!errors.role}>{fieldErrors.role}</p>
+          <fieldset className="waitlist-choice" aria-describedby="dot" aria-invalid={Boolean(errors.dot)}>
             <legend>{waitlistDotLegend}</legend>
-            <label><input type="radio" name="dot-work" value="yes" required checked={dotWork === "yes"} data-field="dot" onChange={() => setDotWork("yes")} /> {waitlistYes}</label>
-            <label><input type="radio" name="dot-work" value="no" required checked={dotWork === "no"} data-field="dot" onChange={() => setDotWork("no")} /> {waitlistNo}</label>
+            <label>
+              {/* eslint-disable-next-line jsx-a11y/role-supports-aria-props -- invalid outline stays on the radio */}
+              <input type="radio" name="dot-work" value="yes" required checked={dotWork === "yes"} data-field="dot" aria-invalid={Boolean(errors.dot)} onChange={() => setDotWork("yes")} /> {waitlistYes}
+            </label>
+            <label>
+              {/* eslint-disable-next-line jsx-a11y/role-supports-aria-props -- invalid outline stays on the radio */}
+              <input type="radio" name="dot-work" value="no" required checked={dotWork === "no"} data-field="dot" aria-invalid={Boolean(errors.dot)} onChange={() => setDotWork("no")} /> {waitlistNo}
+            </label>
           </fieldset>
-          <p className="field-error" data-field-error="dot" role="alert" hidden>{fieldErrors.dot}</p>
-          <SignupConsent />
+          <p id="dot" className="field-error" data-field-error="dot" role="alert" hidden={!errors.dot}>{fieldErrors.dot}</p>
+          <SignupConsent invalid={Boolean(errors.consent)} />
           <button type="submit" className="waitlist-submit">{joinWaitlistLabel}</button>
           <p className="waitlist-help">{consentHelper}</p>
         </form>
