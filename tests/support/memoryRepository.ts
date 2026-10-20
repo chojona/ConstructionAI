@@ -150,6 +150,11 @@ export class MemoryRepository implements ConstructionRepository {
   }
 
   async createRevision(input: CreateRevisionRecordInput): Promise<RevisionDetail> {
+    const document = this.documents.find((item) => item.id === input.documentId);
+    const owningProject = document
+      ? this.projects.find((project) => project.id === document.projectId && project.organizationId === input.organizationId)
+      : undefined;
+    if (!owningProject) throw new DomainError("NOT_FOUND", "Document not found.", 404);
     if (this.revisions.some((item) => item.documentId === input.documentId && item.sha256 === input.sha256)) {
       throw new DomainError("DUPLICATE_REVISION", "This exact PDF is already a revision of this document.", 409);
     }
@@ -167,10 +172,6 @@ export class MemoryRepository implements ConstructionRepository {
     for (const page of input.pages) {
       this.pages.push({ id: this.id("page"), documentRevisionId: revision.id, ...page, createdAt: this.now() });
     }
-    const owningProject = this.projects.find((project) =>
-      this.documents.some((document) => document.id === input.documentId && document.projectId === project.id),
-    );
-    if (!owningProject) throw new Error("Missing project");
     const detail = await this.getRevision(owningProject.organizationId, revision.id);
     if (!detail) throw new Error("Missing revision");
     return detail;
@@ -477,9 +478,7 @@ export class MemoryRepository implements ConstructionRepository {
   }
 
   async createEmailSend(input: CreateEmailSendInput): Promise<EmailSendRecord | null> {
-    const project = this.projects.find((item) => item.id === input.projectId && item.organizationId === input.organizationId);
-    if (!project) return null;
-    this.assertEmailLinks(input.projectId, input.exportPacketId, input.documentIds, input.reviewDecisionIds);
+    this.assertEmailLinks(input.organizationId, input.projectId, input.exportPacketId, input.documentIds, input.reviewDecisionIds);
     const stored: EmailSendRecord = {
       id: this.id("email"),
       projectId: input.projectId,
@@ -531,16 +530,30 @@ export class MemoryRepository implements ConstructionRepository {
     return latest ? copyEmailSend(latest) : null;
   }
 
-  private assertEmailLinks(projectId: string, exportPacketId: string, documentIds: string[], reviewDecisionIds: string[]) {
-    const packet = this.exportPackets.find((item) => item.id === exportPacketId && item.projectId === projectId);
+  private assertEmailLinks(organizationId: string, projectId: string, exportPacketId: string, documentIds: string[], reviewDecisionIds: string[]) {
+    const project = this.projects.find((item) => item.id === projectId && item.organizationId === organizationId);
+    if (!project) throw new DomainError("NOT_FOUND", "Project not found.", 404);
+    const packet = this.exportPackets.find((item) => (
+      item.id === exportPacketId
+      && item.projectId === projectId
+      && this.projects.some((owner) => owner.id === item.projectId && owner.organizationId === organizationId)
+    ));
     if (!packet || documentIds.length === 0 || reviewDecisionIds.length === 0) {
       throw new DomainError("INVALID_INPUT", PACK_MISSING_MESSAGE, 400);
     }
-    const decisions = reviewDecisionIds.map((id) => this.reviewDecisions.find((decision) => decision.id === id && decision.projectId === projectId));
+    const decisions = reviewDecisionIds.map((id) => this.reviewDecisions.find((decision) => (
+      decision.id === id
+      && decision.projectId === projectId
+      && this.projects.some((owner) => owner.id === decision.projectId && owner.organizationId === organizationId)
+    )));
     if (decisions.some((decision) => decision?.decision !== "ACCEPTED")) {
       throw new DomainError("INVALID_INPUT", "Only an approved change can be exported.", 400);
     }
-    const documents = documentIds.map((id) => this.documents.find((document) => document.id === id && document.projectId === projectId));
+    const documents = documentIds.map((id) => this.documents.find((document) => (
+      document.id === id
+      && document.projectId === projectId
+      && this.projects.some((owner) => owner.id === document.projectId && owner.organizationId === organizationId)
+    )));
     if (documents.some((document) => !document)) {
       throw new DomainError("INVALID_INPUT", PACK_MISSING_MESSAGE, 400);
     }

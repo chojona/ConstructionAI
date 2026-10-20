@@ -56,6 +56,7 @@ describe.skipIf(!hasIntegrationDatabase)("Prisma review workflow", () => {
     const project = await createProject(orgA, { name: "I-95 Bridge" }, repository);
     const document = await createDocument(orgA, project.id, { title: "Drainage Plan" }, repository);
     const revision = await repository.createRevision({
+      organizationId: orgA,
       documentId: document.id,
       revisionLabel: "Revision A",
       originalFilename: "drainage.pdf",

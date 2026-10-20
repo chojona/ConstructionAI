@@ -32,6 +32,7 @@ describe("document service", () => {
     const project = await createProject("org_a", { name: "Bridge" }, repository);
     const document = await createDocument("org_a", project.id, { title: "Drainage Plan", documentType: "Plan" }, repository);
     await repository.createRevision({
+      organizationId: "org_a",
       documentId: document.id,
       revisionLabel: "B",
       originalFilename: "drainage.pdf",

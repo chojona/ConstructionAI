@@ -104,6 +104,7 @@ export async function ingestRevision(
       const stored = await storage.put({ documentId: document.id, bytes: rawInput.bytes });
       try {
         return await repository.createRevision({
+          organizationId,
           documentId: document.id,
           revisionLabel: accepted.revisionLabel,
           originalFilename: accepted.originalFilename,

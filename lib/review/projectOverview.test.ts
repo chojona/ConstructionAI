@@ -135,6 +135,7 @@ describe("projectOverviewModel", () => {
     const project = await repository.createProject({ organizationId: "org_a", name: "I-95 Bridge" });
     const document = await repository.createDocument({ organizationId: "org_a", projectId: project.id, title: "Drainage Plan" });
     await repository.createRevision({
+      organizationId: "org_a",
       documentId: document!.id,
       revisionLabel: "A",
       originalFilename: "a.pdf",

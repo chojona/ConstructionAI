@@ -10,6 +10,7 @@ export async function approvedPacketFixture(repository: ConstructionRepository, 
   const document = await createDocument(organizationId, project.id, { title: "Earthworks" }, repository);
   const text = "Excavation quantity is 1250 CY.";
   const revision = await repository.createRevision({
+    organizationId,
     documentId: document.id, revisionLabel: "A", originalFilename: "earthworks.pdf",
     mimeType: "application/pdf", byteSize: 100, sha256: "a".repeat(64),
     storageKey: `fixtures/${project.id}/earthworks.pdf`, status: "PROCESSED",

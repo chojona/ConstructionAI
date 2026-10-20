@@ -186,14 +186,19 @@ export class PrismaConstructionRepository implements ConstructionRepository {
       try {
         return await this.db.$transaction(
           async (tx) => {
+            const document = await tx.document.findFirst({
+              where: { id: input.documentId, project: { organizationId: input.organizationId } },
+              select: { id: true },
+            });
+            if (!document) throw new DomainError("NOT_FOUND", "Document not found.", 404);
             const latest = await tx.documentRevision.findFirst({
-              where: { documentId: input.documentId },
+              where: { documentId: document.id },
               orderBy: { revisionOrder: "desc" },
               select: { revisionOrder: true },
             });
             return tx.documentRevision.create({
               data: {
-                documentId: input.documentId,
+                documentId: document.id,
                 revisionLabel: input.revisionLabel,
                 revisionOrder: (latest?.revisionOrder ?? 0) + 1,
                 originalFilename: input.originalFilename,
@@ -215,6 +220,7 @@ export class PrismaConstructionRepository implements ConstructionRepository {
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
         );
       } catch (error) {
+        if (error instanceof DomainError) throw error;
         if (isSerializationConflict(error) && attempt < serializationAttempts() - 1) continue;
         const targets = uniqueConstraintTargets(error);
         if (targets) {
@@ -737,12 +743,13 @@ export class PrismaConstructionRepository implements ConstructionRepository {
   }
 
   async createEmailSend(input: CreateEmailSendInput): Promise<EmailSendRecord | null> {
-    const project = await this.db.project.findFirst({
-      where: { id: input.projectId, organizationId: input.organizationId },
-      select: { id: true },
-    });
-    if (!project) return null;
-    await this.assertEmailLinks(input.projectId, input.exportPacketId, input.documentIds, input.reviewDecisionIds);
+    await this.assertEmailLinks(
+      input.organizationId,
+      input.projectId,
+      input.exportPacketId,
+      input.documentIds,
+      input.reviewDecisionIds,
+    );
     const created = await this.db.emailSend.create({
       data: {
         projectId: input.projectId,
@@ -822,16 +829,27 @@ export class PrismaConstructionRepository implements ConstructionRepository {
     }
   }
 
-  private async assertEmailLinks(projectId: string, exportPacketId: string, documentIds: string[], reviewDecisionIds: string[]) {
+  private async assertEmailLinks(
+    organizationId: string,
+    projectId: string,
+    exportPacketId: string,
+    documentIds: string[],
+    reviewDecisionIds: string[],
+  ) {
+    const project = await this.db.project.findFirst({
+      where: { id: projectId, organizationId },
+      select: { id: true },
+    });
+    if (!project) throw new DomainError("NOT_FOUND", "Project not found.", 404);
     const packet = await this.db.exportPacket.findFirst({
-      where: { id: exportPacketId, projectId },
+      where: { id: exportPacketId, projectId, project: { organizationId } },
       select: { id: true },
     });
     if (!packet || documentIds.length === 0 || reviewDecisionIds.length === 0) {
       throw new DomainError("INVALID_INPUT", PACK_MISSING_MESSAGE, 400);
     }
     const decisions = await this.db.reviewDecision.findMany({
-      where: { projectId, id: { in: reviewDecisionIds } },
+      where: { projectId, id: { in: reviewDecisionIds }, project: { organizationId } },
       select: { id: true, decision: true },
     });
     const decisionById = new Map(decisions.map((decision) => [decision.id, decision.decision]));
@@ -839,7 +857,7 @@ export class PrismaConstructionRepository implements ConstructionRepository {
       throw new DomainError("INVALID_INPUT", "Only an approved change can be exported.", 400);
     }
     const documents = await this.db.document.findMany({
-      where: { projectId, id: { in: documentIds } },
+      where: { projectId, id: { in: documentIds }, project: { organizationId } },
       select: { id: true },
     });
     if (documents.length !== new Set(documentIds).size) {

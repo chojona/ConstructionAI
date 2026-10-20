@@ -788,6 +788,7 @@ describe.skipIf(!hasIntegrationDatabase)("cross-org isolation", () => {
     await createProject(orgB, { name: orgBProjectName, projectNumber: "B-1" }, repository);
     const document = await createDocument(orgA, project.id, { title: documentTitle, documentType: "Plan" }, repository);
     const revision = await repository.createRevision({
+      organizationId: orgA,
       documentId: document.id,
       revisionLabel,
       originalFilename: "orga.pdf",
@@ -976,6 +977,56 @@ describe.skipIf(!hasIntegrationDatabase)("cross-org isolation", () => {
     expect(email.status, emailText).toBe(200);
     expect(emailText).toContain(current.emailSubject);
     expect(emailText).toContain(current.emailBody);
+  });
+
+  it("createRevision writes nothing when the document belongs to another organization", async () => {
+    const current = fx();
+    const repository = new PrismaConstructionRepository(db);
+    const before = await orgASnapshot(current);
+    const revisionCount = await db.documentRevision.count({ where: { documentId: current.documentId } });
+    const pageCount = await db.documentPage.count({ where: { documentRevision: { documentId: current.documentId } } });
+    await expect(repository.createRevision({
+      organizationId: current.orgB,
+      documentId: current.documentId,
+      revisionLabel: `STOLEN-${current.revisionLabel}`,
+      originalFilename: "stolen.pdf",
+      mimeType: "application/pdf",
+      byteSize: 8,
+      sha256: "f".repeat(64),
+      storageKey: `revisions/stolen-${current.orgB}.pdf`,
+      status: "PROCESSED",
+      pages: [{ pageNumber: 1, text: "stolen", textSha256: "d".repeat(64) }],
+    })).rejects.toMatchObject({ code: "NOT_FOUND", httpStatus: 404, message: "Document not found." });
+    expect(await db.documentRevision.count({ where: { documentId: current.documentId } })).toBe(revisionCount);
+    expect(await db.documentPage.count({ where: { documentRevision: { documentId: current.documentId } } })).toBe(pageCount);
+    expect(await orgASnapshot(current)).toEqual(before);
+  });
+
+  it("assertEmailLinks writes nothing when the project belongs to another organization", async () => {
+    const current = fx();
+    const repository = new PrismaConstructionRepository(db);
+    const before = await orgASnapshot(current);
+    const emailCount = await db.emailSend.count({ where: { projectId: current.projectId } });
+    const documentLinkCount = await db.emailSendDocument.count({ where: { documentId: current.documentId } });
+    const decisionLinkCount = await db.emailSendDecision.count({ where: { reviewDecisionId: current.decisionId } });
+    await expect(repository.createEmailSend({
+      organizationId: current.orgB,
+      projectId: current.projectId,
+      exportPacketId: current.packetId,
+      status: "DRAFT",
+      recipients: ["stolen@isolation.example"],
+      subject: "stolen",
+      body: "stolen",
+      actorId: current.userB,
+      documentIds: [current.documentId],
+      reviewDecisionIds: [current.decisionId],
+      createdAt: new Date("2026-10-20T01:00:00.000Z"),
+      sentAt: null,
+    })).rejects.toMatchObject({ code: "NOT_FOUND", httpStatus: 404, message: "Project not found." });
+    expect(await db.emailSend.count({ where: { projectId: current.projectId } })).toBe(emailCount);
+    expect(await db.emailSendDocument.count({ where: { documentId: current.documentId } })).toBe(documentLinkCount);
+    expect(await db.emailSendDecision.count({ where: { reviewDecisionId: current.decisionId } })).toBe(decisionLinkCount);
+    expect(await orgASnapshot(current)).toEqual(before);
   });
 
   function register(id: string, run: () => Promise<void>) {
