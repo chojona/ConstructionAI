@@ -19,13 +19,21 @@ import {
   uploadPartChecksumSha256Supported,
 } from "./presignedUploadPart";
 
-const ioProbe = vi.hoisted(() => ({ s3Clients: 0, s3Sends: 0, httpRequests: 0, httpsRequests: 0 }));
+const ioProbe = vi.hoisted(() => ({
+  s3Clients: 0,
+  s3Sends: 0,
+  httpRequests: 0,
+  httpsRequests: 0,
+  s3Endpoints: [] as string[],
+}));
 
 vi.mock("@aws-sdk/client-s3", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@aws-sdk/client-s3")>();
   const S3Client = new Proxy(actual.S3Client, {
     construct(target, args, newTarget) {
       ioProbe.s3Clients += 1;
+      const options = args[0] as { endpoint?: unknown } | undefined;
+      if (typeof options?.endpoint === "string") ioProbe.s3Endpoints.push(options.endpoint);
       const client = Reflect.construct(target, args, newTarget) as InstanceType<typeof actual.S3Client>;
       const send = client.send.bind(client);
       client.send = ((...sendArgs: Parameters<typeof client.send>) => {
@@ -70,14 +78,24 @@ function without(env: SpikeEnv, key: string): SpikeEnv {
   return copy;
 }
 
+function ioSnapshot() {
+  return {
+    s3Clients: ioProbe.s3Clients,
+    s3Sends: ioProbe.s3Sends,
+    httpRequests: ioProbe.httpRequests,
+    httpsRequests: ioProbe.httpsRequests,
+    s3Endpoints: ioProbe.s3Endpoints.length,
+  };
+}
+
 async function expectRefusedBeforeAnyIo(env: SpikeEnv, message: RegExp) {
-  const before = { ...ioProbe };
+  const before = ioSnapshot();
   const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("fetch disabled in unit tests"));
   try {
     expect(spikeRefusalReason(env)).toMatch(message);
     await expect(runPresignedPartLengthProbe(env)).rejects.toBeInstanceOf(SpikeStorageRefused);
     await expect(runPresignedPartLengthProbe(env)).rejects.toThrow(message);
-    expect(ioProbe).toEqual(before);
+    expect(ioSnapshot()).toEqual(before);
     expect(fetchSpy).not.toHaveBeenCalled();
   } finally {
     fetchSpy.mockRestore();
@@ -178,7 +196,7 @@ describe("presigned UploadPart signer", () => {
 });
 
 describe("spike storage guard", () => {
-  const endpoint = "https://ep-example.us-east-1.aws.neon.tech";
+  const endpoint = "https://br-calm-leaf.storage.c-7.us-east-2.aws.neon.tech";
   const ready = {
     SPIKE_BUCKET: "branch-spike",
     SPIKE_STORAGE_ENV: "nonprod",
@@ -197,7 +215,7 @@ describe("spike storage guard", () => {
     expect(spikeRefusalReason({ ...ready, NODE_ENV: "production" })).toMatch(/NODE_ENV=production/);
     expect(spikeRefusalReason({ ...ready, SPIKE_BUCKET: "prod-docs" })).toMatch(/looks like production/);
     expect(spikeRefusalReason({ ...ready, SPIKE_ENDPOINT: "https://prod.neon.tech", AWS_ENDPOINT_URL_S3: "https://prod.neon.tech" })).toMatch(/looks like production/);
-    expect(spikeRefusalReason({ ...ready, SPIKE_ENDPOINT: "https://bucket.s3.amazonaws.com", AWS_ENDPOINT_URL_S3: "https://bucket.s3.amazonaws.com" })).toMatch(/not a Neon host/);
+    expect(spikeRefusalReason({ ...ready, SPIKE_ENDPOINT: "https://bucket.s3.amazonaws.com", AWS_ENDPOINT_URL_S3: "https://bucket.s3.amazonaws.com" })).toMatch(/not a Neon branch storage host/);
     expect(spikeRefusalReason({ ...ready, DOCUMENT_STORAGE_BUCKET: "prod-documents" })).toMatch(/configured document bucket/);
     expect(looksLikeProductionName("nonprod-spike")).toBe(false);
     expect(looksLikeProductionName("production")).toBe(true);
@@ -214,7 +232,7 @@ describe("spike storage guard", () => {
   it("uses SPIKE_BUCKET and the explicit region rather than the app bucket or us-east-1", () => {
     expect(readSpikeStorageConfig(ready)).toMatchObject({
       bucket: "branch-spike",
-      endpoint,
+      endpoint: new URL(endpoint).origin,
       region: "us-east-1",
       forcePathStyle: true,
       accessKeyId: "spike-key",
@@ -227,31 +245,81 @@ describe("spike storage guard", () => {
     expect(() => readSpikeStorageConfig({ ...ready, SPIKE_BUCKET: "" })).toThrow(SpikeStorageRefused);
   });
 
-  it("refuses the production Neon branch id in SPIKE_ENDPOINT before any client or network call", async () => {
-    const poisoned = `https://${PRODUCTION_BRANCH_ID}.neon.tech`;
+  it("refuses a percent-encoded production host before any client or network call", async () => {
+    const poisoned = `https://br%2Dplain-dawn-b56i00z1.storage.c-7.us-east-2.aws.neon.tech`;
+    await expectRefusedBeforeAnyIo(
+      { ...ready, SPIKE_ENDPOINT: poisoned, AWS_ENDPOINT_URL_S3: poisoned },
+      /SPIKE_ENDPOINT contains percent-encoding or a non-ASCII character/,
+    );
+    await expectRefusedBeforeAnyIo(
+      { ...ready, AWS_ENDPOINT_URL_S3: poisoned },
+      /AWS_ENDPOINT_URL_S3 contains percent-encoding or a non-ASCII character/,
+    );
+    await expectRefusedBeforeAnyIo(
+      { ...ready, OBJECT_STORAGE_ENDPOINT: poisoned },
+      /OBJECT_STORAGE_ENDPOINT contains percent-encoding or a non-ASCII character/,
+    );
+  });
+
+  it("refuses a full-width production host before any client or network call", async () => {
+    const poisoned = `https://\uFF42\uFF52-plain-dawn-b56i00z1.storage.c-7.us-east-2.aws.neon.tech`;
+    await expectRefusedBeforeAnyIo(
+      { ...ready, SPIKE_ENDPOINT: poisoned, AWS_ENDPOINT_URL_S3: poisoned },
+      /SPIKE_ENDPOINT contains percent-encoding or a non-ASCII character/,
+    );
+    await expectRefusedBeforeAnyIo(
+      { ...ready, AWS_ENDPOINT_URL_S3: poisoned },
+      /AWS_ENDPOINT_URL_S3 contains percent-encoding or a non-ASCII character/,
+    );
+    await expectRefusedBeforeAnyIo(
+      { ...ready, OBJECT_STORAGE_ENDPOINT: poisoned },
+      /OBJECT_STORAGE_ENDPOINT contains percent-encoding or a non-ASCII character/,
+    );
+  });
+
+  it("refuses an uppercase production host before any client or network call", async () => {
+    const poisoned = `https://${PRODUCTION_BRANCH_ID.toUpperCase()}.storage.c-7.us-east-2.aws.neon.tech`;
     await expectRefusedBeforeAnyIo(
       { ...ready, SPIKE_ENDPOINT: poisoned, AWS_ENDPOINT_URL_S3: poisoned },
       /SPIKE_ENDPOINT contains the production Neon branch/,
     );
-  });
-
-  it("refuses the production Neon branch id in AWS_ENDPOINT_URL_S3 before any client or network call", async () => {
     await expectRefusedBeforeAnyIo(
-      { ...ready, AWS_ENDPOINT_URL_S3: `https://example.neon.tech/${PRODUCTION_BRANCH_ID.toUpperCase()}` },
+      { ...ready, AWS_ENDPOINT_URL_S3: poisoned },
       /AWS_ENDPOINT_URL_S3 contains the production Neon branch/,
     );
-  });
-
-  it("refuses the production Neon branch id in OBJECT_STORAGE_ENDPOINT before any client or network call", async () => {
     await expectRefusedBeforeAnyIo(
-      { ...ready, OBJECT_STORAGE_ENDPOINT: `https://ep.neon.tech/?host=${PRODUCTION_BRANCH_ID}` },
+      { ...ready, OBJECT_STORAGE_ENDPOINT: poisoned },
       /OBJECT_STORAGE_ENDPOINT contains the production Neon branch/,
     );
   });
 
+  it("constructs the S3 client with the parsed origin", async () => {
+    const raw = `${endpoint}/`;
+    const origin = new URL(endpoint).origin;
+    expect(raw).not.toBe(origin);
+    expect(readSpikeStorageConfig({ ...ready, SPIKE_ENDPOINT: raw, AWS_ENDPOINT_URL_S3: raw }).endpoint).toBe(origin);
+    const before = ioSnapshot();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("fetch disabled in unit tests"));
+    try {
+      const report = await runPresignedPartLengthProbe({
+        ...ready,
+        SPIKE_ENDPOINT: raw,
+        AWS_ENDPOINT_URL_S3: raw,
+      });
+      expect(report.endpointHost).toBe(new URL(origin).hostname);
+      expect(ioProbe.s3Clients).toBe(before.s3Clients + 1);
+      expect(ioProbe.s3Endpoints.at(-1)).toBe(origin);
+      expect(ioProbe.httpRequests).toBe(before.httpRequests);
+      expect(ioProbe.httpsRequests).toBe(before.httpsRequests);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("refuses the production bucket uploads in SPIKE_BUCKET before any client or network call", async () => {
     await expectRefusedBeforeAnyIo(
-      { ...ready, SPIKE_BUCKET: " Uploads " },
+      { ...ready, SPIKE_BUCKET: " uploads " },
       /SPIKE_BUCKET is the production bucket uploads/,
     );
     expect(spikeRefusalReason({ ...ready, SPIKE_BUCKET: "uploads-archive" })).toBeNull();
@@ -259,7 +327,7 @@ describe("spike storage guard", () => {
 
   it("refuses the production bucket uploads in OBJECT_STORAGE_BUCKET before any client or network call", async () => {
     await expectRefusedBeforeAnyIo(
-      { ...ready, OBJECT_STORAGE_BUCKET: "UPLOADS" },
+      { ...ready, OBJECT_STORAGE_BUCKET: "uploads" },
       /OBJECT_STORAGE_BUCKET is the production bucket uploads/,
     );
   });
@@ -269,6 +337,18 @@ describe("spike storage guard", () => {
       { ...ready, DOCUMENT_STORAGE_BUCKET: "\tuploads\n" },
       /DOCUMENT_STORAGE_BUCKET is the production bucket uploads/,
     );
+  });
+
+  it("refuses uploads. before any client or network call", async () => {
+    await expectRefusedBeforeAnyIo({ ...ready, SPIKE_BUCKET: "uploads." }, /SPIKE_BUCKET is not a strict S3 bucket name/);
+    await expectRefusedBeforeAnyIo({ ...ready, OBJECT_STORAGE_BUCKET: "uploads." }, /OBJECT_STORAGE_BUCKET is not a strict S3 bucket name/);
+    await expectRefusedBeforeAnyIo({ ...ready, DOCUMENT_STORAGE_BUCKET: "uploads." }, /DOCUMENT_STORAGE_BUCKET is not a strict S3 bucket name/);
+  });
+
+  it("refuses uploads?x before any client or network call", async () => {
+    await expectRefusedBeforeAnyIo({ ...ready, SPIKE_BUCKET: "uploads?x" }, /SPIKE_BUCKET is not a strict S3 bucket name/);
+    await expectRefusedBeforeAnyIo({ ...ready, OBJECT_STORAGE_BUCKET: "uploads?x" }, /OBJECT_STORAGE_BUCKET is not a strict S3 bucket name/);
+    await expectRefusedBeforeAnyIo({ ...ready, DOCUMENT_STORAGE_BUCKET: "uploads?x" }, /DOCUMENT_STORAGE_BUCKET is not a strict S3 bucket name/);
   });
 
   it("refuses a missing SPIKE_STORAGE_ENV before any client or network call", async () => {

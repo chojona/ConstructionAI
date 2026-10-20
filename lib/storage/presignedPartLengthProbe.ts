@@ -35,10 +35,14 @@ export interface SpikeEnv extends ObjectStorageEnv {
   NODE_ENV?: string;
 }
 
-/** Production Neon branch. Refused wherever it appears in an endpoint variable. */
+/** Production Neon branch. Refused on the parsed, lowercased hostname. */
 const PRODUCTION_NEON_BRANCH_ID = "br-plain-dawn-b56i00z1";
-/** Production bucket. Trimmed, exact, case-insensitive. */
+/** Production bucket. Trimmed, exact, case-insensitive, after the strict name check. */
 const PRODUCTION_BUCKET_NAME = "uploads";
+/** Neon Object Storage branch host. The client receives this host's origin only. */
+const NEON_BRANCH_HOST = /^br-[a-z0-9-]+\.storage\.c-\d+\.[a-z0-9-]+\.aws\.neon\.tech$/;
+/** Strict S3 bucket name, length 3–63, no uppercase and no consecutive dots. */
+const S3_BUCKET_NAME = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/;
 
 export interface SpikeAttempt {
   name: "exact" | "over" | "under" | "checksum-match" | "checksum-mismatch";
@@ -87,6 +91,8 @@ export function looksLikeProductionName(value: string): boolean {
 }
 
 export function spikeRefusalReason(env: SpikeEnv): string | null {
+  const bucketShape = bucketShapeRefusal(env);
+  if (bucketShape) return bucketShape;
   const productionBucket = productionBucketRefusal(env);
   if (productionBucket) return productionBucket;
   const bucket = trimmed(env.SPIKE_BUCKET);
@@ -102,14 +108,13 @@ export function spikeRefusalReason(env: SpikeEnv): string | null {
   if (appBucket && looksLikeProductionName(appBucket)) {
     return "Refusing to run: the configured document bucket looks like production.";
   }
-  const productionBranch = productionBranchRefusal(env);
-  if (productionBranch) return productionBranch;
+  for (const [name, value] of endpointFields(env)) {
+    const reason = endpointShapeRefusal(name, value);
+    if (reason) return reason;
+  }
   if (!endpoint) {
     return "Refusing to run: set SPIKE_ENDPOINT to the non-production endpoint. An unset endpoint is refused.";
   }
-  const parsed = parseEndpoint(endpoint);
-  if (typeof parsed === "string") return parsed;
-  if (looksLikeProductionName(parsed.hostname)) return "Refusing to run: SPIKE_ENDPOINT looks like production.";
   const resolved = first(env.OBJECT_STORAGE_ENDPOINT, env.AWS_ENDPOINT_URL_S3);
   if (!resolved) {
     return "Refusing to run: set OBJECT_STORAGE_ENDPOINT or AWS_ENDPOINT_URL_S3 to the same value as SPIKE_ENDPOINT.";
@@ -134,20 +139,23 @@ export function readSpikeStorageConfig(env: SpikeEnv) {
   const bucket = trimmed(env.SPIKE_BUCKET);
   const endpoint = trimmed(env.SPIKE_ENDPOINT);
   const region = spikeRegion(env);
-  if (!bucket || !endpoint || !region) throw new SpikeStorageRefused("Refusing to run: spike target is incomplete.");
+  const origin = endpoint ? validatedOrigin(endpoint) : undefined;
+  if (!bucket || !endpoint || !region || !origin) throw new SpikeStorageRefused("Refusing to run: spike target is incomplete.");
   let config;
   try {
     config = readObjectStorageConfig({
       ...env,
       OBJECT_STORAGE_BUCKET: bucket,
       DOCUMENT_STORAGE_BUCKET: bucket,
+      OBJECT_STORAGE_ENDPOINT: origin,
+      AWS_ENDPOINT_URL_S3: origin,
       OBJECT_STORAGE_REGION: region,
       AWS_REGION: region,
     });
   } catch {
     throw new SpikeStorageRefused("Refusing to run: object storage credentials are missing or invalid.");
   }
-  if (!config?.endpoint || config.bucket !== bucket || config.endpoint !== endpoint || config.region !== region) {
+  if (!config?.endpoint || config.bucket !== bucket || config.endpoint !== origin || config.region !== region) {
     throw new SpikeStorageRefused("Refusing to run: resolved storage target is not the spike bucket and endpoint.");
   }
   return { ...config, forcePathStyle: true as const };
@@ -321,36 +329,74 @@ function sdkFailure(error: unknown): string {
   return "Object storage request failed.";
 }
 
-function parseEndpoint(value: string): URL | string {
+function endpointFields(env: SpikeEnv): Array<readonly [string, string | undefined]> {
+  return [
+    ["SPIKE_ENDPOINT", env.SPIKE_ENDPOINT],
+    ["AWS_ENDPOINT_URL_S3", env.AWS_ENDPOINT_URL_S3],
+    ["OBJECT_STORAGE_ENDPOINT", env.OBJECT_STORAGE_ENDPOINT],
+  ];
+}
+
+function endpointShapeRefusal(name: string, value: string | undefined): string | null {
+  if (!value?.trim()) return null;
+  if (value.includes("%") || /[^\u0000-\u007F]/.test(value)) {
+    return `Refusing to run: ${name} contains percent-encoding or a non-ASCII character.`;
+  }
+  const parsed = parseSpikeEndpoint(name, value);
+  if (typeof parsed === "string") return parsed;
+  const hostname = parsed.hostname.toLowerCase();
+  if (hostname.includes(PRODUCTION_NEON_BRANCH_ID)) {
+    return `Refusing to run: ${name} contains the production Neon branch ${PRODUCTION_NEON_BRANCH_ID}.`;
+  }
+  if (looksLikeProductionName(hostname)) return `Refusing to run: ${name} looks like production.`;
+  if (!NEON_BRANCH_HOST.test(hostname)) {
+    return `Refusing to run: ${name} host is not a Neon branch storage host.`;
+  }
+  return null;
+}
+
+function parseSpikeEndpoint(name: string, value: string): URL | string {
   let url: URL;
   try {
-    url = new URL(value);
+    url = new URL(value.trim());
   } catch {
-    return "Refusing to run: SPIKE_ENDPOINT is not a URL.";
+    return `Refusing to run: ${name} is not a URL.`;
   }
   if (url.username || url.password || url.search || url.hash || /X-Amz-Signature/i.test(value)) {
-    return "Refusing to run: SPIKE_ENDPOINT must be the storage origin. Presigned URLs are refused and are not printed.";
+    return `Refusing to run: ${name} must be the storage origin. Presigned URLs are refused and are not printed.`;
   }
   if (url.pathname !== "/" && url.pathname !== "") {
-    return "Refusing to run: SPIKE_ENDPOINT must be an origin without a path.";
+    return `Refusing to run: ${name} must be an origin without a path.`;
   }
-  const loopback = isLoopback(url.hostname);
-  if (url.protocol !== "https:" && !loopback) return "Refusing to run: SPIKE_ENDPOINT must be https, except loopback.";
-  if (url.protocol !== "https:" && url.protocol !== "http:") return "Refusing to run: SPIKE_ENDPOINT must be http or https.";
-  if (!loopback && !isNeonHost(url.hostname)) {
-    return "Refusing to run: SPIKE_ENDPOINT host is not a Neon host or loopback.";
-  }
+  if (url.protocol !== "https:") return `Refusing to run: ${name} must be https.`;
   return url;
 }
 
-function isNeonHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/\.+$/, "");
-  return host === "neon.tech" || host.endsWith(".neon.tech");
+/** Origin of an endpoint that already passed the guard. This is the only string given to S3. */
+function validatedOrigin(value: string): string | undefined {
+  const parsed = parseSpikeEndpoint("SPIKE_ENDPOINT", value);
+  if (typeof parsed === "string") return undefined;
+  const hostname = parsed.hostname.toLowerCase();
+  if (hostname.includes(PRODUCTION_NEON_BRANCH_ID) || looksLikeProductionName(hostname) || !NEON_BRANCH_HOST.test(hostname)) {
+    return undefined;
+  }
+  return parsed.origin;
 }
 
-function isLoopback(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/\.+$/, "");
-  return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
+function bucketShapeRefusal(env: SpikeEnv): string | null {
+  const fields = [
+    ["SPIKE_BUCKET", env.SPIKE_BUCKET],
+    ["OBJECT_STORAGE_BUCKET", env.OBJECT_STORAGE_BUCKET],
+    ["DOCUMENT_STORAGE_BUCKET", env.DOCUMENT_STORAGE_BUCKET],
+  ] as const;
+  for (const [name, value] of fields) {
+    const text = trimmed(value);
+    if (!text) continue;
+    if (!S3_BUCKET_NAME.test(text) || text.includes("..")) {
+      return `Refusing to run: ${name} is not a strict S3 bucket name.`;
+    }
+  }
+  return null;
 }
 
 function productionBucketRefusal(env: SpikeEnv): string | null {
@@ -362,20 +408,6 @@ function productionBucketRefusal(env: SpikeEnv): string | null {
   for (const [name, value] of fields) {
     if (trimmed(value)?.toLowerCase() === PRODUCTION_BUCKET_NAME) {
       return `Refusing to run: ${name} is the production bucket ${PRODUCTION_BUCKET_NAME}.`;
-    }
-  }
-  return null;
-}
-
-function productionBranchRefusal(env: SpikeEnv): string | null {
-  const fields = [
-    ["SPIKE_ENDPOINT", env.SPIKE_ENDPOINT],
-    ["AWS_ENDPOINT_URL_S3", env.AWS_ENDPOINT_URL_S3],
-    ["OBJECT_STORAGE_ENDPOINT", env.OBJECT_STORAGE_ENDPOINT],
-  ] as const;
-  for (const [name, value] of fields) {
-    if (value?.toLowerCase().includes(PRODUCTION_NEON_BRANCH_ID)) {
-      return `Refusing to run: ${name} contains the production Neon branch ${PRODUCTION_NEON_BRANCH_ID}.`;
     }
   }
   return null;
