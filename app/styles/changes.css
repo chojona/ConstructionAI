@@ -12,7 +12,7 @@ button.queue-heading:hover { color: var(--color-brand-hover); }
 .change-row strong { display: block; font-size: 13px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
 .change-row small { display: block; color: var(--color-ink-secondary); font-size: 12px; margin-top: 2px; }
 .change-row:hover { background: var(--color-surface-subtle); }
-.change-row.is-selected { background: var(--color-warning-subtle); border-left-color: var(--color-brand); }
+.change-row.is-selected { background: var(--color-bg-selected); border-left-color: var(--color-focus); }
 .settled-heading { margin-top: 16px; border-top: 1px solid var(--color-line); color: var(--color-ink-secondary); font-weight: 550; }
 .settled-row { color: var(--color-ink-secondary); }
 .settled-row > svg { flex-shrink: 0; margin-top: 2px; }
@@ -46,8 +46,9 @@ button.queue-heading:hover { color: var(--color-brand-hover); }
 .review-fields { margin-bottom: 8px; }
 .review-fields label small { display: block; margin-top: 2px; }
 .finding-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 16px; }
-.accept-button { background: var(--color-brand); color: var(--color-brand-ink); }
-.accept-button:hover { background: var(--color-brand-hover); }
+.accept-button { background: var(--color-bg-brand); color: var(--color-text-on-brand); }
+.accept-button:hover { background: var(--color-bg-brand-hover); }
+.accept-button:disabled, .accept-button[aria-disabled="true"] { background: var(--color-bg-disabled); color: var(--color-text-disabled); box-shadow: none; }
 .flag-button { color: var(--color-attention); }
 .evidence-panel { position: sticky; top: 20px; align-self: start; min-width: 0; background: var(--surface-context); border-left: 1px solid var(--color-line); padding: 22px 18px; }
 .context-heading { display: flex; align-items: center; gap: 8px; color: var(--color-ink); }
@@ -78,18 +79,18 @@ button.queue-heading:hover { color: var(--color-brand-hover); }
 .document-context p { margin: 0; color: var(--color-ink-secondary); font-size: 11px; }
 .document-context a { color: var(--color-info); font-size: 11px; }
 /* Order-locked: command palette stays ahead of the responsive block. */
-.command-dialog { position: fixed; inset: 0; width: min(560px, calc(100vw - 32px)); height: fit-content; max-height: 75dvh; margin: auto; border: 1px solid var(--color-line); border-radius: 14px; padding: 0; color: var(--color-ink); background: var(--color-surface); box-shadow: 0 24px 80px rgba(17, 24, 30, 0.25); }
-.command-dialog::backdrop { background: rgba(17, 24, 30, 0.45); }
+.command-dialog { position: fixed; inset: 0; width: min(520px, calc(100vw - 32px)); height: fit-content; max-height: 75dvh; margin: auto; border: 1px solid var(--color-border-default); border-radius: var(--radius-xl); padding: 0; color: var(--color-text-primary); background: var(--color-bg-surface); box-shadow: 0 20px 24px -4px rgba(16, 24, 40, 0.08), 0 8px 8px -4px rgba(16, 24, 40, 0.03); }
+.command-dialog::backdrop { background: rgba(52, 64, 84, 0.70); backdrop-filter: blur(4px); }
 .command-heading { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; }
-.command-heading h2 { margin: 0; font-size: 12px; font-weight: 550; }
-.icon-button { display: grid; place-items: center; background: transparent; color: var(--color-ink-secondary); border: 0; padding: 5px; border-radius: 4px; }
-.icon-button:hover { background: var(--color-surface-subtle); }
-.command-search { display: flex; gap: 12px; align-items: center; margin: 0 18px 12px; color: var(--color-ink-secondary); }
-.command-search input { background: transparent; color: var(--color-ink); border: 0; width: 100%; padding: 10px 0; font-size: 14px; }
+.command-heading h2 { margin: 0; font-size: var(--font-size-lg); font-weight: 600; line-height: var(--font-line-height-lg); }
+.icon-button { display: grid; place-items: center; width: var(--size-target-min); height: var(--size-target-min); min-width: var(--size-target-min); min-height: var(--size-target-min); background: transparent; color: var(--color-text-tertiary); border: 0; padding: 0; border-radius: var(--radius-md); }
+.icon-button:hover { background: var(--color-bg-hover); }
+.command-search { display: flex; gap: 12px; align-items: center; margin: 0 18px 12px; min-height: var(--size-target-min); padding: 0 12px; border: var(--size-border-focus) solid transparent; border-radius: var(--radius-sm); color: var(--color-ink-secondary); }
+.command-search input { background: transparent; color: var(--color-ink); border: 0; outline: none; width: 100%; padding: 0; font-size: 14px; }
 .command-results { max-height: 45dvh; overflow-y: auto; padding: 8px; border-top: 1px solid var(--color-line); }
-.command-result { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 12px; border-radius: 5px; }
+.command-result { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 12px; border-radius: var(--radius-sm); }
 .command-result:hover, .command-result:focus-visible { background: var(--color-warning-subtle); }
-.command-result small { display: block; color: var(--color-ink-secondary); font-size: 10px; margin-top: 3px; }
+.command-result small { display: block; color: var(--color-ink-secondary); font-size: var(--font-size-xs); margin-top: 3px; }
 .command-hint { display: flex; gap: 16px; margin: 0; padding: 12px 18px; border-top: 1px solid var(--color-line); color: var(--color-ink-secondary); font-size: 12px; }
 /* Order-locked: breakpoint rules stay in this order. Overlapping max-width queries depend on it. */
 @media (min-width: 1600px) { .page { padding: 32px 48px 64px; } .change-detail { padding: 32px; } }

@@ -1,5 +1,55 @@
 /* App shell, sidebar, and account row. Headings, tabs, and lists stay here so they still precede the projects table. */
 
+:root {
+  --font-sans: var(--font-inter), Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --color-canvas: var(--color-bg-canvas);
+  --color-surface: var(--color-bg-surface);
+  --color-surface-subtle: var(--color-bg-subtle);
+  --color-ink: var(--color-text-primary);
+  --color-ink-secondary: var(--color-text-secondary);
+  --color-ink-muted: var(--color-text-tertiary);
+  --color-line: var(--color-border-default);
+  --color-line-strong: var(--color-border-strong);
+  --color-brand: var(--color-bg-brand);
+  --color-brand-hover: var(--color-bg-brand-hover);
+  --color-brand-ink: var(--color-text-on-brand);
+  --color-success: var(--color-text-success);
+  --color-success-subtle: var(--color-bg-success);
+  --color-danger-subtle: var(--color-bg-error);
+  --color-warning: var(--color-text-warning);
+  --color-warning-subtle: var(--color-bg-warning);
+  --color-attention: var(--color-text-warning);
+  --color-attention-subtle: var(--color-bg-warning);
+  --color-info: var(--color-text-link);
+  --color-info-subtle: var(--color-brand-50);
+  --focus: var(--color-focus);
+  --shadow-card: 0 2px 8px 0 rgba(10, 15, 13, 0.06);
+}
+.sidebar, .evidence-rail, .evidence-panel {
+  --color-canvas: #11181e;
+  --color-surface: #182128;
+  --color-surface-subtle: #222d34;
+  --color-ink: #f4f7f6;
+  --color-ink-secondary: #a8b2ae;
+  --color-ink-muted: #85908b;
+  --color-line: #2e3a42;
+  --color-line-strong: #3d4a53;
+  --color-success: #7fcca9;
+  --color-success-subtle: #1c3a2e;
+  --color-danger: #f0a3a6;
+  --color-danger-subtle: #46262b;
+  --color-warning: #e8b25a;
+  --color-warning-subtle: #2f2817;
+  --color-attention: #e8b25a;
+  --color-attention-subtle: #3a2f1c;
+  --color-info: #9db5e6;
+  --color-info-subtle: #223146;
+  --surface-context: var(--surface-decision);
+  --focus: var(--color-focus);
+  color-scheme: dark;
+  color: var(--color-ink);
+}
+
 .skip-link { position: fixed; top: 8px; left: 8px; z-index: 100; transform: translateY(-150%); background: var(--color-surface); padding: 10px 18px; border: 1px solid var(--color-line-strong); }
 .skip-link:focus { transform: translateY(0); }
 .app-shell { display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); min-height: 100vh; }

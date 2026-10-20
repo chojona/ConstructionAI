@@ -77,8 +77,8 @@ const acceptedFinding = {
 describe("changes desk chrome", () => {
   it("keeps Figma Product UI V1 canvas and brand tokens", () => {
     const css = readAppCss();
-    expect(css).toContain("--color-canvas: #f2f4f1");
-    expect(css).toContain("--color-brand: #d79a32");
+    expect(css).toContain("--color-gray-50: #F9FAFB");
+    expect(css).toContain("--color-brand-500: #D79A32");
     expect(css).not.toContain("#17191f");
     expect(css).not.toContain("#5269c9");
     expect(css).not.toContain("#191c23");

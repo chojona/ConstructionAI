@@ -132,6 +132,23 @@ const bannedPrefixes = ["[PLACEHOLDER", "[CTO", "[DO NOT PUBLISH", "[NOTE", "[AT
 
 const bannedLiterals = ["CTO CONFIRM", "CTO RESULT", "DO NOT PUBLISH", "PLACEHOLDER", "ATTORNEY QUESTION"] as const;
 
+// A bracket inside a class or style value is a design token only when every
+// piece is a number with an optional unit, "_", ",", ".", "-", var(--name),
+// a type hint glued to var(), or rgb()/rgba() of numbers. Any other letter stays.
+const designTokenBracket = /\[(?:-?\d+(?:\.\d+)?(?:px|rem|em)?|var\(--[a-z0-9-]+\)|[a-z]+:var\(--[a-z0-9-]+\)|rgba?\(\d+(?:\.\d+)?(?:,\d+(?:\.\d+)?){2,3}\)|[_.,-])+\]/gi;
+
+/** Drop allowlisted design-token brackets from class and style values inside tags. */
+function omitDesignTokenBrackets(html: string): string {
+  return html.replace(/<[^>]*>/g, (tag) => tag.replace(
+    /(\s(?:class|style)\s*=\s*)("[^"]*"|'[^']*')/gi,
+    (_match, prefix: string, quoted: string) => {
+      const quote = quoted[0];
+      const value = quoted.slice(1, -1).replace(new RegExp(designTokenBracket.source, "gi"), "");
+      return `${prefix}${quote}${value}${quote}`;
+    },
+  ));
+}
+
 /** Tags and bracketed blanks that must never ship in legal HTML. */
 export function findLegalCopyViolations(html: string): string[] {
   const hits: string[] = [];
@@ -141,7 +158,8 @@ export function findLegalCopyViolations(html: string): string[] {
   for (const literal of bannedLiterals) {
     if (html.includes(literal)) hits.push(literal);
   }
-  for (const match of html.match(/\[[^\]\n]+\]/g) ?? []) {
+  const copy = omitDesignTokenBrackets(html);
+  for (const match of copy.match(/\[[^\[\]\n]+\]/g) ?? []) {
     hits.push(match);
   }
   return hits;

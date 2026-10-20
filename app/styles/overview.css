@@ -1,13 +1,14 @@
 /* Overview banner, metric cards, and the Projects table. */
 
-.project-table-head, .project-list .project-card { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2.3fr) minmax(0, 1.4fr) minmax(0, 1.5fr); gap: 12px; align-items: center; padding: 0 14px; }
-.project-table-head { height: 30px; border-bottom: 1px solid var(--color-line); background: var(--color-surface-subtle); color: var(--color-ink-muted); font-size: 9px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.project-table-head, .project-list .project-card { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2.3fr) minmax(0, 1.4fr) minmax(0, 1.5fr); gap: 12px; align-items: center; padding: 0 var(--space-5); }
+.project-table-head { height: var(--size-target-min); border-bottom: 1px solid var(--color-border-default); background: var(--color-bg-canvas); color: var(--color-text-secondary); font-size: var(--font-size-xs); font-weight: 500; line-height: var(--font-line-height-xs); letter-spacing: 0; text-transform: none; }
 .project-list .project-card { min-height: 50px; border: 0; border-bottom: 1px solid var(--color-line); border-radius: 0; background: transparent; }
 .project-list .project-card:last-child { border-bottom: 0; }
-.project-list .project-card:hover { background: var(--color-surface-subtle); }
+.project-list .project-card:hover { background: var(--color-bg-hover); }
 .project-list .project-card.needs-attention { background: var(--color-warning-subtle); }
 .project-list .project-card.needs-attention:hover { background: var(--color-attention-subtle); }
-.project-list .project-card.is-active { background: var(--color-warning-subtle); box-shadow: inset 3px 0 var(--color-brand); }
+.project-list .project-card.is-active { background: var(--color-bg-selected); box-shadow: inset 3px 0 var(--color-focus); }
+.project-list .project-card:focus-visible { outline: var(--size-border-focus) solid var(--color-focus); outline-offset: -2px; }
 .project-list .project-card-name { font-size: 12px; font-weight: 600; }
 .project-list .project-card-number, .project-list .project-card-docs { color: var(--color-ink-secondary); font-size: 12px; font-weight: 500; }
 .project-card-status { min-width: 0; }

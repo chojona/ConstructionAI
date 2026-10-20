@@ -4,15 +4,19 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-xs font-semibold leading-none transition-colors disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex min-h-[var(--size-target-min)] min-w-[var(--size-target-min)] items-center justify-center gap-[var(--space-2)] whitespace-nowrap rounded-[var(--radius-md)] border border-solid px-[18px] text-[length:var(--font-size-md)] font-semibold leading-[var(--font-line-height-md)] shadow-[0_1px_2px_0_rgba(16,24,40,0.05)] transition-colors disabled:cursor-not-allowed disabled:border-[var(--color-border-default)] disabled:bg-[var(--color-bg-disabled)] disabled:text-[var(--color-text-disabled)] disabled:shadow-none aria-disabled:cursor-not-allowed aria-disabled:border-[var(--color-border-default)] aria-disabled:bg-[var(--color-bg-disabled)] aria-disabled:text-[var(--color-text-disabled)] aria-disabled:shadow-none",
   {
     variants: {
       variant: {
-        default: "bg-brand text-brand-ink hover:bg-brand-hover",
-        outline: "border border-line-strong bg-surface text-ink hover:bg-surface-subtle",
-        ghost: "text-ink-secondary hover:bg-surface-subtle hover:text-ink",
+        default: "border-[var(--color-bg-brand)] bg-[var(--color-bg-brand)] text-[var(--color-text-on-brand)] hover:border-[var(--color-bg-brand-hover)] hover:bg-[var(--color-bg-brand-hover)]",
+        outline: "button-outline border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] text-[var(--color-text-label)] hover:bg-[var(--color-bg-hover)] disabled:border-[var(--color-border-default)] disabled:bg-[var(--color-bg-surface)] disabled:shadow-[0_1px_2px_0_rgba(16,24,40,0.05)] aria-disabled:border-[var(--color-border-default)] aria-disabled:bg-[var(--color-bg-surface)] aria-disabled:shadow-[0_1px_2px_0_rgba(16,24,40,0.05)]",
+        ghost: "border-transparent bg-transparent text-[var(--color-text-secondary)] shadow-none hover:bg-[var(--color-bg-hover)]",
       },
-      size: { default: "h-8 px-3", sm: "h-8 px-2.5", lg: "h-9 px-3.5" },
+      size: {
+        default: "h-[var(--size-target-min)] px-[18px]",
+        sm: "h-[var(--size-target-min)] px-[18px]",
+        lg: "h-12 px-[22px]",
+      },
     },
     defaultVariants: { variant: "default", size: "default" },
   },
