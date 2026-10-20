@@ -3,6 +3,7 @@ import path from "node:path";
 import { DomainError } from "@/lib/domain/errors";
 import type { ConstructionRepository } from "@/lib/domain/repository";
 import { constructionRepository } from "@/lib/domain/prismaRepository";
+import { MAX_UPLOAD_BYTES, UPLOAD_TOO_LARGE_MESSAGE } from "@/lib/documents/uploadLimit";
 import { maxDocumentBytes, validatePdfUpload } from "@/lib/documents/validateUpload";
 import { displayFilename } from "@/lib/documents/storage";
 import { extractPdfDocument } from "@/lib/documents/extractPdf";
@@ -141,7 +142,10 @@ async function readMarkupSummary(input: { bytes: Buffer; filename: string; mimeT
 function validateTextExport(bytes: Buffer) {
   const maxBytes = maxDocumentBytes();
   if (bytes.length === 0) throw new DomainError("EMPTY_FILE", "The uploaded file is empty.", 400);
-  if (bytes.length > maxBytes) throw new DomainError("FILE_TOO_LARGE", `The file exceeds the ${maxBytes} byte limit.`, 413);
+  const message = maxBytes >= MAX_UPLOAD_BYTES
+    ? UPLOAD_TOO_LARGE_MESSAGE
+    : `The file exceeds the ${maxBytes} byte limit.`;
+  if (bytes.length > maxBytes) throw new DomainError("FILE_TOO_LARGE", message, 413);
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {

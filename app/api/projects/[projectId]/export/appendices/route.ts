@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse } from "@/lib/http";
 import { authorizeRequest } from "@/lib/auth/membership";
+import { uploadBodyTooLarge, uploadFileTooLarge, uploadTooLargeResponse } from "@/lib/documents/uploadLimit";
 import { attachBluebeamMarkupAppendix } from "@/lib/review/bluebeamAppendix";
 
 export const runtime = "nodejs";
@@ -13,8 +14,10 @@ export async function POST(
   try {
     const { projectId } = await context.params;
     const access = await authorizeRequest(request, "upload");
+    if (uploadBodyTooLarge(request)) return uploadTooLargeResponse();
     const form = await request.formData();
     const file = form.get("file");
+    if (file instanceof File && uploadFileTooLarge(file)) return uploadTooLargeResponse();
     if (!(file instanceof File)) {
       return NextResponse.json(
         { error: { code: "INVALID_INPUT", message: "A PDF is required." } },

@@ -7,6 +7,7 @@ import { DraftEmailButton } from "@/components/review/draft-email";
 import type { ApprovalSignoff } from "@/lib/auth/approvalSignoff";
 import { PackProofList } from "@/components/review/pack-proof";
 import { Button } from "@/components/ui/button";
+import { completeUploadAttempt } from "@/lib/documents/uploadLimit";
 import { draftEmailVisible } from "@/lib/email/emailSendView";
 import {
   ACC_CHAPTER_ADDED_MESSAGE,
@@ -99,17 +100,22 @@ function AccChapterForm({ projectId, initialFiles }: { projectId: string; initia
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
+    const body = new FormData(form);
+    const raw = body.get("file");
     setPending(true);
     setMessage("");
     try {
-      const response = await fetch(`/api/projects/${projectId}/export/chapters`, {
-        method: "POST",
-        body: new FormData(form),
+      const outcome = await completeUploadAttempt({
+        file: raw instanceof File ? raw : null,
+        fallbackError: "Could not add the pack chapter.",
+        send: () => fetch(`/api/projects/${projectId}/export/chapters`, { method: "POST", body }),
       });
-      const result = await response.json() as { packet?: Parameters<typeof deskPackFilesFromPacket>[0]; error?: { message?: string } };
-      const proof = visiblePackProof(deskPackFilesFromPacket(result.packet).chapters);
-      if (!response.ok || proof.length === 0) {
-        setMessage(result.error?.message ?? "Could not add the pack chapter.");
+      const packet = outcome.ok && outcome.body && typeof outcome.body === "object"
+        ? (outcome.body as { packet?: Parameters<typeof deskPackFilesFromPacket>[0] }).packet
+        : undefined;
+      const proof = visiblePackProof(deskPackFilesFromPacket(packet).chapters);
+      if (!outcome.ok || proof.length === 0) {
+        setMessage(outcome.error || "Could not add the pack chapter.");
         return;
       }
       setFiles(proof);
@@ -165,17 +171,22 @@ function MarkupAppendixForm({
     event.preventDefault();
     const form = event.currentTarget;
     if (pageCites.length === 0) return;
+    const body = new FormData(form);
+    const raw = body.get("file");
     setPending(true);
     setMessage("");
     try {
-      const response = await fetch(`/api/projects/${projectId}/export/appendices`, {
-        method: "POST",
-        body: new FormData(form),
+      const outcome = await completeUploadAttempt({
+        file: raw instanceof File ? raw : null,
+        fallbackError: "Could not add the pack appendix.",
+        send: () => fetch(`/api/projects/${projectId}/export/appendices`, { method: "POST", body }),
       });
-      const result = await response.json() as { packet?: Parameters<typeof deskPackFilesFromPacket>[0]; error?: { message?: string } };
-      const proof = visiblePackProof(deskPackFilesFromPacket(result.packet).appendices);
-      if (!response.ok || proof.length === 0) {
-        setMessage(result.error?.message ?? "Could not add the pack appendix.");
+      const packet = outcome.ok && outcome.body && typeof outcome.body === "object"
+        ? (outcome.body as { packet?: Parameters<typeof deskPackFilesFromPacket>[0] }).packet
+        : undefined;
+      const proof = visiblePackProof(deskPackFilesFromPacket(packet).appendices);
+      if (!outcome.ok || proof.length === 0) {
+        setMessage(outcome.error || "Could not add the pack appendix.");
         return;
       }
       setFiles(proof);
