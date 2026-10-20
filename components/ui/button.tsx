@@ -9,7 +9,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "border-[var(--color-bg-brand)] bg-[var(--color-bg-brand)] text-[var(--color-text-on-brand)] hover:border-[var(--color-bg-brand-hover)] hover:bg-[var(--color-bg-brand-hover)]",
-        outline: "border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] text-[var(--color-text-label)] hover:bg-[var(--color-bg-hover)] disabled:border-[var(--color-border-default)] disabled:bg-[var(--color-bg-surface)] disabled:shadow-[0_1px_2px_0_rgba(16,24,40,0.05)] aria-disabled:border-[var(--color-border-default)] aria-disabled:bg-[var(--color-bg-surface)] aria-disabled:shadow-[0_1px_2px_0_rgba(16,24,40,0.05)]",
+        outline: "button-outline border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] text-[var(--color-text-label)] hover:bg-[var(--color-bg-hover)] disabled:border-[var(--color-border-default)] disabled:bg-[var(--color-bg-surface)] disabled:shadow-[0_1px_2px_0_rgba(16,24,40,0.05)] aria-disabled:border-[var(--color-border-default)] aria-disabled:bg-[var(--color-bg-surface)] aria-disabled:shadow-[0_1px_2px_0_rgba(16,24,40,0.05)]",
         ghost: "border-transparent bg-transparent text-[var(--color-text-secondary)] shadow-none hover:bg-[var(--color-bg-hover)]",
       },
       size: {

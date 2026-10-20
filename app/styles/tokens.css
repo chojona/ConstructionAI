@@ -123,6 +123,7 @@ button:disabled, button[aria-disabled="true"] { cursor: not-allowed; }
 /* Order-locked: palette and list focus offsets stay with the base :focus-visible rule. */
 .search-trigger:focus, .command-search input:focus { box-shadow: none; }
 .search-trigger:focus-visible { border-color: var(--color-border-default); }
-.command-search:focus-within { box-shadow: 0 0 0 1px var(--color-border-default); border-radius: var(--radius-sm); }
+.command-search input:focus-visible { outline: none; }
+.command-search:focus-within { border-color: var(--color-focus); box-shadow: none; border-radius: var(--radius-sm); }
 .list a:focus-visible, .revision-timeline a:focus-visible, .change-row:focus-visible, .command-result:focus-visible, .revision-index a:focus-visible { outline-offset: -2px; }
 ::selection { background: var(--color-brand-100); color: var(--color-text-primary); }

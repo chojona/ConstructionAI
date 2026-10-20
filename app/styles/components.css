@@ -1,4 +1,7 @@
 /* Shared buttons, empty states, panels, fields, and status pills. */
+/* Figma 74:366. Outline disabled text is #98A2B3 on white. --color-text-disabled stays #475467 for gray fills. */
+.button-outline:disabled,
+.button-outline[aria-disabled="true"] { color: #98A2B3; }
 
 .empty { display: grid; justify-items: start; gap: 4px; border: 1px dashed var(--color-line-strong); border-radius: 6px; padding: 20px 16px; color: var(--color-ink-secondary); text-align: left; font-size: 13px; line-height: 1.5; }
 .empty-compact { margin: 0; padding: 2px 0 0; color: var(--color-ink-secondary); font-size: 13px; line-height: 1.4; }
