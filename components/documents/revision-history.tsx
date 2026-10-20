@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { RevisionRecord } from "@/lib/domain/types";
-import { documentRegisterStatus, registerStatusClass, revisionIsLatest } from "@/lib/documents/documentRegister";
+import { documentRegisterStatus, registerStatusClass, revisionRelation } from "@/lib/documents/documentRegister";
 import { changeSummary, describeReading, revisionSignals, type RevisionFindingView } from "@/lib/documents/revisionExperience";
 
 const date = (value: Date) => new Intl.DateTimeFormat("en-US", {
@@ -24,9 +24,9 @@ export function RevisionHistory({
   return (
     <ol className="revision-timeline">
       {revisions.map((revision) => {
-        const isLatest = revisionIsLatest(revision, revisions);
-        const status = documentRegisterStatus(isLatest, revision.status) ?? "Failed";
-        const reading = describeReading(revision.status, revision.failureCode, revision.failureMessage, isLatest);
+        const relation = revisionRelation(revision, revisions);
+        const status = documentRegisterStatus(revision.status, relation) ?? "Failed";
+        const reading = describeReading(revision.status, revision.failureCode, revision.failureMessage, relation);
         const signals = revisionSignals(revision.id, findings);
         const summary = changeSummary(signals);
         const note = status === "Failed" || status === "Processing" ? reading.summary : null;

@@ -34,26 +34,26 @@ function finding(overrides: Partial<RevisionFindingView> & Pick<RevisionFindingV
 
 describe("describeReading", () => {
   it("explains a scanned file without internal codes", () => {
-    const copy = describeReading("FAILED", "SCANNED_OR_EMPTY", "No usable embedded text was found. OCR is not available in Phase 1.", true);
+    const copy = describeReading("FAILED", "SCANNED_OR_EMPTY", "No usable embedded text was found. OCR is not available in Phase 1.", "later");
     expect(copy.label).toBe("Failed");
     expect(copy.summary).toMatch(/selectable text/i);
     expect(copy.action).toMatch(/not a scan/i);
     expect(`${copy.label} ${copy.summary} ${copy.action}`).not.toMatch(/SCANNED|OCR|Phase 1|storage|Ready|Latest/i);
   });
 
-  it("uses the register status words for the latest revision", () => {
-    expect(describeReading("PROCESSED", null, null, true)).toMatchObject({ label: "Current", tone: "ready", action: null });
-    expect(describeReading("PROCESSING", null, null, true)).toMatchObject({ label: "Processing", tone: "waiting" });
-    expect(describeReading("PROCESSING", null, null, true).summary).toMatch(/being read/i);
-    expect(describeReading("UPLOADED", null, null, true)).toMatchObject({ label: "Processing", tone: "waiting" });
-    expect(describeReading("FAILED", null, null, true).label).toBe("Failed");
+  it("uses the register status words for the current revision and a later upload", () => {
+    expect(describeReading("PROCESSED", null, null, "current")).toMatchObject({ label: "Current", tone: "ready", action: null });
+    expect(describeReading("PROCESSING", null, null, "later")).toMatchObject({ label: "Processing", tone: "waiting" });
+    expect(describeReading("PROCESSING", null, null, "later").summary).toMatch(/being read/i);
+    expect(describeReading("UPLOADED", null, null, "later")).toMatchObject({ label: "Processing", tone: "waiting" });
+    expect(describeReading("FAILED", null, null, "later").label).toBe("Failed");
   });
 
   it("labels every older revision Superseded", () => {
-    expect(describeReading("PROCESSED", null, null, false)).toMatchObject({ label: "Superseded", tone: "idle" });
-    expect(describeReading("FAILED", "SCANNED_OR_EMPTY", "No usable embedded text was found.", false).label).toBe("Superseded");
-    expect(describeReading("PROCESSING", null, null, false).label).toBe("Superseded");
-    expect(describeReading("UPLOADED", null, null, false).label).toBe("Superseded");
+    expect(describeReading("PROCESSED", null, null, "older")).toMatchObject({ label: "Superseded", tone: "idle" });
+    expect(describeReading("FAILED", "SCANNED_OR_EMPTY", "No usable embedded text was found.", "older").label).toBe("Superseded");
+    expect(describeReading("PROCESSING", null, null, "older").label).toBe("Superseded");
+    expect(describeReading("UPLOADED", null, null, "older").label).toBe("Superseded");
   });
 });
 

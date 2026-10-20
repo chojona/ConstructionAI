@@ -44,12 +44,12 @@ function statusLabels(html: string): string[] {
 }
 
 describe("revision status on document pages", () => {
-  it("labels an older processed revision Superseded and mutes the row", () => {
+  it("keeps the processed revision Current when a later upload failed", () => {
     const html = renderToStaticMarkup(createElement(RevisionHistory, { revisions: [newer, older], findings: [] }));
     expect(html).toContain("Rev A");
-    expect(html).toContain("is-superseded");
-    expect(html).toContain("status-muted");
-    expect(html).toContain(">Superseded<");
+    expect(html).toContain(">Current<");
+    expect(html).toContain(">Failed<");
+    expect(html).not.toContain("is-superseded");
     expect(html).toContain("Upload 1 of 2");
     expect(html).toContain("Upload 2 of 2");
     expect(html).toContain("selectable text");
@@ -58,7 +58,7 @@ describe("revision status on document pages", () => {
     expect(html).not.toContain("Revision 1");
     expect(html).not.toContain("Revision 2");
     const labels = statusLabels(html);
-    expect(labels).toEqual(["Failed", "Superseded"]);
+    expect(labels).toEqual(["Failed", "Current"]);
     for (const label of labels) expect(statusWords).toContain(label);
   });
 
@@ -74,9 +74,10 @@ describe("revision status on document pages", () => {
 
 describe("revision status on the revision page", () => {
   it("shows Superseded for an older cite and Upload order instead of Revision N", () => {
+    const current = revision({ id: "rev_b", revisionLabel: "Rev B", revisionOrder: 2, status: "PROCESSED" });
     const html = renderToStaticMarkup(createElement(RevisionInspection, {
       revision: { ...older, pageCount: 4 },
-      siblings: [older, newer],
+      siblings: [older, current],
       runs: [],
       findings: [],
       uploadedLabel: "Sep 1, 2026",

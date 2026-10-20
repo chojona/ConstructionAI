@@ -5,7 +5,7 @@ import { ProjectContext } from "@/components/workspace/project-context";
 import { ProjectNavigation } from "@/components/workspace/project-navigation";
 import { UploadRevisionForm } from "@/components/forms/upload-revision-form";
 import { documentIdentity } from "@/lib/documents/documentDesk";
-import { documentRegisterStatus, latestRevision, registerStatusClass } from "@/lib/documents/documentRegister";
+import { documentRegisterStatus, latestRevision, registerStatusClass, revisionRelation } from "@/lib/documents/documentRegister";
 import { getDocument } from "@/lib/documents/service";
 import { describeReading } from "@/lib/documents/revisionExperience";
 import { DomainError } from "@/lib/domain/errors";
@@ -52,8 +52,9 @@ export default async function DocumentPage({
   }
 
   const latest = latestRevision(document.revisions);
-  const status = latest ? documentRegisterStatus(true, latest.status) : null;
-  const reading = latest && status ? describeReading(latest.status, latest.failureCode, latest.failureMessage, true) : null;
+  const relation = latest ? revisionRelation(latest, document.revisions) : "later";
+  const status = latest ? documentRegisterStatus(latest.status, relation) : null;
+  const reading = latest && status ? describeReading(latest.status, latest.failureCode, latest.failureMessage, relation) : null;
   const statusNote = status === "Failed" || status === "Processing" ? reading?.summary : null;
   const identity = documentIdentity(document.documentType, document.project.name);
 
