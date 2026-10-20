@@ -1,0 +1,359 @@
+import { createHash, randomUUID } from "node:crypto";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
+import {
+  AbortMultipartUploadCommand,
+  CreateMultipartUploadCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
+import { readObjectStorageConfig, type ObjectStorageEnv } from "./objectStore";
+import {
+  PRESIGNED_UPLOAD_PART_EXPIRES_SECONDS,
+  signUploadPartUrl,
+  uploadPartChecksumSha256Supported,
+} from "./presignedUploadPart";
+
+export const SPIKE_ORG_ID = "spike-org";
+export const SPIKE_DOC_ID = "spike-doc";
+export const SPIKE_SIGNED_PART_BYTES = 64;
+
+const RESPONSE_BYTE_CAP = 65_536;
+
+export class SpikeStorageRefused extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SpikeStorageRefused";
+  }
+}
+
+export interface SpikeEnv extends ObjectStorageEnv {
+  SPIKE_BUCKET?: string;
+  SPIKE_ENDPOINT?: string;
+  SPIKE_STORAGE_ENV?: string;
+  VERCEL_ENV?: string;
+  NODE_ENV?: string;
+}
+
+export interface SpikeAttempt {
+  name: "exact" | "over" | "under" | "checksum-match" | "checksum-mismatch";
+  bytes: number;
+  httpStatus: number | null;
+  errorCode: string | null;
+  rejected: boolean | null;
+  error: string | null;
+}
+
+export interface SpikeReport {
+  key: string;
+  uploadId: string | null;
+  bucket: string;
+  endpointHost: string;
+  forcePathStyle: true;
+  signedContentLength: number;
+  expiresSeconds: number;
+  checksumSupported: boolean;
+  attempts: SpikeAttempt[];
+  aborted: boolean;
+  abortError: string | null;
+}
+
+export function spikeUploadPartKey(intentId: string): string {
+  if (!/^spike-[A-Za-z0-9-]{8,80}$/.test(intentId)) {
+    throw new SpikeStorageRefused("Spike intent id must be an obvious spike id.");
+  }
+  return `org/${SPIKE_ORG_ID}/doc/${SPIKE_DOC_ID}/staging/${intentId}.pdf`;
+}
+
+/** Drop URLs, signatures, and access-key ids before anything is printed. */
+export function redactSecrets(value: string): string {
+  return value
+    .replace(/https?:\/\/[^\s"'<>]+/gi, "[redacted-url]")
+    .replace(/\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g, "[redacted-key]")
+    .replace(/(?:X-Amz-[A-Za-z0-9-]+|Signature|AWSAccessKeyId)=(?:[^&\s]+)/gi, "[redacted-amz]");
+}
+
+export function looksLikeProductionName(value: string): boolean {
+  const tokens = value.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  return tokens.some((token) => {
+    if (token === "nonprod" || token.startsWith("nonprod")) return false;
+    return token.includes("prod");
+  });
+}
+
+export function spikeRefusalReason(env: SpikeEnv): string | null {
+  const bucket = trimmed(env.SPIKE_BUCKET);
+  const endpoint = trimmed(env.SPIKE_ENDPOINT);
+  if (!bucket) return "Refusing to run: set SPIKE_BUCKET to an explicit non-production bucket.";
+  if (trimmed(env.SPIKE_STORAGE_ENV) !== "nonprod") {
+    return "Refusing to run: set SPIKE_STORAGE_ENV=nonprod. The spike does not guess.";
+  }
+  if (env.VERCEL_ENV === "production") return "Refusing to run: VERCEL_ENV=production.";
+  if (env.NODE_ENV === "production") return "Refusing to run: NODE_ENV=production.";
+  if (looksLikeProductionName(bucket)) return "Refusing to run: SPIKE_BUCKET looks like production.";
+  const appBucket = first(env.OBJECT_STORAGE_BUCKET, env.DOCUMENT_STORAGE_BUCKET);
+  if (appBucket && looksLikeProductionName(appBucket)) {
+    return "Refusing to run: the configured document bucket looks like production.";
+  }
+  if (!endpoint) {
+    return "Refusing to run: set SPIKE_ENDPOINT to the non-production endpoint. An unset endpoint is refused.";
+  }
+  const parsed = parseEndpoint(endpoint);
+  if (typeof parsed === "string") return parsed;
+  if (looksLikeProductionName(parsed.hostname)) return "Refusing to run: SPIKE_ENDPOINT looks like production.";
+  const resolved = first(env.OBJECT_STORAGE_ENDPOINT, env.AWS_ENDPOINT_URL_S3);
+  if (!resolved) {
+    return "Refusing to run: set OBJECT_STORAGE_ENDPOINT or AWS_ENDPOINT_URL_S3 to the same value as SPIKE_ENDPOINT.";
+  }
+  if (resolved !== endpoint) {
+    return "Refusing to run: SPIKE_ENDPOINT must exactly match OBJECT_STORAGE_ENDPOINT or AWS_ENDPOINT_URL_S3.";
+  }
+  for (const candidate of [env.OBJECT_STORAGE_ENDPOINT, env.AWS_ENDPOINT_URL_S3]) {
+    const value = trimmed(candidate);
+    if (!value || value === endpoint) continue;
+    return "Refusing to run: OBJECT_STORAGE_ENDPOINT and AWS_ENDPOINT_URL_S3 disagree.";
+  }
+  return null;
+}
+
+export function readSpikeStorageConfig(env: SpikeEnv) {
+  const reason = spikeRefusalReason(env);
+  if (reason) throw new SpikeStorageRefused(reason);
+  const bucket = trimmed(env.SPIKE_BUCKET);
+  const endpoint = trimmed(env.SPIKE_ENDPOINT);
+  if (!bucket || !endpoint) throw new SpikeStorageRefused("Refusing to run: spike target is incomplete.");
+  let config;
+  try {
+    config = readObjectStorageConfig({
+      ...env,
+      OBJECT_STORAGE_BUCKET: bucket,
+      DOCUMENT_STORAGE_BUCKET: bucket,
+    });
+  } catch {
+    throw new SpikeStorageRefused("Refusing to run: object storage credentials are missing or invalid.");
+  }
+  if (!config?.endpoint || config.bucket !== bucket || config.endpoint !== endpoint) {
+    throw new SpikeStorageRefused("Refusing to run: resolved storage target is not the spike bucket and endpoint.");
+  }
+  return { ...config, forcePathStyle: true as const };
+}
+
+export async function runPresignedPartLengthProbe(env: SpikeEnv = process.env): Promise<SpikeReport> {
+  const config = readSpikeStorageConfig(env);
+  const endpointHost = new URL(config.endpoint ?? "").hostname;
+  const intentId = `spike-${randomUUID()}`;
+  const key = spikeUploadPartKey(intentId);
+  const client = new S3Client({
+    region: config.region,
+    endpoint: config.endpoint,
+    forcePathStyle: true,
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
+    logger: silentLogger,
+    credentials: {
+      accessKeyId: config.accessKeyId,
+      secretAccessKey: config.secretAccessKey,
+    },
+  });
+  const report: SpikeReport = {
+    key,
+    uploadId: null,
+    bucket: config.bucket,
+    endpointHost,
+    forcePathStyle: true,
+    signedContentLength: SPIKE_SIGNED_PART_BYTES,
+    expiresSeconds: PRESIGNED_UPLOAD_PART_EXPIRES_SECONDS,
+    checksumSupported: uploadPartChecksumSha256Supported(),
+    attempts: [],
+    aborted: false,
+    abortError: null,
+  };
+  let uploadId: string | undefined;
+  try {
+    const created = await client.send(new CreateMultipartUploadCommand({
+      Bucket: config.bucket,
+      Key: key,
+      ContentType: "application/pdf",
+    }));
+    uploadId = created.UploadId;
+    report.uploadId = uploadId ?? null;
+    if (!uploadId) throw new SpikeStorageRefused("CreateMultipartUpload returned no upload id.");
+    const exact = Buffer.alloc(SPIKE_SIGNED_PART_BYTES, 0x61);
+    const lengthUrl = await signUploadPartUrl(client, {
+      bucket: config.bucket,
+      key,
+      uploadId,
+      partNumber: 1,
+      contentLength: SPIKE_SIGNED_PART_BYTES,
+    });
+    report.attempts.push(await attempt("exact", lengthUrl, exact));
+    report.attempts.push(await attempt("over", lengthUrl, Buffer.alloc(SPIKE_SIGNED_PART_BYTES + 1, 0x61)));
+    report.attempts.push(await attempt("under", lengthUrl, Buffer.alloc(SPIKE_SIGNED_PART_BYTES - 1, 0x61)));
+    if (report.checksumSupported) {
+      const checksum = createHash("sha256").update(exact).digest("base64");
+      const checksumUrl = await signUploadPartUrl(client, {
+        bucket: config.bucket,
+        key,
+        uploadId,
+        partNumber: 2,
+        contentLength: SPIKE_SIGNED_PART_BYTES,
+        checksumSha256: checksum,
+      });
+      const headers = { "x-amz-checksum-sha256": checksum };
+      report.attempts.push(await attempt("checksum-match", checksumUrl, exact, headers));
+      report.attempts.push(await attempt(
+        "checksum-mismatch",
+        checksumUrl,
+        Buffer.alloc(SPIKE_SIGNED_PART_BYTES, 0x62),
+        headers,
+      ));
+    }
+  } catch (error) {
+    report.abortError = sdkFailure(error);
+  } finally {
+    if (uploadId) {
+      try {
+        await client.send(new AbortMultipartUploadCommand({
+          Bucket: config.bucket,
+          Key: key,
+          UploadId: uploadId,
+        }));
+        report.aborted = true;
+      } catch (error) {
+        report.aborted = false;
+        report.abortError = sdkFailure(error);
+      }
+    }
+    client.destroy();
+  }
+  return report;
+}
+
+async function attempt(
+  name: SpikeAttempt["name"],
+  url: string,
+  body: Buffer,
+  headers: Record<string, string> = {},
+): Promise<SpikeAttempt> {
+  try {
+    const result = await putPart(url, body, headers);
+    return { name, bytes: body.byteLength, ...result, error: null };
+  } catch (error) {
+    return {
+      name,
+      bytes: body.byteLength,
+      httpStatus: null,
+      errorCode: null,
+      rejected: null,
+      error: sdkFailure(error),
+    };
+  }
+}
+
+function putPart(
+  url: string,
+  body: Buffer,
+  extraHeaders: Record<string, string>,
+): Promise<Pick<SpikeAttempt, "httpStatus" | "errorCode" | "rejected">> {
+  const target = new URL(url);
+  const transport = target.protocol === "https:" ? httpsRequest : httpRequest;
+  return new Promise((resolve, reject) => {
+    const req = transport(target, {
+      method: "PUT",
+      headers: {
+        "content-length": String(body.byteLength),
+        ...extraHeaders,
+      },
+    }, (res) => {
+      const chunks: Buffer[] = [];
+      let received = 0;
+      res.on("data", (chunk: Buffer) => {
+        received += chunk.length;
+        if (received > RESPONSE_BYTE_CAP) {
+          res.destroy();
+          return;
+        }
+        chunks.push(chunk);
+      });
+      res.on("end", () => {
+        const raw = Buffer.concat(chunks).toString("utf8");
+        const errorCode = raw.match(/<Code>([A-Za-z0-9]+)<\/Code>/)?.[1] ?? null;
+        const httpStatus = res.statusCode ?? 0;
+        resolve({ httpStatus, errorCode, rejected: httpStatus >= 400 });
+      });
+      res.on("error", () => reject(new Error("UploadPart response failed.")));
+    });
+    req.setTimeout(20_000, () => req.destroy(Object.assign(new Error("UploadPart PUT timed out."), { code: "ETIMEDOUT" })));
+    req.on("error", (error: NodeJS.ErrnoException) => {
+      reject(new Error(error.code ? `UploadPart PUT failed (${error.code}).` : "UploadPart PUT failed."));
+    });
+    req.write(body);
+    req.end();
+  });
+}
+
+function sdkFailure(error: unknown): string {
+  if (error instanceof SpikeStorageRefused) return error.message;
+  if (!error || typeof error !== "object") return "Object storage request failed.";
+  const record = error as { name?: string; code?: string; message?: string; $metadata?: { httpStatusCode?: number } };
+  if (record.name === "SpikeStorageRefused" && record.message) return redactSecrets(record.message);
+  const status = record.$metadata?.httpStatusCode;
+  const name = record.name && /^[A-Za-z][A-Za-z0-9]+$/.test(record.name) ? record.name : null;
+  if (name) return status ? `${name} (${status})` : name;
+  if (record.code && /^[A-Z0-9_]+$/.test(record.code)) return `UploadPart PUT failed (${record.code}).`;
+  if (record.message && record.message.startsWith("UploadPart PUT failed")) return record.message;
+  if (record.message === "UploadPart PUT timed out.") return record.message;
+  return "Object storage request failed.";
+}
+
+function parseEndpoint(value: string): URL | string {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return "Refusing to run: SPIKE_ENDPOINT is not a URL.";
+  }
+  if (url.username || url.password || url.search || url.hash || /X-Amz-Signature/i.test(value)) {
+    return "Refusing to run: SPIKE_ENDPOINT must be the storage origin. Presigned URLs are refused and are not printed.";
+  }
+  if (url.pathname !== "/" && url.pathname !== "") {
+    return "Refusing to run: SPIKE_ENDPOINT must be an origin without a path.";
+  }
+  const loopback = isLoopback(url.hostname);
+  if (url.protocol !== "https:" && !loopback) return "Refusing to run: SPIKE_ENDPOINT must be https, except loopback.";
+  if (url.protocol !== "https:" && url.protocol !== "http:") return "Refusing to run: SPIKE_ENDPOINT must be http or https.";
+  if (!loopback && !isNeonHost(url.hostname)) {
+    return "Refusing to run: SPIKE_ENDPOINT host is not a Neon host or loopback.";
+  }
+  return url;
+}
+
+function isNeonHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/\.+$/, "");
+  return host === "neon.tech" || host.endsWith(".neon.tech");
+}
+
+function isLoopback(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/\.+$/, "");
+  return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
+}
+
+function trimmed(value: string | undefined) {
+  const text = value?.trim();
+  return text ? text : undefined;
+}
+
+function first(...values: Array<string | undefined>) {
+  for (const value of values) {
+    const text = trimmed(value);
+    if (text) return text;
+  }
+  return undefined;
+}
+
+const silentLogger = {
+  trace: () => {},
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+};
