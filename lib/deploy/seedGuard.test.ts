@@ -90,6 +90,67 @@ describe("seed production guard", () => {
     expect(refused).not.toMatch(/direct-secret/);
   });
 
+  it("refuses a Neon pooler URL when PROD_DB_HOST is the direct host", () => {
+    const direct = "ep-foo-123.us-east-2.aws.neon.tech";
+    const pooler = "ep-foo-123-pooler.us-east-2.aws.neon.tech";
+    const refused = seedRefusalReason({
+      DATABASE_URL: `postgresql://refused:super-secret@${pooler}:5432/neondb`,
+      PROD_DB_HOST: direct,
+    });
+    expect(refused).toMatch(
+      /DATABASE_URL host matches PROD_DB_HOST \(ep-foo-123\.us-east-2\.aws\.neon\.tech\)/,
+    );
+    expect(refused).not.toMatch(/super-secret/);
+    expect(
+      seedRefusalReason({
+        DATABASE_URL: `postgresql://refused:secret@${pooler}/neondb`,
+        PROD_DB_HOST: "ep-other.us-east-2.aws.neon.tech",
+      }),
+    ).toBeNull();
+    expect(
+      seedRefusalReason({
+        DATABASE_URL: "postgresql://refused:secret@cache-pooler.internal/db",
+        PROD_DB_HOST: "cache.internal",
+      }),
+    ).toBeNull();
+  });
+
+  it("refuses a Neon direct URL when PROD_DB_HOST is the pooler host", () => {
+    const refused = seedRefusalReason({
+      DIRECT_DATABASE_URL: "postgresql://refused:direct-secret@ep-foo-123.us-east-2.aws.neon.tech/neondb",
+      DATABASE_URL: devUrl,
+      PROD_DB_HOST: "EP-FOO-123-POOLER.us-east-2.aws.neon.tech:5432",
+    });
+    expect(refused).toMatch(
+      /DIRECT_DATABASE_URL host matches PROD_DB_HOST \(ep-foo-123-pooler\.us-east-2\.aws\.neon\.tech\)/,
+    );
+    expect(refused).not.toMatch(/because DATABASE_URL host matches/);
+    expect(refused).not.toMatch(/direct-secret/);
+  });
+
+  it("refuses when a comma-separated PROD_DB_HOST list names the host", () => {
+    const refused = seedRefusalReason({
+      DATABASE_URL: devUrl,
+      DIRECT_DATABASE_URL: prodUrl,
+      PROD_DB_HOST: " , db.internal ,  ep-prod.neon.tech ",
+    });
+    expect(refused).toMatch(/DIRECT_DATABASE_URL host matches PROD_DB_HOST \(ep-prod\.neon\.tech\)/);
+    expect(refused).not.toMatch(/because DATABASE_URL host matches/);
+    expect(
+      seedRefusalReason({
+        DATABASE_URL: prodUrl,
+        PROD_DB_HOST: " db.internal, localhost ",
+      }),
+    ).toBeNull();
+    expect(seedRefusalReason({ DATABASE_URL: prodUrl, PROD_DB_HOST: " , , " })).toBeNull();
+    expect(
+      seedRefusalReason({
+        DATABASE_URL: devUrl,
+        PROD_DB_HOST: "ep-prod.neon.tech, not a host",
+      }),
+    ).toMatch(/PROD_DB_HOST is set but is not a usable hostname/);
+  });
+
   it("fails closed when PROD_DB_HOST is set and a URL cannot be checked", () => {
     expect(
       seedRefusalReason({

@@ -20,11 +20,19 @@ const POSTGRES_PROTOCOLS = new Set(["postgres:", "postgresql:"]);
  * 1. Environment. `VERCEL_ENV` or `NODE_ENV` is exactly `production`.
  *    An unset or other value does not trip this check.
  *
- * 2. Host. The hostname of `DATABASE_URL` or `DIRECT_DATABASE_URL` equals
+ * 2. Host. The hostname of `DATABASE_URL` or `DIRECT_DATABASE_URL` matches
  *    `PROD_DB_HOST`. Comparison is case-insensitive, ignores the port and a
  *    trailing dot, and treats a unicode hostname and its punycode form as
- *    the same host. `PROD_DB_HOST` may be a bare hostname, `host:port`, or
- *    a postgres URL; only the hostname is used.
+ *    the same host. `PROD_DB_HOST` may be a bare hostname, `host:port`, a
+ *    postgres URL, or a comma-separated list of those. Blank entries are
+ *    dropped. Only the hostname of each entry is used. A list that still
+ *    contains an unusable entry fails closed.
+ *
+ *    On a `*.neon.tech` host, the endpoint label (the first label) ending
+ *    in `-pooler` matches the same endpoint without that suffix, in either
+ *    direction. `ep-foo-123-pooler.us-east-2.aws.neon.tech` and
+ *    `ep-foo-123.us-east-2.aws.neon.tech` are one host. A `-pooler` label
+ *    on any other hostname stays part of that name.
  *
  * When `PROD_DB_HOST` is unset or blank, the host check does not refuse.
  * That matches #99: a missing production signal is not treated as
@@ -37,10 +45,6 @@ const POSTGRES_PROTOCOLS = new Set(["postgres:", "postgresql:"]);
  * be shown to be non-production. A URL that is itself unset is skipped so
  * the other URL can still be checked. Refusal text includes hostnames only,
  * never a connection string.
- *
- * The configured value is one hostname. A Neon pooled host and the direct
- * host are different names, so `PROD_DB_HOST` blocks only that hostname.
- * Both connection URLs are compared with it.
  */
 export function seedRefusalReason(env: SeedEnv = process.env): string | null {
   if (env.ALLOW_PROD_SEED === "1") return null;
@@ -67,12 +71,15 @@ function productionEnvironmentRefusal(env: SeedEnv): string | null {
   return `Refusing to seed while ${reasons.join(" and ")}. Seed is manual and is not part of the Vercel build. Set ALLOW_PROD_SEED=1 to override.`;
 }
 
+const NEON_POOLER_SUFFIX = "-pooler";
+
 function productionHostRefusal(env: SeedEnv): string | null {
   const configured = blankToUndefined(env.PROD_DB_HOST);
   if (!configured) return null;
 
-  const prodHost = canonicalHost(configured.includes("://") ? hostnameFromPostgresUrl(configured) ?? "" : configured);
-  if (!prodHost) {
+  const prodHosts = parseProdDbHosts(configured);
+  if (prodHosts.kind === "blank") return null;
+  if (prodHosts.kind === "unusable") {
     return "Refusing to seed because PROD_DB_HOST is set but is not a usable hostname, so the database host cannot be checked. Seed is manual and is not part of the Vercel build. Set ALLOW_PROD_SEED=1 to override.";
   }
 
@@ -92,12 +99,55 @@ function productionHostRefusal(env: SeedEnv): string | null {
   }
 
   const matches = [
-    database.kind === "host" && database.host === prodHost ? "DATABASE_URL" : null,
-    direct.kind === "host" && direct.host === prodHost ? "DIRECT_DATABASE_URL" : null,
-  ].filter((name): name is string => name !== null);
+    database.kind === "host" ? matchedProdHost("DATABASE_URL", database.host, prodHosts.hosts) : null,
+    direct.kind === "host" ? matchedProdHost("DIRECT_DATABASE_URL", direct.host, prodHosts.hosts) : null,
+  ].filter((match): match is ProdHostMatch => match !== null);
 
   if (matches.length === 0) return null;
-  return `Refusing to seed because ${matches.join(" and ")} host matches PROD_DB_HOST (${prodHost}). Seed is manual and is not part of the Vercel build. Set ALLOW_PROD_SEED=1 to override.`;
+  const names = matches.map((match) => match.name).join(" and ");
+  const hosts = [...new Set(matches.map((match) => match.host))].join(", ");
+  return `Refusing to seed because ${names} host matches PROD_DB_HOST (${hosts}). Seed is manual and is not part of the Vercel build. Set ALLOW_PROD_SEED=1 to override.`;
+}
+
+type ProdHostMatch = { name: string; host: string };
+
+function matchedProdHost(name: string, urlHost: string, prodHosts: string[]): ProdHostMatch | null {
+  const host = prodHosts.find((prodHost) => hostsMatch(urlHost, prodHost));
+  return host ? { name, host } : null;
+}
+
+function hostsMatch(urlHost: string, prodHost: string): boolean {
+  return comparisonKey(urlHost) === comparisonKey(prodHost);
+}
+
+/** Neon pooler and direct endpoints share one key. Every other host is itself. */
+function comparisonKey(host: string): string {
+  const labels = host.split(".");
+  if (labels.length < 3 || labels[labels.length - 2] !== "neon" || labels[labels.length - 1] !== "tech") return host;
+  const endpoint = labels[0];
+  if (endpoint.endsWith(NEON_POOLER_SUFFIX) && endpoint.length > NEON_POOLER_SUFFIX.length) {
+    labels[0] = endpoint.slice(0, -NEON_POOLER_SUFFIX.length);
+  }
+  return labels.join(".");
+}
+
+type ProdHostList = { kind: "blank" } | { kind: "unusable" } | { kind: "hosts"; hosts: string[] };
+
+function parseProdDbHosts(raw: string): ProdHostList {
+  const parts = raw
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+  if (parts.length === 0) return { kind: "blank" };
+
+  const hosts: string[] = [];
+  for (const part of parts) {
+    const extracted = part.includes("://") ? hostnameFromPostgresUrl(part) : part;
+    const host = canonicalHost(extracted ?? "");
+    if (!host) return { kind: "unusable" };
+    hosts.push(host);
+  }
+  return { kind: "hosts", hosts };
 }
 
 type UrlInspection = { kind: "absent" } | { kind: "unparsable" } | { kind: "host"; host: string };
