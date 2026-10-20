@@ -31,7 +31,7 @@ Preview and Production must use different databases. Create a Neon branch for Pr
 
 Production migrates before `next build`, so every migration must be additive and backward-compatible (expand first, contract in a later PR).
 
-`npm run db:seed` is manual. Use it on a dev database after migrations. The seed refuses to start when `VERCEL_ENV` or `NODE_ENV` is `production` unless `ALLOW_PROD_SEED=1` is set.
+`npm run db:seed` is manual. Use it on a dev database after migrations. The seed refuses to start when `VERCEL_ENV` or `NODE_ENV` is `production` unless `ALLOW_PROD_SEED=1` is set. Set `PROD_DB_HOST` to the production Neon hostname (pooler or direct endpoint, comma-separated list allowed) to turn the host check on, which then fails closed. Set it in every non-production environment and in the local `.env`, using hostnames only, never a connection URL.
 
 Import the repository into Vercel, then create a Neon PostgreSQL database and add these environment variables to the Vercel project:
 

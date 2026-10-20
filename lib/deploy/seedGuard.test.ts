@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { assertSeedAllowed, seedRefusalReason } from "./seedGuard";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -181,6 +181,28 @@ describe("seed production guard", () => {
         ALLOW_PROD_SEED: "1",
       }),
     ).toBeNull();
+  });
+
+  it("prints the bypassed refusal on stderr without a connection string", () => {
+    const lines: string[] = [];
+    const spy = vi.spyOn(console, "error").mockImplementation((message?: unknown) => {
+      lines.push(String(message));
+    });
+    try {
+      assertSeedAllowed({
+        VERCEL_ENV: "preview",
+        NODE_ENV: "development",
+        ALLOW_PROD_SEED: "1",
+        PROD_DB_HOST: "ep-prod.neon.tech",
+        DATABASE_URL: "postgresql://seed-user:super-secret@ep-prod.neon.tech:5432/neondb?sslmode=require",
+      });
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toMatch(/ALLOW_PROD_SEED=1 overriding seed refusal: Refusing to seed because DATABASE_URL host matches PROD_DB_HOST \(ep-prod\.neon\.tech\)/);
+      expect(lines[0]).not.toMatch(/super-secret|seed-user|postgresql:\/\/|sslmode/);
+      expect(lines[0]).not.toContain("\n");
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("keeps the seed guard ahead of the database client import", () => {

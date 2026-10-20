@@ -12,7 +12,9 @@ const POSTGRES_PROTOCOLS = new Set(["postgres:", "postgresql:"]);
 /**
  * Manual seed must not write a demo org admin into production.
  * `ALLOW_PROD_SEED=1` is the only override. Any other value, including
- * "true", still refuses. Same rule as the guard from #99.
+ * "true", still refuses. Same rule as the guard from #99. When that
+ * override is what lets a refusal through, one stderr line names the
+ * reason that would have fired. The line includes hostnames only.
  *
  * Two production signals are checked, in order, and both run before a
  * database client is created:
@@ -48,16 +50,23 @@ const POSTGRES_PROTOCOLS = new Set(["postgres:", "postgresql:"]);
  */
 export function seedRefusalReason(env: SeedEnv = process.env): string | null {
   if (env.ALLOW_PROD_SEED === "1") return null;
-
-  const environmentReason = productionEnvironmentRefusal(env);
-  if (environmentReason) return environmentReason;
-
-  return productionHostRefusal(env);
+  return refusalWithoutOverride(env);
 }
 
 export function assertSeedAllowed(env: SeedEnv = process.env): void {
-  const reason = seedRefusalReason(env);
-  if (reason) throw new Error(reason);
+  const reason = refusalWithoutOverride(env);
+  if (!reason) return;
+  if (env.ALLOW_PROD_SEED === "1") {
+    console.error(`ALLOW_PROD_SEED=1 overriding seed refusal: ${reason}`);
+    return;
+  }
+  throw new Error(reason);
+}
+
+function refusalWithoutOverride(env: SeedEnv): string | null {
+  const environmentReason = productionEnvironmentRefusal(env);
+  if (environmentReason) return environmentReason;
+  return productionHostRefusal(env);
 }
 
 function productionEnvironmentRefusal(env: SeedEnv): string | null {
