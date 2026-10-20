@@ -12,11 +12,12 @@ vi.mock("next/navigation", async () => {
 });
 
 import { SidebarFooter } from "@/components/workspace/app-shell";
-import { cardBCaption, cardBText, consentError, findLegalCopyViolations, loginRecordUnpublished } from "@/lib/legal/copy";
-import { filledLegalFactEnv, legalFactEnvKeys } from "@/lib/legal/facts";
+import { cardBCaption, cardBText, consentError, consentUpdates, draftBanner, findLegalCopyViolations, waitlistInstruction, waitlistSignupSource } from "@/lib/legal/copy";
+import { legalFactEnvKeys } from "@/lib/legal/facts";
+import { filledLegalFactEnv } from "@/lib/legal/filledLegalFacts.fixture";
 import { legalLinksEnabled, resetLegalPublishWarningForTests } from "@/lib/legal/publish";
 
-const envKeys = ["LEGAL_PAGES_PUBLISHED", ...Object.values(legalFactEnvKeys)];
+const envKeys = ["LEGAL_PAGES_PUBLISHED", "LEGAL_ATTORNEY_REVIEWED", "PILOT_LANDING_PUBLISHED", ...Object.values(legalFactEnvKeys)];
 let saved: Record<string, string | undefined> = {};
 
 function applyEnv(values: Record<string, string | undefined>) {
@@ -78,6 +79,10 @@ describe("legal routes", () => {
   it("returns 404 and hides links when the flag is off", async () => {
     applyEnv({});
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const privacyMeta = await import("@/app/privacy/page");
+    const termsMeta = await import("@/app/terms/page");
+    expect(await privacyMeta.generateMetadata()).toEqual({});
+    expect(await termsMeta.generateMetadata()).toEqual({});
     await expect(privacy()).rejects.toSatisfy((error: unknown) => digestOf(error).includes("404"));
     await expect(terms()).rejects.toSatisfy((error: unknown) => digestOf(error).includes("404"));
     await expect(home()).rejects.toSatisfy((error: unknown) => digestOf(error).startsWith("NEXT_REDIRECT") && digestOf(error).includes("/projects"));
@@ -96,9 +101,13 @@ describe("legal routes", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it("returns 404 and warns when the flag is on but a fact is blank", async () => {
+  it("returns 404 without page titles and warns when the flag is on but a fact is blank", async () => {
     applyEnv({ LEGAL_PAGES_PUBLISHED: "true" });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const privacyMeta = await import("@/app/privacy/page");
+    const termsMeta = await import("@/app/terms/page");
+    expect(await privacyMeta.generateMetadata()).toEqual({});
+    expect(await termsMeta.generateMetadata()).toEqual({});
     await expect(privacy()).rejects.toSatisfy((error: unknown) => digestOf(error).includes("404"));
     await expect(terms()).rejects.toSatisfy((error: unknown) => digestOf(error).includes("404"));
     const loginHtml = renderToStaticMarkup(await login());
@@ -107,11 +116,31 @@ describe("legal routes", () => {
     expect(warn).toHaveBeenCalledTimes(1);
     expect(String(warn.mock.calls[0]?.[0])).toContain("LEGAL_PAGES_PUBLISHED is on but legal facts are missing");
     expect(String(warn.mock.calls[0]?.[0])).toContain("privacyContactEmail");
+    expect(String(warn.mock.calls[0]?.[0])).toContain("bluebeamCsvColumns");
   });
 
-  it("renders the routes, footers, consent, and card B when the flag is on and facts are filled", async () => {
+  it("keeps the home redirect when only the legal flag is on", async () => {
     applyEnv({ LEGAL_PAGES_PUBLISHED: "true", ...filledLegalFactEnv() });
+    await expect(home()).rejects.toSatisfy((error: unknown) => digestOf(error).startsWith("NEXT_REDIRECT") && digestOf(error).includes("/projects"));
+    expect(legalLinksEnabled()).toBe(true);
+  });
+
+  it("renders the landing from its own flag and the legal pages from theirs", async () => {
+    applyEnv({ PILOT_LANDING_PUBLISHED: "true" });
+    const landingOnly = textOf(renderToStaticMarkup(await home()));
+    expect(landingOnly).toContain(waitlistInstruction);
+    expect(landingOnly).toContain(cardBText);
+    expect(landingOnly).not.toContain("Every gap");
+    expect(landingOnly).not.toContain('class="legal-footer"');
+    expect(landingOnly).toContain('href="/privacy"');
+    await expect(privacy()).rejects.toSatisfy((error: unknown) => digestOf(error).includes("404"));
+
+    applyEnv({ LEGAL_PAGES_PUBLISHED: "true", PILOT_LANDING_PUBLISHED: "true", ...filledLegalFactEnv() });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const privacyMeta = await import("@/app/privacy/page");
+    const termsMeta = await import("@/app/terms/page");
+    expect(await privacyMeta.generateMetadata()).toEqual({ title: "Privacy and data deletion" });
+    expect(await termsMeta.generateMetadata()).toEqual({ title: "Pilot terms of use" });
     expect(legalLinksEnabled()).toBe(true);
     const privacyHtml = renderToStaticMarkup(await privacy());
     const termsHtml = renderToStaticMarkup(await terms());
@@ -124,24 +153,33 @@ describe("legal routes", () => {
       expect(html).toContain('href="/privacy"');
       expect(html).toContain('href="/terms"');
       expect(findLegalCopyViolations(html)).toEqual([]);
+      expect(html).not.toContain("Every gap");
     }
     const privacyText = textOf(privacyHtml);
     const termsText = textOf(termsHtml);
     const homeText = textOf(homeHtml);
-    expect(privacyText).toContain("Draft. Not yet reviewed by an attorney.");
+    expect(privacyText).toContain(draftBanner);
     expect(privacyText).toContain("Privacy and data deletion note");
-    expect(privacyText).toContain("which page and offer card you signed up from");
+    expect(privacyText).toContain(waitlistSignupSource);
+    expect(privacyText).toContain("up to five optional questions");
     expect(privacyText).toContain("hash of your invite link, which expires after 14 days");
-    expect(privacyText).not.toContain(loginRecordUnpublished);
+    expect(privacyText).toContain("The app keeps project records, including uploaded files, as a fixed history");
+    expect(privacyText).toContain("Northline Contracting LLC");
+    expect(privacyText).not.toContain("up to 30 days");
+    expect(privacyText).not.toContain("Contact");
+    expect(privacyText).not.toContain("©");
     expect(termsText).toContain("Pilot terms of use");
-    expect(termsText).toContain("Fixture Construction LLC");
+    expect(termsText).toContain("ConstructionAI keeps a fixed history of uploads and decisions");
+    expect(termsText).toContain("Texas law governs.");
+    expect(termsText).not.toContain("We won't sell Your Content");
     expect(homeText).toContain("Pilot feature");
     expect(homeText).toContain(cardBText);
     expect(homeText).toContain(cardBCaption);
-    expect(homeText).not.toContain("Every gap is flagged");
-    expect(homeText).toContain("All fields are required unless marked (optional).");
+    expect(homeText).toContain(waitlistInstruction);
+    expect(homeText).not.toContain("All fields are required unless marked (optional).");
     expect(homeText).toContain(consentError);
-    expect(homeHtml).toContain("Email me product updates.");
+    expect(homeHtml).toContain(consentUpdates);
+    expect(homeHtml).not.toContain("(optional)");
     expect(homeHtml).toContain('data-consent="terms"');
     expect(homeHtml).not.toContain('data-consent="terms" checked');
     expect(homeHtml).not.toContain('action="/api/');
@@ -149,5 +187,10 @@ describe("legal routes", () => {
     expect(acceptHtml).toContain("Privacy and data deletion");
     expect(sidebarHtml).toContain("Privacy and data deletion");
     expect(warn).not.toHaveBeenCalled();
+
+    applyEnv({ LEGAL_PAGES_PUBLISHED: "true", LEGAL_ATTORNEY_REVIEWED: "true", PILOT_LANDING_PUBLISHED: "true", ...filledLegalFactEnv() });
+    const reviewed = textOf(renderToStaticMarkup(await privacy()));
+    expect(reviewed).not.toContain(draftBanner);
+    expect(reviewed).toContain("Privacy and data deletion note");
   });
 });

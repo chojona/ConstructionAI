@@ -1,4 +1,4 @@
-import { legalVersion } from "@/lib/legal/copy";
+import { legalVersion, termsFileDeletion, termsTitle } from "@/lib/legal/copy";
 import type { LegalFacts } from "@/lib/legal/facts";
 import { FactEmail, FactText } from "@/components/legal/fact";
 
@@ -6,7 +6,7 @@ export function TermsOfUse({ facts }: { facts: LegalFacts }) {
   return (
     <article className="legal-doc" data-legal="terms">
       <p className="eyebrow">Legal</p>
-      <h1>Pilot terms of use</h1>
+      <h1>{termsTitle}</h1>
       <p className="legal-version">Version {legalVersion} · Effective date <FactText id="effectiveDate" facts={facts} />.</p>
 
       <section>
@@ -56,7 +56,7 @@ export function TermsOfUse({ facts }: { facts: LegalFacts }) {
 
       <section>
         <h2>2.6 Deleting files and records</h2>
-        <p>ConstructionAI keeps a fixed history of uploads and decisions, so a pack can always be traced to its source. ConstructionAI doesn&apos;t have a delete option yet. To ask us to remove or erase files, for example after an upload by mistake or when your company leaves the pilot, email <FactEmail id="supportEmail" facts={facts} />.</p>
+        <p>{termsFileDeletion} <FactEmail id="supportEmail" facts={facts} />.</p>
       </section>
 
       <section>
@@ -72,7 +72,7 @@ export function TermsOfUse({ facts }: { facts: LegalFacts }) {
 
       <section>
         <h2>2.8 Pilot status</h2>
-        <p>ConstructionAI is in a pilot. Features may change, break, or be removed. We provide it &quot;as is&quot; for the pilot. <FactText id="warrantyDisclaimer" facts={facts} /></p>
+        <p>ConstructionAI is in a pilot. Features may change, break, or be removed. We provide it &quot;as is&quot; for the pilot. <FactText id="attorneyDraftedClauses" facts={facts} /></p>
       </section>
 
       <section>

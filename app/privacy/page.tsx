@@ -3,19 +3,23 @@ import { notFound } from "next/navigation";
 import { LegalDocumentPage } from "@/components/legal/legal-chrome";
 import { PrivacyNote } from "@/components/legal/privacy-note";
 import { readLegalFacts } from "@/lib/legal/facts";
-import { canPublishLegalPages, enforceLegalPublishDuringBuild } from "@/lib/legal/publish";
+import { canPublishLegalPages, legalDraftBanner } from "@/lib/legal/publish";
+import { enforceLegalCopyDuringBuild } from "@/lib/legal/scan";
 
-enforceLegalPublishDuringBuild();
+enforceLegalCopyDuringBuild();
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Privacy and data deletion" };
+export async function generateMetadata(): Promise<Metadata> {
+  if (!canPublishLegalPages()) return {};
+  return { title: "Privacy and data deletion" };
+}
 
 export default function PrivacyPage() {
-  enforceLegalPublishDuringBuild();
+  enforceLegalCopyDuringBuild();
   if (!canPublishLegalPages()) notFound();
   return (
-    <LegalDocumentPage>
+    <LegalDocumentPage banner={legalDraftBanner()}>
       <PrivacyNote facts={readLegalFacts()} />
     </LegalDocumentPage>
   );

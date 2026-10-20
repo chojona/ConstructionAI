@@ -1,8 +1,7 @@
 /**
  * Facts Legal still has to fill in before /privacy and /terms can ship.
  * Every value is unset unless the matching environment variable is non-empty.
- * Unset facts render as bracketed blanks such as [legal entity name] so a leak
- * cannot hide in the markup. They are never invented here.
+ * Unset or rejected facts render as bracketed blanks. They are never invented here.
  */
 
 export const legalFactKeys = [
@@ -15,7 +14,8 @@ export const legalFactKeys = [
   "storageProvider",
   "storageProviderDetail",
   "copyrightYear",
-  "warrantyDisclaimer",
+  "attorneyDraftedClauses",
+  "bluebeamCsvColumns",
 ] as const;
 
 export type LegalFactKey = (typeof legalFactKeys)[number];
@@ -33,7 +33,8 @@ export const legalFactMarkers: Record<LegalFactKey, string> = {
   storageProvider: "[storage provider]",
   storageProviderDetail: "[storage provider name and region, once confirmed]",
   copyrightYear: "[year]",
-  warrantyDisclaimer: "[warranty disclaimer]",
+  attorneyDraftedClauses: "[warranty disclaimer, liability limit, fees, term and termination, and governing law]",
+  bluebeamCsvColumns: "[bluebeam csv columns]",
 };
 
 export const legalFactEnvKeys: Record<LegalFactKey, string> = {
@@ -46,8 +47,11 @@ export const legalFactEnvKeys: Record<LegalFactKey, string> = {
   storageProvider: "LEGAL_STORAGE_PROVIDER",
   storageProviderDetail: "LEGAL_STORAGE_PROVIDER_DETAIL",
   copyrightYear: "LEGAL_COPYRIGHT_YEAR",
-  warrantyDisclaimer: "LEGAL_WARRANTY_DISCLAIMER",
+  attorneyDraftedClauses: "LEGAL_ATTORNEY_DRAFTED_CLAUSES",
+  bluebeamCsvColumns: "LEGAL_BLUEBEAM_CSV_COLUMNS",
 };
+
+const emailFactKeys = new Set<LegalFactKey>(["privacyContactEmail", "supportEmail", "contactEmail"]);
 
 function unset(value: string | undefined): string | null {
   const trimmed = value?.trim() ?? "";
@@ -65,12 +69,27 @@ export function readLegalFacts(env: NodeJS.ProcessEnv = process.env): LegalFacts
     storageProvider: unset(env.LEGAL_STORAGE_PROVIDER),
     storageProviderDetail: unset(env.LEGAL_STORAGE_PROVIDER_DETAIL),
     copyrightYear: unset(env.LEGAL_COPYRIGHT_YEAR),
-    warrantyDisclaimer: unset(env.LEGAL_WARRANTY_DISCLAIMER),
+    attorneyDraftedClauses: unset(env.LEGAL_ATTORNEY_DRAFTED_CLAUSES),
+    bluebeamCsvColumns: unset(env.LEGAL_BLUEBEAM_CSV_COLUMNS),
   };
 }
 
+/** Reject stand-ins and values that are not a real email, date, or year. */
+export function legalFactRejected(key: LegalFactKey, value: string | null): boolean {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return true;
+  if (/\bTBD\b/i.test(trimmed) || /fixture\.example/i.test(trimmed) || trimmed.includes("Fixture")) return true;
+  if (emailFactKeys.has(key) && !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(trimmed)) return true;
+  if (key === "effectiveDate") {
+    const shaped = /^[A-Z][a-z]+ \d{1,2}, \d{4}$/.test(trimmed) || /^\d{4}-\d{2}-\d{2}$/.test(trimmed);
+    if (!shaped || Number.isNaN(Date.parse(trimmed))) return true;
+  }
+  if (key === "copyrightYear" && !/^\d{4}$/.test(trimmed)) return true;
+  return false;
+}
+
 export function missingLegalFactKeys(facts: LegalFacts = readLegalFacts()): LegalFactKey[] {
-  return legalFactKeys.filter((key) => !facts[key]?.trim());
+  return legalFactKeys.filter((key) => legalFactRejected(key, facts[key]));
 }
 
 export const emptyLegalFacts: LegalFacts = {
@@ -83,28 +102,6 @@ export const emptyLegalFacts: LegalFacts = {
   storageProvider: null,
   storageProviderDetail: null,
   copyrightYear: null,
-  warrantyDisclaimer: null,
+  attorneyDraftedClauses: null,
+  bluebeamCsvColumns: null,
 };
-
-/** Obvious stand-in values for tests and flag-on screenshots. Not company facts. */
-export const filledLegalFacts: LegalFacts = {
-  legalEntityName: "Fixture Construction LLC",
-  postalAddress: "1 Fixture Street, Austin, TX 78701",
-  privacyContactEmail: "privacy@fixture.example",
-  supportEmail: "support@fixture.example",
-  contactEmail: "contact@fixture.example",
-  effectiveDate: "October 20, 2026",
-  storageProvider: "Fixture Object Storage",
-  storageProviderDetail: "Fixture Object Storage, us-east-1",
-  copyrightYear: "2026",
-  warrantyDisclaimer: "Fixture text only. An attorney has not drafted this disclaimer.",
-};
-
-export function filledLegalFactEnv(facts: LegalFacts = filledLegalFacts): Record<string, string> {
-  const env: Record<string, string> = {};
-  for (const key of legalFactKeys) {
-    const value = facts[key];
-    if (value) env[legalFactEnvKeys[key]] = value;
-  }
-  return env;
-}
