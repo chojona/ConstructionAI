@@ -67,7 +67,7 @@ describe("upload routes reject oversized bodies", () => {
     const response = await post(kind, request({ length: "1200", formData: async () => form }));
     expect(response.status).toBe(413);
     expect(await response.json()).toEqual({
-      error: { code: "FILE_TOO_LARGE", message: "This file is over 4.5 MB. Large plan sets are coming soon." },
+      error: { code: "FILE_TOO_LARGE", message: "This file is over 4 MB. For now, split it into smaller PDFs by discipline or sheet range. Large plan sets are coming soon." },
     });
     expect(publishRevision).not.toHaveBeenCalled();
     expect(attachAccPdfChapter).not.toHaveBeenCalled();

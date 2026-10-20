@@ -4,16 +4,16 @@
  * Vercel Functions reject a request body above 4.5 MB (4_500_000 bytes) before
  * route code runs, and the response is not JSON. 4_400_000 stays under that
  * platform cap and leaves about 100 KB for multipart framing and form fields.
- * Desk copy still says "4.5 MB", which is the limit people actually hit.
+ * Desk copy says "4 MB", under that platform limit.
  */
 export const MAX_UPLOAD_BYTES = 4_400_000;
 
 /** Room for multipart boundaries and the other form fields on Content-Length. */
 const UPLOAD_BODY_FRAMING_BYTES = 16_384;
 
-export const UPLOAD_HELPER_TEXT = "PDF up to 4.5 MB";
+export const UPLOAD_HELPER_TEXT = "PDF up to 4 MB. The file needs selectable text.";
 
-export const UPLOAD_TOO_LARGE_MESSAGE = "This file is over 4.5 MB. Large plan sets are coming soon.";
+export const UPLOAD_TOO_LARGE_MESSAGE = "This file is over 4 MB. For now, split it into smaller PDFs by discipline or sheet range. Large plan sets are coming soon.";
 
 export function uploadFileTooLarge(file: { size: number } | null | undefined): boolean {
   return !!file && file.size > MAX_UPLOAD_BYTES;

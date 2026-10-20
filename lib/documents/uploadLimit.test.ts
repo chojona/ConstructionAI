@@ -28,7 +28,7 @@ describe("upload limit", () => {
     const created = renderToStaticMarkup(createElement(CreateDocumentForm, { projectId: "project_1" }));
     for (const html of [revision, created]) {
       expect(html).toContain(UPLOAD_HELPER_TEXT);
-      expect(html).toContain("PDF up to 4.5 MB");
+      expect(html).toContain("PDF up to 4 MB. The file needs selectable text.");
       expect(html).not.toContain("20 MB");
       expect(html).not.toContain("Processing");
       expect(html).not.toContain("Adding…");
@@ -54,7 +54,7 @@ describe("upload limit", () => {
     expect(outcome).toMatchObject({
       ok: false,
       pending: false,
-      error: "This file is over 4.5 MB. Large plan sets are coming soon.",
+      error: "This file is over 4 MB. For now, split it into smaller PDFs by discipline or sheet range. Large plan sets are coming soon.",
       status: 413,
     });
   });
