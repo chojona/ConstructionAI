@@ -1,13 +1,11 @@
 import path from "node:path";
 import { DomainError } from "@/lib/domain/errors";
-
-export const DEFAULT_MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
+import { MAX_UPLOAD_BYTES, UPLOAD_TOO_LARGE_MESSAGE } from "@/lib/documents/uploadLimit";
 
 export function maxDocumentBytes(): number {
   const configured = Number(process.env.DOCUMENT_MAX_BYTES);
-  return Number.isFinite(configured) && configured > 0
-    ? configured
-    : DEFAULT_MAX_DOCUMENT_BYTES;
+  const requested = Number.isFinite(configured) && configured > 0 ? configured : MAX_UPLOAD_BYTES;
+  return Math.min(requested, MAX_UPLOAD_BYTES);
 }
 
 export function validatePdfUpload(input: {
@@ -21,7 +19,10 @@ export function validatePdfUpload(input: {
     throw new DomainError("EMPTY_FILE", "The uploaded file is empty.", 400);
   }
   if (input.bytes.length > maxBytes) {
-    throw new DomainError("FILE_TOO_LARGE", `The PDF exceeds the ${maxBytes} byte limit.`, 413);
+    const message = maxBytes >= MAX_UPLOAD_BYTES
+      ? UPLOAD_TOO_LARGE_MESSAGE
+      : `The PDF exceeds the ${maxBytes} byte limit.`;
+    throw new DomainError("FILE_TOO_LARGE", message, 413);
   }
   if (input.mimeType.trim().toLowerCase() !== "application/pdf") {
     throw new DomainError("NOT_PDF", "Only PDF files are accepted.", 415);

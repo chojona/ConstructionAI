@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { toRevisionUploadDto } from "@/lib/documents/dto";
 import { authorizeRequest } from "@/lib/auth/membership";
 import { publishRevision } from "@/lib/documents/publishRevision";
+import { uploadBodyTooLarge, uploadFileTooLarge, uploadTooLargeResponse } from "@/lib/documents/uploadLimit";
 import { errorResponse } from "@/lib/http";
 
 export const runtime = "nodejs";
@@ -13,9 +14,11 @@ export async function POST(
   try {
     const { documentId } = await context.params;
     const access = await authorizeRequest(request, "upload");
+    if (uploadBodyTooLarge(request)) return uploadTooLargeResponse();
     const form = await request.formData();
     const file = form.get("file");
     const revisionLabel = form.get("revisionLabel");
+    if (file instanceof File && uploadFileTooLarge(file)) return uploadTooLargeResponse();
     if (!(file instanceof File) || typeof revisionLabel !== "string") {
       return NextResponse.json(
         { error: { code: "INVALID_INPUT", message: "A PDF and revision label are required." } },
