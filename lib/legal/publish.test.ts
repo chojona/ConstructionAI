@@ -185,12 +185,12 @@ describe("legal copy publish guard", () => {
   });
 
   it("ignores bracketed design tokens in class and style attributes", () => {
-  const html = `<button class="h-[var(--size-target-min)] text-[length:var(--font-size-md)]">Sign in</button><span style="outline: var(--size-border-focus) solid var(--color-focus)">ok</span>`;
-  expect(findLegalCopyViolations(html)).toEqual([]);
-  expect(findLegalCopyViolations(`${html}<p>[legal entity name]</p>`)).toContain("[legal entity name]");
-});
+    const html = `<button class="h-[var(--size-target-min)] text-[length:var(--font-size-md)]">Sign in</button><span style="outline: var(--size-border-focus) solid var(--color-focus)">ok</span>`;
+    expect(findLegalCopyViolations(html)).toEqual([]);
+    expect(findLegalCopyViolations(`${html}<p>[legal entity name]</p>`)).toContain("[legal entity name]");
+  });
 
-it("reads dangerouslySetInnerHTML as text", () => {
+  it("reads dangerouslySetInnerHTML as text", () => {
     function Raw() {
       return createElement("div", { dangerouslySetInnerHTML: { __html: "Write [support email] here" } });
     }
