@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { S3Client } from "@aws-sdk/client-s3";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   looksLikeProductionName,
   readSpikeStorageConfig,
@@ -10,6 +10,7 @@ import {
   spikeRefusalReason,
   spikeUploadPartKey,
   SpikeStorageRefused,
+  type SpikeEnv,
 } from "./presignedPartLengthProbe";
 import {
   PRESIGNED_UPLOAD_PART_EXPIRES_SECONDS,
@@ -18,7 +19,70 @@ import {
   uploadPartChecksumSha256Supported,
 } from "./presignedUploadPart";
 
+const ioProbe = vi.hoisted(() => ({ s3Clients: 0, s3Sends: 0, httpRequests: 0, httpsRequests: 0 }));
+
+vi.mock("@aws-sdk/client-s3", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@aws-sdk/client-s3")>();
+  const S3Client = new Proxy(actual.S3Client, {
+    construct(target, args, newTarget) {
+      ioProbe.s3Clients += 1;
+      const client = Reflect.construct(target, args, newTarget) as InstanceType<typeof actual.S3Client>;
+      const send = client.send.bind(client);
+      client.send = ((...sendArgs: Parameters<typeof client.send>) => {
+        ioProbe.s3Sends += 1;
+        if (!process.env.SPIKE_BUCKET) throw new Error("S3 send disabled in unit tests");
+        return send(...sendArgs);
+      }) as typeof client.send;
+      return client;
+    },
+  });
+  return { ...actual, S3Client };
+});
+
+vi.mock("node:http", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:http")>();
+  const request = ((...args: Parameters<typeof actual.request>) => {
+    ioProbe.httpRequests += 1;
+    if (!process.env.SPIKE_BUCKET) throw new Error("HTTP disabled in unit tests");
+    return actual.request(...args);
+  }) as typeof actual.request;
+  return { ...actual, request };
+});
+
+vi.mock("node:https", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:https")>();
+  const request = ((...args: Parameters<typeof actual.request>) => {
+    ioProbe.httpsRequests += 1;
+    if (!process.env.SPIKE_BUCKET) throw new Error("HTTPS disabled in unit tests");
+    return actual.request(...args);
+  }) as typeof actual.request;
+  return { ...actual, request };
+});
+
 const KEY = "org/spike-org/doc/spike-doc/staging/spike-intent-0123456789.pdf";
+const PRODUCTION_BRANCH_ID = "br-plain-dawn-b56i00z1";
+
+function without(env: SpikeEnv, key: string): SpikeEnv {
+  const copy: SpikeEnv = {};
+  for (const [name, value] of Object.entries(env)) {
+    if (name !== key) copy[name] = value;
+  }
+  return copy;
+}
+
+async function expectRefusedBeforeAnyIo(env: SpikeEnv, message: RegExp) {
+  const before = { ...ioProbe };
+  const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("fetch disabled in unit tests"));
+  try {
+    expect(spikeRefusalReason(env)).toMatch(message);
+    await expect(runPresignedPartLengthProbe(env)).rejects.toBeInstanceOf(SpikeStorageRefused);
+    await expect(runPresignedPartLengthProbe(env)).rejects.toThrow(message);
+    expect(ioProbe).toEqual(before);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  } finally {
+    fetchSpy.mockRestore();
+  }
+}
 
 function signingClient() {
   return new S3Client({
@@ -147,15 +211,85 @@ describe("spike storage guard", () => {
     expect(reason).not.toContain("X-Amz-Signature=");
   });
 
-  it("uses SPIKE_BUCKET rather than the app bucket", () => {
+  it("uses SPIKE_BUCKET and the explicit region rather than the app bucket or us-east-1", () => {
     expect(readSpikeStorageConfig(ready)).toMatchObject({
       bucket: "branch-spike",
       endpoint,
+      region: "us-east-1",
       forcePathStyle: true,
       accessKeyId: "spike-key",
     });
+    expect(readSpikeStorageConfig({ ...without(ready, "AWS_REGION"), SPIKE_REGION: "us-east-2" })).toMatchObject({
+      bucket: "branch-spike",
+      region: "us-east-2",
+    });
     expect(spikeUploadPartKey("spike-intent-0123456789")).toBe(KEY);
     expect(() => readSpikeStorageConfig({ ...ready, SPIKE_BUCKET: "" })).toThrow(SpikeStorageRefused);
+  });
+
+  it("refuses the production Neon branch id in SPIKE_ENDPOINT before any client or network call", async () => {
+    const poisoned = `https://${PRODUCTION_BRANCH_ID}.neon.tech`;
+    await expectRefusedBeforeAnyIo(
+      { ...ready, SPIKE_ENDPOINT: poisoned, AWS_ENDPOINT_URL_S3: poisoned },
+      /SPIKE_ENDPOINT contains the production Neon branch/,
+    );
+  });
+
+  it("refuses the production Neon branch id in AWS_ENDPOINT_URL_S3 before any client or network call", async () => {
+    await expectRefusedBeforeAnyIo(
+      { ...ready, AWS_ENDPOINT_URL_S3: `https://example.neon.tech/${PRODUCTION_BRANCH_ID.toUpperCase()}` },
+      /AWS_ENDPOINT_URL_S3 contains the production Neon branch/,
+    );
+  });
+
+  it("refuses the production Neon branch id in OBJECT_STORAGE_ENDPOINT before any client or network call", async () => {
+    await expectRefusedBeforeAnyIo(
+      { ...ready, OBJECT_STORAGE_ENDPOINT: `https://ep.neon.tech/?host=${PRODUCTION_BRANCH_ID}` },
+      /OBJECT_STORAGE_ENDPOINT contains the production Neon branch/,
+    );
+  });
+
+  it("refuses the production bucket uploads in SPIKE_BUCKET before any client or network call", async () => {
+    await expectRefusedBeforeAnyIo(
+      { ...ready, SPIKE_BUCKET: " Uploads " },
+      /SPIKE_BUCKET is the production bucket uploads/,
+    );
+    expect(spikeRefusalReason({ ...ready, SPIKE_BUCKET: "uploads-archive" })).toBeNull();
+  });
+
+  it("refuses the production bucket uploads in OBJECT_STORAGE_BUCKET before any client or network call", async () => {
+    await expectRefusedBeforeAnyIo(
+      { ...ready, OBJECT_STORAGE_BUCKET: "UPLOADS" },
+      /OBJECT_STORAGE_BUCKET is the production bucket uploads/,
+    );
+  });
+
+  it("refuses the production bucket uploads in DOCUMENT_STORAGE_BUCKET before any client or network call", async () => {
+    await expectRefusedBeforeAnyIo(
+      { ...ready, DOCUMENT_STORAGE_BUCKET: "\tuploads\n" },
+      /DOCUMENT_STORAGE_BUCKET is the production bucket uploads/,
+    );
+  });
+
+  it("refuses a missing SPIKE_STORAGE_ENV before any client or network call", async () => {
+    await expectRefusedBeforeAnyIo(without(ready, "SPIKE_STORAGE_ENV"), /SPIKE_STORAGE_ENV=nonprod/);
+  });
+
+  it("refuses a SPIKE_STORAGE_ENV other than nonprod before any client or network call", async () => {
+    await expectRefusedBeforeAnyIo({ ...ready, SPIKE_STORAGE_ENV: "production" }, /SPIKE_STORAGE_ENV=nonprod/);
+    await expectRefusedBeforeAnyIo({ ...ready, SPIKE_STORAGE_ENV: "NONPROD" }, /SPIKE_STORAGE_ENV=nonprod/);
+    await expectRefusedBeforeAnyIo({ ...ready, SPIKE_STORAGE_ENV: " nonprod" }, /SPIKE_STORAGE_ENV=nonprod/);
+  });
+
+  it("refuses a missing region before any client or network call", async () => {
+    const withoutRegion = without(ready, "AWS_REGION");
+    await expectRefusedBeforeAnyIo(withoutRegion, /set AWS_REGION or SPIKE_REGION/);
+    await expectRefusedBeforeAnyIo({ ...ready, AWS_REGION: "   " }, /does not default to us-east-1/);
+    await expectRefusedBeforeAnyIo(
+      { ...withoutRegion, OBJECT_STORAGE_REGION: "us-east-1" },
+      /does not default to us-east-1/,
+    );
+    expect(() => readSpikeStorageConfig(withoutRegion)).toThrow(SpikeStorageRefused);
   });
 });
 

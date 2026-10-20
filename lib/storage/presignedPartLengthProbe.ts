@@ -29,10 +29,16 @@ export class SpikeStorageRefused extends Error {
 export interface SpikeEnv extends ObjectStorageEnv {
   SPIKE_BUCKET?: string;
   SPIKE_ENDPOINT?: string;
+  SPIKE_REGION?: string;
   SPIKE_STORAGE_ENV?: string;
   VERCEL_ENV?: string;
   NODE_ENV?: string;
 }
+
+/** Production Neon branch. Refused wherever it appears in an endpoint variable. */
+const PRODUCTION_NEON_BRANCH_ID = "br-plain-dawn-b56i00z1";
+/** Production bucket. Trimmed, exact, case-insensitive. */
+const PRODUCTION_BUCKET_NAME = "uploads";
 
 export interface SpikeAttempt {
   name: "exact" | "over" | "under" | "checksum-match" | "checksum-mismatch";
@@ -81,10 +87,12 @@ export function looksLikeProductionName(value: string): boolean {
 }
 
 export function spikeRefusalReason(env: SpikeEnv): string | null {
+  const productionBucket = productionBucketRefusal(env);
+  if (productionBucket) return productionBucket;
   const bucket = trimmed(env.SPIKE_BUCKET);
   const endpoint = trimmed(env.SPIKE_ENDPOINT);
   if (!bucket) return "Refusing to run: set SPIKE_BUCKET to an explicit non-production bucket.";
-  if (trimmed(env.SPIKE_STORAGE_ENV) !== "nonprod") {
+  if (env.SPIKE_STORAGE_ENV !== "nonprod") {
     return "Refusing to run: set SPIKE_STORAGE_ENV=nonprod. The spike does not guess.";
   }
   if (env.VERCEL_ENV === "production") return "Refusing to run: VERCEL_ENV=production.";
@@ -94,6 +102,8 @@ export function spikeRefusalReason(env: SpikeEnv): string | null {
   if (appBucket && looksLikeProductionName(appBucket)) {
     return "Refusing to run: the configured document bucket looks like production.";
   }
+  const productionBranch = productionBranchRefusal(env);
+  if (productionBranch) return productionBranch;
   if (!endpoint) {
     return "Refusing to run: set SPIKE_ENDPOINT to the non-production endpoint. An unset endpoint is refused.";
   }
@@ -112,6 +122,9 @@ export function spikeRefusalReason(env: SpikeEnv): string | null {
     if (!value || value === endpoint) continue;
     return "Refusing to run: OBJECT_STORAGE_ENDPOINT and AWS_ENDPOINT_URL_S3 disagree.";
   }
+  if (!spikeRegion(env)) {
+    return "Refusing to run: set AWS_REGION or SPIKE_REGION. The spike does not default to us-east-1.";
+  }
   return null;
 }
 
@@ -120,18 +133,21 @@ export function readSpikeStorageConfig(env: SpikeEnv) {
   if (reason) throw new SpikeStorageRefused(reason);
   const bucket = trimmed(env.SPIKE_BUCKET);
   const endpoint = trimmed(env.SPIKE_ENDPOINT);
-  if (!bucket || !endpoint) throw new SpikeStorageRefused("Refusing to run: spike target is incomplete.");
+  const region = spikeRegion(env);
+  if (!bucket || !endpoint || !region) throw new SpikeStorageRefused("Refusing to run: spike target is incomplete.");
   let config;
   try {
     config = readObjectStorageConfig({
       ...env,
       OBJECT_STORAGE_BUCKET: bucket,
       DOCUMENT_STORAGE_BUCKET: bucket,
+      OBJECT_STORAGE_REGION: region,
+      AWS_REGION: region,
     });
   } catch {
     throw new SpikeStorageRefused("Refusing to run: object storage credentials are missing or invalid.");
   }
-  if (!config?.endpoint || config.bucket !== bucket || config.endpoint !== endpoint) {
+  if (!config?.endpoint || config.bucket !== bucket || config.endpoint !== endpoint || config.region !== region) {
     throw new SpikeStorageRefused("Refusing to run: resolved storage target is not the spike bucket and endpoint.");
   }
   return { ...config, forcePathStyle: true as const };
@@ -335,6 +351,39 @@ function isNeonHost(hostname: string): boolean {
 function isLoopback(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/\.+$/, "");
   return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
+}
+
+function productionBucketRefusal(env: SpikeEnv): string | null {
+  const fields = [
+    ["SPIKE_BUCKET", env.SPIKE_BUCKET],
+    ["OBJECT_STORAGE_BUCKET", env.OBJECT_STORAGE_BUCKET],
+    ["DOCUMENT_STORAGE_BUCKET", env.DOCUMENT_STORAGE_BUCKET],
+  ] as const;
+  for (const [name, value] of fields) {
+    if (trimmed(value)?.toLowerCase() === PRODUCTION_BUCKET_NAME) {
+      return `Refusing to run: ${name} is the production bucket ${PRODUCTION_BUCKET_NAME}.`;
+    }
+  }
+  return null;
+}
+
+function productionBranchRefusal(env: SpikeEnv): string | null {
+  const fields = [
+    ["SPIKE_ENDPOINT", env.SPIKE_ENDPOINT],
+    ["AWS_ENDPOINT_URL_S3", env.AWS_ENDPOINT_URL_S3],
+    ["OBJECT_STORAGE_ENDPOINT", env.OBJECT_STORAGE_ENDPOINT],
+  ] as const;
+  for (const [name, value] of fields) {
+    if (value?.toLowerCase().includes(PRODUCTION_NEON_BRANCH_ID)) {
+      return `Refusing to run: ${name} contains the production Neon branch ${PRODUCTION_NEON_BRANCH_ID}.`;
+    }
+  }
+  return null;
+}
+
+/** SPIKE_REGION wins when set. There is no us-east-1 default. */
+function spikeRegion(env: SpikeEnv): string | undefined {
+  return trimmed(env.SPIKE_REGION) ?? trimmed(env.AWS_REGION);
 }
 
 function trimmed(value: string | undefined) {
