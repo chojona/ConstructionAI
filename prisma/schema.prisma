@@ -42,6 +42,7 @@ model Organization {
   updatedAt    DateTime        @updatedAt
   projects     Project[]
   memberships  OrgMembership[]
+  uploadIntents UploadIntent[]
 }
 
 /// A person. Each user has their own password hash. There is no shared product password.
@@ -54,6 +55,7 @@ model User {
   updatedAt    DateTime        @updatedAt
   memberships  OrgMembership[]
   sessions     Session[]
+  uploadIntents UploadIntent[]
 }
 
 /// Membership of one person in one organization.
@@ -135,6 +137,7 @@ model Document {
   project   Project            @relation(fields: [projectId], references: [id], onDelete: Restrict)
   revisions DocumentRevision[]
   emailSends EmailSendDocument[]
+  uploadIntents UploadIntent[]
 
   @@index([projectId, createdAt])
 }
@@ -157,11 +160,67 @@ model DocumentRevision {
   document       Document        @relation(fields: [documentId], references: [id], onDelete: Restrict)
   pages          DocumentPage[]
   extractionRuns ExtractionRun[]
+  uploadIntent   UploadIntent?
+  ingestJob      IngestJob?
 
   @@unique([documentId, revisionOrder])
   @@unique([documentId, revisionLabel])
   @@unique([documentId, sha256])
   @@index([documentId, createdAt])
+}
+
+enum UploadIntentStatus {
+  PENDING
+  FINALIZED
+  ABORTED
+  EXPIRED
+}
+
+/// One direct-to-storage upload. The DocumentRevision is created at finalize,
+/// so revisionId stays null until then. Open rows are capped per organization
+/// and expired by a sweeper.
+model UploadIntent {
+  id               String             @id @default(cuid())
+  organizationId   String
+  documentId       String
+  createdByUserId  String
+  revisionLabel    String
+  originalFilename String
+  declaredBytes    Int
+  partSize         Int
+  partCount        Int
+  storageKey       String             @unique
+  s3UploadId       String?
+  clientSha256     String?
+  status           UploadIntentStatus @default(PENDING)
+  revisionId       String?            @unique
+  expiresAt        DateTime
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  document     Document          @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  createdBy    User              @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  revision     DocumentRevision? @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status])
+  @@index([status, expiresAt])
+}
+
+/// One queued ingest of a finalized DocumentRevision.
+/// idempotencyKey dedupes enqueue; revisionId is the single job for that revision.
+model IngestJob {
+  id             String    @id @default(cuid())
+  revisionId     String    @unique
+  idempotencyKey String    @unique
+  attempts       Int       @default(0)
+  lockedUntil    DateTime?
+  lastError      String?
+  finishedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  revision DocumentRevision @relation(fields: [revisionId], references: [id], onDelete: Restrict)
 }
 
 model DocumentPage {
