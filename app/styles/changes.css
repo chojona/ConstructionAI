@@ -107,7 +107,7 @@ button.queue-heading:hover { color: var(--color-brand-hover); }
   .app-shell.is-collapsed .nav-copy,
   .app-shell.is-collapsed .sidebar-footer { display: none; }
   .app-shell.is-collapsed .search-trigger { width: 36px; justify-content: center; margin: 12px 0 8px; padding: 7px; }
-  .app-shell.is-collapsed .nav-row { justify-content: center; width: 36px; padding: 8px 0; }
+  .app-shell.is-collapsed .nav-row { justify-content: center; width: var(--size-target-min); min-width: var(--size-target-min); min-height: var(--size-target-min); padding: var(--space-2) 0; }
   .app-shell.is-collapsed .sidebar-collapse {
     position: relative;
     z-index: 1;
