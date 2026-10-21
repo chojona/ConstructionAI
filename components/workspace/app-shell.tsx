@@ -116,7 +116,7 @@ export function AppShell({ projects, viewer, canManagePeople, showLegalLinks = f
       <a className="skip-link" href="#workspace">Skip to workspace</a>
       <aside className="sidebar" aria-label="Workspace navigation">
         <div className="sidebar-head">
-          <Link href="/projects" className="brand" aria-label="Construction AI"><span className="brand-mark"><HardHat size={18} aria-hidden /></span><span className="brand-copy">Construction AI<small>Project intelligence</small></span></Link>
+          <Link href="/projects" className="brand" aria-label="ConstructionAI"><span className="brand-mark"><HardHat size={18} aria-hidden /></span><span className="brand-copy">ConstructionAI<small>Project intelligence</small></span></Link>
           <button type="button" className="icon-button sidebar-collapse" aria-expanded={!collapsed} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} onClick={toggleSidebar}>{collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}</button>
         </div>
         <button ref={trigger} className="search-trigger" aria-label="Find a project or command" aria-haspopup="dialog" onClick={openSearch}><Search size={15} aria-hidden /><span>Find a project…</span><kbd>⌘K</kbd></button>
