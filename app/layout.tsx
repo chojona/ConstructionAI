@@ -9,7 +9,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: { default: "Construction AI", template: "%s · Construction AI" },
+  title: { default: "ConstructionAI", template: "%s · ConstructionAI" },
   description: "Trustworthy construction project intelligence from source documents.",
 };
 
