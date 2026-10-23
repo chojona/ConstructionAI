@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { requireProjectAccess } from "@/lib/access/projectAccess";
 import { DomainError } from "@/lib/domain/errors";
 import { constructionRepository } from "@/lib/domain/prismaRepository";
 import type { ConstructionRepository } from "@/lib/domain/repository";
@@ -32,7 +33,5 @@ export async function getProject(
   projectId: string,
   repository: ConstructionRepository = constructionRepository,
 ) {
-  const project = await repository.getProject(organizationId, projectId);
-  if (!project) throw new DomainError("NOT_FOUND", "Project not found.", 404);
-  return project;
+  return requireProjectAccess({ organizationId }, projectId, repository);
 }

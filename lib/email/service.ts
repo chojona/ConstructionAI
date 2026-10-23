@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { requireProjectAccess } from "@/lib/access/projectAccess";
 import { DomainError } from "@/lib/domain/errors";
 import type { ConstructionRepository, EmailSendStatus } from "@/lib/domain/repository";
 import { constructionRepository } from "@/lib/domain/prismaRepository";
@@ -106,6 +107,7 @@ export async function updateEmailDraft(
   repository: ConstructionRepository = constructionRepository,
   clock: Clock = () => new Date(),
 ): Promise<EmailSendView> {
+  await requireProjectAccess({ organizationId }, projectId, repository);
   const existing = await repository.getEmailSend(organizationId, projectId, emailSendId);
   if (!existing) throw new DomainError("NOT_FOUND", "Email send not found.", 404);
   if (existing.status !== "DRAFT") throw new DomainError("INVALID_INPUT", ALREADY_RECORDED_MESSAGE, 400);
@@ -136,6 +138,7 @@ export async function readEmailSend(
   emailSendId: string,
   repository: ConstructionRepository = constructionRepository,
 ): Promise<EmailSendView> {
+  await requireProjectAccess({ organizationId }, projectId, repository);
   const record = await repository.getEmailSend(organizationId, projectId, emailSendId);
   if (!record) throw new DomainError("NOT_FOUND", "Email send not found.", 404);
   return toEmailSendView(record);
@@ -171,8 +174,7 @@ async function loadCurrentPack(
   projectId: string,
   repository: ConstructionRepository,
 ) {
-  const project = await repository.getProject(organizationId, projectId);
-  if (!project) throw new DomainError("NOT_FOUND", "Project not found.", 404);
+  const project = await requireProjectAccess({ organizationId }, projectId, repository);
   let packet;
   try {
     packet = await currentApprovedChangePacket(organizationId, projectId, repository);

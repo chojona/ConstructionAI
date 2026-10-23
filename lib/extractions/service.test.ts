@@ -24,6 +24,7 @@ async function processedRevision(repository: MemoryRepository, organizationId = 
     title: "Drainage Plan",
   });
   return repository.createRevision({
+    organizationId,
     documentId: document!.id,
     revisionLabel: "Revision A",
     originalFilename: "drainage.pdf",
@@ -181,6 +182,7 @@ describe("extraction run service", () => {
     const project = await repository.createProject({ organizationId: "org_a", name: "Bridge" });
     const document = await repository.createDocument({ organizationId: "org_a", projectId: project.id, title: "Scan" });
     const revision = await repository.createRevision({
+      organizationId: "org_a",
       documentId: document!.id,
       revisionLabel: "Scan A",
       originalFilename: "scan.pdf",
@@ -205,6 +207,7 @@ describe("extraction run service", () => {
     const project = (await repository.listProjects("org_a"))[0]!;
     const document = await repository.createDocument({ organizationId: "org_a", projectId: project.id, title: "Second spec" });
     const second = await repository.createRevision({
+      organizationId: "org_a",
       documentId: document!.id,
       revisionLabel: "Revision A",
       originalFilename: "second.pdf",

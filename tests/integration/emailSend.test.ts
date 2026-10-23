@@ -68,6 +68,7 @@ describe.skipIf(!hasIntegrationDatabase)("Prisma email send ledger", () => {
     });
     const document = await createDocument(organizationId, project.id, { title: "Drainage Plan" }, repository);
     const revision = await repository.createRevision({
+      organizationId,
       documentId: document.id,
       revisionLabel: "A",
       originalFilename: "a.pdf",
