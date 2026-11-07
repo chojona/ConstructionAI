@@ -16,6 +16,8 @@ export function decideVercelBuild(env = process.env) {
   const migrate = raw === "production";
   const steps = [{ command: "prisma", args: ["generate"] }];
   if (migrate) steps.push({ command: "prisma", args: ["migrate", "deploy"] });
+  const demoPassword = typeof env.DEMO_USER_PASSWORD === "string" ? env.DEMO_USER_PASSWORD.trim() : "";
+  if (demoPassword.length >= 10) steps.push({ command: "node", args: ["scripts/set-demo-password.mjs"] });
   steps.push({ command: "next", args: ["build", "--webpack"] });
   return {
     vercelEnv: typeof raw === "string" ? raw : null,
@@ -52,7 +54,11 @@ function isDirectRun() {
 
 function runStep(step) {
   console.log(`vercel-build: run ${step.command} ${step.args.join(" ")}`);
-  const result = spawnSync(path.join(root, "node_modules", ".bin", step.command), step.args, {
+  const executable = step.command === "node" ? process.execPath : path.join(root, "node_modules", ".bin", step.command);
+  const args = step.command === "node"
+    ? step.args.map((arg) => (arg.startsWith("scripts/") ? path.join(root, arg) : arg))
+    : step.args;
+  const result = spawnSync(executable, args, {
     cwd: root,
     stdio: "inherit",
     env: process.env,
