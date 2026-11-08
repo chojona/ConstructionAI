@@ -44,7 +44,7 @@
 .revision-position { margin: 0 0 6px; color: var(--color-ink-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
 .revision-neighbors { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 14px; color: var(--color-ink-secondary); font-size: 12px; }
 .revision-neighbors a { color: var(--color-info); font-weight: 650; }
-.meta-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px 20px; margin: 18px 0 0; padding: 16px 20px; border: 1px solid var(--color-line); border-radius: 10px; background: var(--color-surface); box-shadow: var(--shadow-card); }
+.meta-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px 20px; margin: 18px 0 0; padding: 16px 20px; border: 1px solid var(--color-line); border-radius: var(--radius-lg); background: var(--color-surface); box-shadow: none; }
 .meta-grid dt { color: var(--color-ink-secondary); font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: 0; }
 .meta-grid dd { margin: 4px 0 0; font-size: 12px; font-weight: 650; overflow-wrap: anywhere; }
 .state-panel { margin-top: 16px; border: 1px solid var(--color-line); border-left-width: 4px; border-radius: 10px; background: var(--color-surface); padding: 14px 16px; }
@@ -69,7 +69,7 @@
 .source-table td { font-size: 13px; overflow-wrap: anywhere; }
 .source-table tbody tr:last-child td { border-bottom: 0; }
 /* People desk. */
-.people-table-wrap { overflow-x: auto; border: 1px solid var(--color-line); border-radius: 12px; background: var(--color-surface); box-shadow: var(--shadow-card); }
+.people-table-wrap { overflow-x: auto; border: 1px solid var(--color-line); border-radius: var(--radius-xl); background: var(--color-surface); box-shadow: none; }
 .people-table { width: 100%; min-width: 880px; border-collapse: collapse; }
 .people-table th { height: var(--size-target-min); padding: 0 var(--space-5); border-bottom: 1px solid var(--color-border-default); background: var(--color-bg-canvas); color: var(--color-text-secondary); font-size: var(--font-size-xs); font-weight: 500; line-height: var(--font-line-height-xs); letter-spacing: 0; text-align: left; text-transform: none; }
 .people-table td { padding: 10px 14px; border-bottom: 1px solid var(--color-line); vertical-align: middle; font-size: 13px; }

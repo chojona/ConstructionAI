@@ -17,7 +17,7 @@ export function ProjectCard({
   openCount: number;
   active?: boolean;
 }) {
-  const className = ["project-card", openCount > 0 && "needs-attention", active && "is-active"].filter(Boolean).join(" ");
+  const className = ["project-card", active && "is-active"].filter(Boolean).join(" ");
   return (
     <Link className={className} href={href} aria-current={active ? "page" : undefined}>
       <span className="project-card-name">{name}</span>

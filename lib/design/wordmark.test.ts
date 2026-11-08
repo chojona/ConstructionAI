@@ -35,7 +35,8 @@ describe("ConstructionAI wordmark", () => {
       createElement("main", null, "Workspace"),
     ));
     expect(html).toContain('aria-label="ConstructionAI"');
-    expect(html).toContain("ConstructionAI<small>Project intelligence</small>");
+    expect(html).toContain("ConstructionAI");
+    expect(html).not.toContain("<small>Project intelligence</small>");
     expect(html).not.toContain("Construction AI");
   });
 

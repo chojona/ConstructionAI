@@ -32,20 +32,20 @@ export default async function ProjectsPage() {
         <div className="metric">
           <dt>Active projects</dt>
           <dd className="metric-value">{rows.length}</dd>
-          <dd className={`metric-note ${needAttention ? "metric-note-attention" : "metric-note-success"}`}>{needAttention ? `${needAttention} need attention` : "All clear"}</dd>
+          <dd className="metric-note">{needAttention ? `${needAttention} need attention` : "All clear"}</dd>
         </div>
         <div className="metric">
           <dt>Open changes</dt>
           <dd className="metric-value">{openChanges}</dd>
-          <dd className={`metric-note ${openChanges ? "metric-note-attention" : "metric-note-success"}`}>{openChanges ? `Across ${needAttention} ${needAttention === 1 ? "project" : "projects"}` : "Nothing waiting on a decision"}</dd>
+          <dd className="metric-note">{openChanges ? `Across ${needAttention} ${needAttention === 1 ? "project" : "projects"}` : "Nothing waiting on a decision"}</dd>
         </div>
         <div className="metric">
           <dt>Documents</dt>
           <dd className="metric-value">{documents}</dd>
-          <dd className="metric-note metric-note-success">{`In ${rows.length} ${rows.length === 1 ? "project" : "projects"}`}</dd>
+          <dd className="metric-note">{`In ${rows.length} ${rows.length === 1 ? "project" : "projects"}`}</dd>
         </div>
       </dl>
-      <div className="section-heading"><h2>Active projects</h2><span className="count">Sorted by attention</span></div>
+      <div className="section-heading"><h2>Active projects</h2><span className="count">Open changes first</span></div>
       {rows.length ? (
         <div className="list project-list">
           <div className="project-table-head" aria-hidden><span>Project</span><span>Project no.</span><span>Documents</span><span>Status</span></div>

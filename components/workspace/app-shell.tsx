@@ -58,7 +58,6 @@ export function SidebarFooter({
         )}
       </ul>
       {showLegalLinks ? <LegalFooterLinks /> : null}
-      <span className="status-dot" />Source intelligence<small>Decisions grounded in documents</small>
     </div>
   );
 }
@@ -116,14 +115,14 @@ export function AppShell({ projects, viewer, canManagePeople, showLegalLinks = f
       <a className="skip-link" href="#workspace">Skip to workspace</a>
       <aside className="sidebar" aria-label="Workspace navigation">
         <div className="sidebar-head">
-          <Link href="/projects" className="brand" aria-label="ConstructionAI"><span className="brand-mark"><HardHat size={18} aria-hidden /></span><span className="brand-copy">ConstructionAI<small>Project intelligence</small></span></Link>
+          <Link href="/projects" className="brand" aria-label="ConstructionAI"><span className="brand-mark"><HardHat size={18} aria-hidden /></span><span className="brand-copy">ConstructionAI</span></Link>
           <button type="button" className="icon-button sidebar-collapse" aria-expanded={!collapsed} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} onClick={toggleSidebar}>{collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}</button>
         </div>
         <button ref={trigger} className="search-trigger" aria-label="Find a project or command" aria-haspopup="dialog" onClick={openSearch}><Search size={15} aria-hidden /><span>Find a project…</span><kbd>⌘K</kbd></button>
         <p className="nav-heading">Workspace</p>
         <nav className="nav-stack" aria-label="Main">
           <Link className={`nav-row ${pathname === "/projects" ? "is-active" : ""}`} aria-current={pathname === "/projects" ? "page" : undefined} aria-label="Projects" href="/projects"><FolderKanban size={16} aria-hidden /><span className="nav-label">Projects</span></Link>
-          <Link className={`nav-row ${pathname === "/changes" ? "is-active" : ""}`} aria-current={pathname === "/changes" ? "page" : undefined} aria-label="Changes" href="/changes"><Layers3 size={16} aria-hidden /><span className="nav-copy">Changes<small>Needs attention</small></span></Link>
+          <Link className={`nav-row ${pathname === "/changes" ? "is-active" : ""}`} aria-current={pathname === "/changes" ? "page" : undefined} aria-label="Changes" href="/changes"><Layers3 size={16} aria-hidden /><span className="nav-label">Changes</span></Link>
         </nav>
         <SidebarFooter viewer={viewer} canManagePeople={canManagePeople} showLegalLinks={showLegalLinks} />
       </aside>
