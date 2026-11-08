@@ -95,24 +95,26 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const heavyJobObjects = view === "heavyjob"
     ? (await listHeavyJobSourceObjects(organizationId, projectId)).map(toHeavyJobSourceObjectDto)
     : [];
+  const pageClass = view === "documents" ? "page page-documents" : view === "changes" ? "page page-changes" : "page";
   return (
-    <main className={view === "documents" ? "page page-documents" : "page"}>
+    <main className={pageClass}>
       <ScrollToFinding />
       <ProjectContext projectId={project.id}><Link href="/projects">Projects</Link><span>/</span><span>{project.name}</span></ProjectContext>
       <div className="page-heading">
         <div>
           <p className="eyebrow">{project.projectNumber?.trim() || "No project number"}</p>
-          <div className="title-row"><h1>{project.name}</h1><p className="updated-label">{overview.updatedLabel}</p></div>
-          <p className="lede">{view === "heavyjob" ? "Stored HeavyJob snapshots for this project." : "Review source changes, resolve exceptions, and keep the project moving."}</p>
+          <div className="title-row"><h1>{project.name}</h1>{view !== "changes" ? <p className="updated-label">{overview.updatedLabel}</p> : null}</div>
+          {view !== "changes" ? <p className="lede">{view === "heavyjob" ? "Stored HeavyJob snapshots for this project." : "Review source changes, resolve exceptions, and keep the project moving."}</p> : null}
         </div>
-        {view !== "heavyjob" && <details className="create-panel panel" id="add-document"><summary className="primary-summary">Add document</summary><CreateDocumentForm projectId={project.id} /></details>}
+        {view !== "heavyjob" && view !== "changes" && <details className="create-panel panel" id="add-document"><summary className="primary-summary">Add document</summary><CreateDocumentForm projectId={project.id} /></details>}
       </div>
-      {view !== "heavyjob" && <ProjectOverviewLead model={overview} />}
+      {view !== "heavyjob" && view !== "changes" && <ProjectOverviewLead model={overview} />}
       <ProjectNavigation projectId={project.id} active={view} openCount={attention.length} />
-      {view !== "documents" && view !== "heavyjob" && <section>
-        <div className="section-heading"><h2>Changes <span className="heading-sub">Needs attention</span></h2><span className="count">{attention.length} open</span></div>
+      {view !== "documents" && view !== "heavyjob" && <section className={view === "changes" ? "changes-section" : undefined}>
+        {view !== "changes" ? <div className="section-heading"><h2>Changes</h2><span className="count">{attention.length} open</span></div> : null}
         <ChangeReview
           projectId={project.id}
+          focus={view === "changes"}
           items={attention.map(toAttentionDto)}
           approved={approved}
           decided={decidedRowChrome(review.findings, directory)}
