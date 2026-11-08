@@ -30,6 +30,7 @@ import {
   WHY_REVIEW_TITLE,
 } from "@/lib/review/reviewDeskCopy";
 import type { ReviewSummaryCounts } from "@/lib/review/reviewSummary";
+
 const reviewerStorageKey = "construction-ai.reviewer-name";
 
 function readStoredReviewer() {
@@ -53,6 +54,7 @@ export function ChangeReview({
   citeNotice = null,
   summary,
   signoffs = [],
+  focus = false,
 }: {
   projectId: string;
   items: AttentionItemDto[];
@@ -65,6 +67,7 @@ export function ChangeReview({
   citeNotice?: string | null;
   summary?: ReviewSummaryCounts;
   signoffs?: readonly (ApprovalSignoff & { subjectKey: string })[];
+  focus?: boolean;
 }) {
   const router = useRouter();
   const [selectedKey, setSelectedKey] = useState("");
@@ -161,7 +164,7 @@ export function ChangeReview({
   const reviewReason = selectedItem?.reason.trim() ?? "";
 
   return (
-    <div className="change-desk">
+    <div className={`change-desk${focus ? " change-desk-focus" : ""}`}>
       <div className="change-list-pane">
         <section className="review-summary" aria-label="Review summary">
           <div className="review-summary-stat"><strong>{counts.needsReview}</strong><span>{NEEDS_REVIEW_LABEL}</span></div>
@@ -169,40 +172,54 @@ export function ChangeReview({
           <div className="review-summary-stat"><strong>{counts.rejectedToday}</strong><span>{REJECTED_TODAY_LABEL}</span></div>
         </section>
         <LegacyPageCiteNotice message={citeNotice} />
-        <ExportPacketControl projectId={projectId} changes={approved} actorId={reviewerId} openCount={items.length} chapters={chapters} appendices={appendices} appendixSubjectKey={appendixFact.subjectKey} appendixPageCites={appendixFact.pageCites} signoffs={signoffs} />
-        {(decided.length > 0 || notes.length > 0) && (
-          <>
-            {decided.length > 0 && (
-              <>
-                <p className="packet-kicker">Facts <span className="count">{decided.length}</span></p>
-                <DecisionChangeList rows={decided} activeKey={activeKey} onSelect={openDecided} />
-              </>
-            )}
-            {notes.length > 0 && <div className="retired">{notes.map((note) => <p key={note.key}>{note.before}<ApprovalSignoffText name={note.name} disabled={note.disabled} />{note.after}</p>)}</div>}
-          </>
-        )}
-        {items.length === 0 ? <EmptyChanges href={uploadHref} /> : (
-          <ul className="change-list">
-            {items.map((item) => {
-              const finding = item.finding;
-              const active = finding.subjectKey === selected?.subjectKey;
-              const pageCite = changePageCite(finding);
-              return (
-                <li key={finding.subjectKey} id={findingDomId(finding.subjectKey)} className={`change-card${active ? " is-active" : ""}`}>
-                  <div className="change-card-copy">
-                    <p className="row-title">{changeRowTitle(finding)}</p>
-                    <p className="row-meta">{finding.documentTitle}</p>
-                    <FactBadges badges={queueBadges(finding)} suggested={showAiSuggested(finding.currentDecision)} />
-                  </div>
-                  <CiteChip label={pageCite.label} status={pageCite.status} />
-                  <Button type="button" size="sm" variant={active ? "default" : "outline"} aria-pressed={active} onClick={() => openReview(finding)}>Review</Button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        <div className="change-queue-scroll">
+          {items.length === 0 ? <EmptyChanges href={uploadHref} /> : (
+            <ul className="change-list" aria-label="Open changes">
+              {items.map((item) => {
+                const finding = item.finding;
+                const active = finding.subjectKey === selected?.subjectKey;
+                const pageCite = changePageCite(finding);
+                return (
+                  <li key={finding.subjectKey} id={findingDomId(finding.subjectKey)}>
+                    <button
+                      type="button"
+                      className={`change-card${active ? " is-active" : ""}`}
+                      aria-pressed={active}
+                      onClick={() => openReview(finding)}
+                    >
+                      <div className="change-card-copy">
+                        <p className="row-title">{changeRowTitle(finding)}</p>
+                        <p className="row-meta">{finding.documentTitle}</p>
+                        <FactBadges badges={queueBadges(finding)} suggested={showAiSuggested(finding.currentDecision)} />
+                      </div>
+                      <CiteChip label={pageCite.label} status={pageCite.status} />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {decided.length > 0 ? (
+            <details className="queue-section" open={items.length === 0}>
+              <summary>Accepted <span className="count">{decided.length}</span></summary>
+              <DecisionChangeList rows={decided} activeKey={activeKey} onSelect={openDecided} />
+            </details>
+          ) : null}
+          {notes.length > 0 ? (
+            <details className="queue-section">
+              <summary>Ledger notes <span className="count">{notes.length}</span></summary>
+              <div className="retired">{notes.map((note) => <p key={note.key}>{note.before}<ApprovalSignoffText name={note.name} disabled={note.disabled} />{note.after}</p>)}</div>
+            </details>
+          ) : null}
+          <details className="queue-section pack-section" open={items.length === 0 && approved.length > 0}>
+            <summary>Pack export</summary>
+            <div className="pack-section-body">
+              <ExportPacketControl projectId={projectId} changes={approved} actorId={reviewerId} openCount={items.length} chapters={chapters} appendices={appendices} appendixSubjectKey={appendixFact.subjectKey} appendixPageCites={appendixFact.pageCites} signoffs={signoffs} />
+            </div>
+          </details>
+        </div>
       </div>
-      <aside className="evidence-rail evidence-panel" aria-label="Source evidence">
+      <aside className="evidence-rail" aria-label="Source evidence">
         {selected ? (
           <>
             <div className="evidence-rail-body">
@@ -261,12 +278,13 @@ export function ChangeReview({
               {rejecting && <label className="sticky-reviewer"><span>Reason</span><Input value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} placeholder="Why are you rejecting this?" disabled={pending} /></label>}
               <div className="sticky-actions">
                 <Button type="button" className="accept-button" disabled={pending} onClick={() => void decide(selected, "ACCEPTED")}>Approve</Button>
-                <Button type="button" variant="outline" disabled={pending} onClick={() => void decide(selected, "DISMISSED")}>Reject</Button>
+                <Button type="button" variant="outline" disabled={pending} onClick={() => void decide(selected, "DISMISSED")}>{rejecting ? "Confirm reject" : "Reject"}</Button>
+                {rejecting ? <Button type="button" variant="ghost" disabled={pending} onClick={() => { setRejecting(false); setReason(""); setError(""); }}>Cancel</Button> : null}
                 {pending && <span role="status">Saving…</span>}
               </div>
             </form>
           </>
-        ) : selectedDecided ? <DecisionEvidence row={selectedDecided} projectId={projectId} /> : <p className="rail-empty">{DESK_EMPTY_NO_SELECTION}</p>}
+        ) : selectedDecided ? <DecisionEvidence row={selectedDecided} projectId={projectId} /> : <p className="rail-empty rail-empty-fill">{DESK_EMPTY_NO_SELECTION}</p>}
         <footer className="review-boundary">
           <strong>{REVIEW_BOUNDARY_TITLE}</strong>
           <p>{REVIEW_BOUNDARY_NOTE}</p>
