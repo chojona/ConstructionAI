@@ -1,9 +1,13 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const shellCss = readFileSync(new URL("../../app/styles/shell.css", import.meta.url), "utf8");
-const changesCss = readFileSync(new URL("../../app/styles/changes.css", import.meta.url), "utf8");
-const legalCss = readFileSync(new URL("../../app/styles/legal.css", import.meta.url), "utf8");
+const stylesDir = new URL("../../app/styles/", import.meta.url);
+const shellCss = readFileSync(new URL("shell.css", stylesDir), "utf8");
+const changesCss = readFileSync(new URL("changes.css", stylesDir), "utf8");
+const legalCss = readFileSync(new URL("legal.css", stylesDir), "utf8");
+const deskStyleSheets = readdirSync(stylesDir)
+  .filter((name) => name.endsWith(".css") && name !== "tokens.css")
+  .sort();
 
 function rule(css: string, selector: string) {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -85,6 +89,22 @@ describe("project switcher", () => {
     expect(chevron).toContain("border-right: 1.5px solid var(--color-text-tertiary)");
     expect(chevron).toContain("border-bottom: 1.5px solid var(--color-text-tertiary)");
     expect(rule(shellCss, ".project-switcher")).toContain("font-size: var(--font-size-xs)");
+  });
+});
+
+describe("desk type tokens", () => {
+  it("keeps desk CSS on the token type scale", () => {
+    for (const name of deskStyleSheets) {
+      const css = readFileSync(new URL(name, stylesDir), "utf8");
+      const rawSizes = [
+        ...css.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g),
+        ...css.matchAll(/font:\s*[^;{}]*?(\d+(?:\.\d+)?)px/g),
+      ].map((match) => `${name}: ${match[0]}`);
+      expect(rawSizes, rawSizes.join("\n")).toEqual([]);
+      const oddWeights = [...css.matchAll(/font-weight:\s*(450|550|650)\b/g)]
+        .map((match) => `${name}: ${match[0]}`);
+      expect(oddWeights, oddWeights.join("\n")).toEqual([]);
+    }
   });
 });
 
