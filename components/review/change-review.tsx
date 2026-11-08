@@ -172,7 +172,6 @@ export function ChangeReview({
           <div className="review-summary-stat"><strong>{counts.rejectedToday}</strong><span>{REJECTED_TODAY_LABEL}</span></div>
         </section>
         <LegacyPageCiteNotice message={citeNotice} />
-        <ExportPacketControl projectId={projectId} changes={approved} actorId={reviewerId} openCount={items.length} chapters={chapters} appendices={appendices} appendixSubjectKey={appendixFact.subjectKey} appendixPageCites={appendixFact.pageCites} signoffs={signoffs} />
         <div className="change-queue-scroll">
           {items.length === 0 ? <EmptyChanges href={uploadHref} /> : (
             <ul className="change-list" aria-label="Open changes">
@@ -212,9 +211,15 @@ export function ChangeReview({
               <div className="retired">{notes.map((note) => <p key={note.key}>{note.before}<ApprovalSignoffText name={note.name} disabled={note.disabled} />{note.after}</p>)}</div>
             </details>
           ) : null}
+          <details className="queue-section pack-section" open={items.length === 0 && approved.length > 0}>
+            <summary>Pack export</summary>
+            <div className="pack-section-body">
+              <ExportPacketControl projectId={projectId} changes={approved} actorId={reviewerId} openCount={items.length} chapters={chapters} appendices={appendices} appendixSubjectKey={appendixFact.subjectKey} appendixPageCites={appendixFact.pageCites} signoffs={signoffs} />
+            </div>
+          </details>
         </div>
       </div>
-      <aside className="evidence-rail evidence-panel" aria-label="Source evidence">
+      <aside className="evidence-rail" aria-label="Source evidence">
         {selected ? (
           <>
             <div className="evidence-rail-body">
@@ -273,12 +278,13 @@ export function ChangeReview({
               {rejecting && <label className="sticky-reviewer"><span>Reason</span><Input value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} placeholder="Why are you rejecting this?" disabled={pending} /></label>}
               <div className="sticky-actions">
                 <Button type="button" className="accept-button" disabled={pending} onClick={() => void decide(selected, "ACCEPTED")}>Approve</Button>
-                <Button type="button" variant="outline" disabled={pending} onClick={() => void decide(selected, "DISMISSED")}>Reject</Button>
+                <Button type="button" variant="outline" disabled={pending} onClick={() => void decide(selected, "DISMISSED")}>{rejecting ? "Confirm reject" : "Reject"}</Button>
+                {rejecting ? <Button type="button" variant="ghost" disabled={pending} onClick={() => { setRejecting(false); setReason(""); setError(""); }}>Cancel</Button> : null}
                 {pending && <span role="status">Saving…</span>}
               </div>
             </form>
           </>
-        ) : selectedDecided ? <DecisionEvidence row={selectedDecided} projectId={projectId} /> : <p className="rail-empty">{DESK_EMPTY_NO_SELECTION}</p>}
+        ) : selectedDecided ? <DecisionEvidence row={selectedDecided} projectId={projectId} /> : <p className="rail-empty rail-empty-fill">{DESK_EMPTY_NO_SELECTION}</p>}
         <footer className="review-boundary">
           <strong>{REVIEW_BOUNDARY_TITLE}</strong>
           <p>{REVIEW_BOUNDARY_NOTE}</p>
