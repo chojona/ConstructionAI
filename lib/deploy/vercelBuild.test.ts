@@ -17,7 +17,7 @@ type BuildPlan = {
 async function loadPlan() {
   const href = pathToFileURL(path.join(root, "scripts/vercel-build.mjs")).href;
   return (await import(href)) as {
-    decideVercelBuild: (env: { VERCEL_ENV?: string }) => BuildPlan;
+    decideVercelBuild: (env: { VERCEL_ENV?: string; DEMO_USER_PASSWORD?: string }) => BuildPlan;
     vercelBuildLogLines: (plan: BuildPlan) => string[];
   };
 }
@@ -67,6 +67,20 @@ describe("vercel build decision", () => {
         expect(logs).not.toContain("migrations running");
       }
     }
+  });
+
+  it("stores the seeded account password only when DEMO_USER_PASSWORD is long enough", async () => {
+    const { decideVercelBuild } = await loadPlan();
+    const missing = decideVercelBuild({ VERCEL_ENV: "production" });
+    expect(missing.steps.map((step) => step.command)).toEqual(["prisma", "prisma", "next"]);
+
+    const present = decideVercelBuild({ VERCEL_ENV: "production", DEMO_USER_PASSWORD: "1234567890" });
+    expect(present.steps.map((step) => step.command)).toEqual(["prisma", "prisma", "node", "next"]);
+    expect(present.steps[2]).toEqual({ command: "node", args: ["scripts/set-demo-password.mjs"] });
+    expect(present.seed).toBe(false);
+
+    const short = decideVercelBuild({ VERCEL_ENV: "production", DEMO_USER_PASSWORD: "short" });
+    expect(short.steps.some((step) => step.command === "node")).toBe(false);
   });
 
   it("keeps the Vercel build command on the script and off the seed", () => {
