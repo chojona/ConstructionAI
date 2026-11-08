@@ -1,6 +1,6 @@
 /* Documents register, cite chips, and the evidence rail. */
 
-.facts { display: flex; flex-wrap: wrap; gap: 28px; margin: 22px 0 0; padding: 16px 20px; border: 1px solid var(--color-line); background: var(--color-surface); border-radius: 10px; box-shadow: var(--shadow-card); }
+.facts { display: flex; flex-wrap: wrap; gap: 28px; margin: 22px 0 0; padding: 16px 20px; border: 1px solid var(--color-line); background: var(--color-surface); border-radius: var(--radius-lg); box-shadow: none; }
 .fact { margin: 0; min-width: 80px; }
 .fact dt { color: var(--color-ink-secondary); font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: 0; }
 .fact dd { margin: 6px 0 0; font-size: 12px; overflow-wrap: anywhere; }
@@ -20,7 +20,7 @@
 .review-block { margin-top: 32px; }
 .page-heading + .review-block { margin-top: 0; }
 /* Order-locked: .change-desk stays directly above the document register. */
-.change-desk { display: grid; grid-template-columns: minmax(0, 400px) 320px; gap: 16px; align-items: start; padding: 20px; border: 1px solid var(--color-line); border-radius: 12px; background: var(--color-surface); box-shadow: var(--shadow-card); }
+.change-desk { display: grid; grid-template-columns: minmax(0, 400px) 320px; gap: 16px; align-items: start; padding: 20px; border: 1px solid var(--color-line); border-radius: var(--radius-xl); background: var(--color-surface); box-shadow: none; }
 .document-desk { display: grid; gap: 12px; min-width: 0; }
 .register-filters { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; }
 .register-filter { display: grid; gap: var(--space-1); min-width: 0; color: var(--color-text-secondary); font-size: var(--font-size-xs); font-weight: 600; line-height: var(--font-line-height-xs); }
@@ -76,14 +76,14 @@
 .review-boundary p { margin: 0; color: var(--color-ink-secondary); font-size: 12px; line-height: 1.45; }
 .change-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .change-card { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0; padding: 8px 10px; border: 1px solid var(--color-line); border-radius: 10px; background: var(--color-surface); scroll-margin-top: 16px; }
-.change-card.is-active { border-color: var(--color-brand); background: var(--color-warning-subtle); outline: 1px solid var(--color-brand); outline-offset: -1px; }
+.change-card.is-active { border-color: var(--color-brand-200); background: var(--color-bg-selected); outline: none; box-shadow: inset 3px 0 var(--color-focus); }
 a.change-card:hover, .change-card:hover { background: var(--color-bg-hover); }
-.change-card.is-active:hover { background: var(--color-warning-subtle); }
+.change-card.is-active:hover { background: var(--color-bg-selected); }
 .change-card-copy { min-width: 0; flex: 1; display: grid; }
 .page-chip { position: relative; flex-shrink: 0; display: inline-flex; align-items: center; box-sizing: border-box; max-width: 100%; height: auto; min-height: 0; padding: var(--space-0-5) 7px; border-radius: var(--radius-xs); background: var(--color-bg-subtle); color: var(--color-text-link); font-size: var(--font-size-xs); font-weight: 600; line-height: var(--font-line-height-xs); white-space: nowrap; text-align: left; }
 .page-chip::before { content: ""; position: absolute; inset: -14px 0 -8px 0; }
 .page-chip[data-pin-status="Unpinned"] { background: transparent; color: var(--color-ink-muted); outline: 1px dashed var(--color-line-strong); outline-offset: -1px; }
-.evidence-rail { display: flex; flex-direction: column; width: 320px; min-height: 180px; max-height: calc(100dvh - 32px); border: 1px solid var(--color-line); border-radius: 14px; overflow: hidden; background: var(--surface-context); position: sticky; top: 16px; }
+.evidence-rail { display: flex; flex-direction: column; width: 320px; min-height: 180px; max-height: calc(100dvh - 32px); border: 1px solid var(--color-line); border-radius: var(--radius-xl); overflow: hidden; background: var(--color-bg-canvas); position: sticky; top: 16px; }
 .evidence-rail-body { min-height: 0; overflow: auto; padding: 17px; }
 .evidence-rail-lead { display: grid; gap: 8px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--color-line); }
 .evidence-rail-lead .page-chip { justify-self: start; }

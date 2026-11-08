@@ -20,7 +20,7 @@ export function ProjectOverviewLead({ model }: { model: ProjectOverviewModel }) 
               {stat.label}
             </dt>
             <dd className="metric-value">{stat.value}</dd>
-            <dd className={stat.noteTone ? `metric-note metric-note-${stat.noteTone}` : "metric-note"}>{stat.helper}</dd>
+            <dd className="metric-note">{stat.helper}</dd>
           </div>
         ))}
       </dl>

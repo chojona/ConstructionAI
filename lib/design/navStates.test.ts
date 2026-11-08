@@ -24,13 +24,13 @@ describe("shell nav item states", () => {
     expect(hover).not.toContain("#1a232a");
     expect(hover).not.toContain("rgba(");
     expect(active).toContain("background: var(--color-bg-selected)");
-    expect(active).toContain("color: var(--color-text-secondary)");
+    expect(active).toContain("color: var(--color-text-primary)");
     expect(current).toContain("background: var(--color-bg-selected)");
-    expect(current).toContain("color: var(--color-text-secondary)");
+    expect(current).toContain("color: var(--color-text-primary)");
     expect(focus).toContain("outline: var(--size-border-focus) solid var(--color-focus)");
     expect(focus).toContain("outline-offset: var(--size-border-focus)");
     expect(rule(shellCss, ".nav-row.is-active > svg")).toContain("color: var(--color-focus)");
-    expect(rule(shellCss, ".nav-row:hover .nav-copy small")).toContain("color: var(--color-text-primary)");
+    expect(rule(shellCss, ".nav-row:hover .nav-copy small")).toContain("color: var(--color-text-secondary)");
     expect(rule(shellCss, ".nav-row.is-active .nav-copy small")).toContain("color: var(--color-text-secondary)");
     expect(rule(changesCss, ".app-shell.is-collapsed .nav-row")).toContain("width: var(--size-target-min)");
   });
@@ -38,9 +38,9 @@ describe("shell nav item states", () => {
   it("defines hover, selected, and text tokens on the dark sidebar", () => {
     const sidebar = rule(shellCss, ".sidebar");
     expect(sidebar).toContain("--color-bg-hover: rgba(255, 255, 255, 0.06)");
-    expect(sidebar).toContain("--color-bg-selected: var(--color-brand-25)");
+    expect(sidebar).toContain("--color-bg-selected: rgba(255, 255, 255, 0.1)");
     expect(sidebar).toContain("--color-text-primary: #fff");
-    expect(sidebar).toContain("--color-text-secondary: var(--color-gray-900)");
+    expect(sidebar).toContain("--color-text-secondary: rgba(255, 255, 255, 0.72)");
   });
 });
 
