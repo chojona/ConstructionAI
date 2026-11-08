@@ -233,7 +233,7 @@ function DocumentRegisterPanel({ document }: { document: RegisterDocumentDto | n
               ) : null}
               <div><dt>Open changes</dt><dd>{document.openChangeCount}</dd></div>
               <div><dt>Revisions</dt><dd>{document.revisions.length}</dd></div>
-              <div><dt>Pages</dt><dd>{current?.pageCount ?? newest?.pageCount ?? 0}</dd></div>
+              <div><dt>Pages</dt><dd>{current ? current.pageCount : "—"}</dd></div>
             </dl>
           </div>
           <div className="decision-sticky">

@@ -5,9 +5,8 @@ import { ProjectContext } from "@/components/workspace/project-context";
 import { ProjectNavigation } from "@/components/workspace/project-navigation";
 import { UploadRevisionForm } from "@/components/forms/upload-revision-form";
 import { documentIdentity } from "@/lib/documents/documentDesk";
-import { documentRegisterStatus, latestRevision, registerStatusClass, revisionRelation } from "@/lib/documents/documentRegister";
+import { currentRevision, documentRegisterStatus, registerStatusClass, revisionRelation } from "@/lib/documents/documentRegister";
 import { getDocument } from "@/lib/documents/service";
-import { describeReading } from "@/lib/documents/revisionExperience";
 import { DomainError } from "@/lib/domain/errors";
 import { authorizePage } from "@/lib/auth/pageAccess";
 import { getProjectReview } from "@/lib/review/service";
@@ -51,11 +50,10 @@ export default async function DocumentPage({
     if (!(error instanceof DomainError && error.code === "NOT_FOUND")) throw error;
   }
 
-  const latest = latestRevision(document.revisions);
-  const relation = latest ? revisionRelation(latest, document.revisions) : "later";
-  const status = latest ? documentRegisterStatus(latest.status, relation) : null;
-  const reading = latest && status ? describeReading(latest.status, latest.failureCode, latest.failureMessage, relation) : null;
-  const statusNote = status === "Failed" || status === "Processing" ? reading?.summary : null;
+  const current = currentRevision(document.revisions);
+  const status = current
+    ? documentRegisterStatus(current.status, revisionRelation(current, document.revisions))
+    : null;
   const identity = documentIdentity(document.documentType, document.project.name);
 
   return (
@@ -75,7 +73,7 @@ export default async function DocumentPage({
             {document.revisions.length === 0
               ? "Upload a PDF to start the revision history."
               : `${document.revisions.length} ${document.revisions.length === 1 ? "revision" : "revisions"} kept, newest first.`}
-            {latest && status ? ` ${latest.revisionLabel} is ${status}, uploaded ${date(latest.createdAt)}.` : ""}
+            {current && status ? ` ${current.revisionLabel} is ${status}, uploaded ${date(current.createdAt)}.` : ""}
           </p>
         </div>
         <details className="create-panel panel" id="upload" open={upload === "1"}>
@@ -84,13 +82,18 @@ export default async function DocumentPage({
         </details>
       </div>
       <ProjectNavigation projectId={document.project.id} active="documents" />
-      {latest ? (
+      {document.revisions.length > 0 ? (
         <section className="document-context">
           <div>
-            {status ? <span className={`status-label ${registerStatusClass(status)}`}>{status}</span> : null}
-            <h2>{latest.revisionLabel}</h2>
-            <p>{latest.originalFilename} · Uploaded {date(latest.createdAt)}</p>
-            {statusNote ? <p className="status-note">{statusNote}</p> : null}
+            {current && status ? (
+              <>
+                <span className={`status-label ${registerStatusClass(status)}`}>{status}</span>
+                <h2>{current.revisionLabel}</h2>
+                <p>{current.originalFilename} · Uploaded {date(current.createdAt)}</p>
+              </>
+            ) : (
+              <h2>No current revision</h2>
+            )}
           </div>
           <Link href={`/projects/${document.project.id}?view=changes`}>Review project changes</Link>
         </section>
