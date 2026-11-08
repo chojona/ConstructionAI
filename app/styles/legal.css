@@ -15,7 +15,7 @@
 .legal-doc a, .consent-check a { color: var(--color-text-link); text-decoration: underline; text-underline-offset: 2px; }
 .legal-footer a { color: var(--color-info); text-decoration: underline; text-underline-offset: 2px; font-size: var(--font-size-sm); font-weight: 500; line-height: var(--font-line-height-sm); }
 .legal-version { margin-top: var(--space-2); color: var(--color-text-secondary); font-size: var(--font-size-sm); line-height: var(--font-line-height-sm); }
-.legal-blank { background: var(--color-brand-100); color: var(--color-text-accent); border-radius: var(--radius-xs); padding: 0 var(--space-1); font-weight: 650; }
+.legal-blank { background: var(--color-brand-100); color: var(--color-text-accent); border-radius: var(--radius-xs); padding: 0 var(--space-1); font-weight: 600; }
 .legal-footer { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin-top: auto; padding: var(--space-4) var(--space-12) var(--space-5); border-top: 1px solid var(--color-border-default); background: var(--color-bg-canvas); }
 .legal-footer a { display: inline-flex; align-items: center; min-height: var(--size-target-min); }
 .sidebar-footer .legal-footer { margin: 8px 0 10px; padding: 0; border-top: 0; background: transparent; gap: var(--space-1) var(--space-3); }
