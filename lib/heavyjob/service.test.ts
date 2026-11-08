@@ -30,6 +30,23 @@ function row(objectType: HeavyJobObjectType): HeavyJobSourceObjectRecord {
   };
 }
 
+const projects = {
+  async getProject(organizationId: string, projectId: string) {
+    if (organizationId === "org_a" && projectId === "project_test") {
+      return {
+        id: projectId,
+        organizationId,
+        name: "Test",
+        projectNumber: null,
+        createdAt: fetchedAt,
+        updatedAt: fetchedAt,
+        documents: [],
+      };
+    }
+    return null;
+  },
+};
+
 describe("HeavyJob source object reads", () => {
   it("rejects an unknown object type filter", () => {
     expect(parseHeavyJobObjectTypeFilter(null)).toBeUndefined();
@@ -40,11 +57,11 @@ describe("HeavyJob source object reads", () => {
 
   it("returns stored snapshots and hides projects outside the organization", async () => {
     const repository = new FakeHeavyJobRepository([row("timecard"), row("diary")]);
-    await expect(listHeavyJobSourceObjects("org_a", "project_test", "diary", repository)).resolves.toEqual([
+    await expect(listHeavyJobSourceObjects("org_a", "project_test", "diary", repository, projects)).resolves.toEqual([
       row("diary"),
     ]);
     await expect(
-      listHeavyJobSourceObjects("org_b", "project_test", undefined, new FakeHeavyJobRepository(null)),
+      listHeavyJobSourceObjects("org_b", "project_test", undefined, new FakeHeavyJobRepository(null), projects),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });

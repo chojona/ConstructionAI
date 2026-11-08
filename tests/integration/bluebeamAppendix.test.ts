@@ -71,6 +71,7 @@ describe.skipIf(!hasIntegrationDatabase)("Prisma Bluebeam markup appendix", () =
     const project = await createProject(organizationId, { name: "Markup bridge" }, repository);
     const document = await createDocument(organizationId, project.id, { title: "Drainage Plan" }, repository);
     const revision = await repository.createRevision({
+      organizationId,
       documentId: document.id,
       revisionLabel: "A",
       originalFilename: "a.pdf",

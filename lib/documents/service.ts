@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { requireDocumentAccess, requireProjectAccess, requireRevisionAccess } from "@/lib/access/projectAccess";
 import { DomainError } from "@/lib/domain/errors";
 import { constructionRepository } from "@/lib/domain/prismaRepository";
 import type { ConstructionRepository } from "@/lib/domain/repository";
@@ -15,6 +16,7 @@ export async function createDocument(
   repository: ConstructionRepository = constructionRepository,
 ) {
   const input = createDocumentSchema.parse(rawInput);
+  await requireProjectAccess({ organizationId }, projectId, repository);
   const document = await repository.createDocument({ organizationId, projectId, ...input });
   if (!document) throw new DomainError("NOT_FOUND", "Project not found.", 404);
   return document;
@@ -25,6 +27,7 @@ export async function listDocumentRegister(
   projectId: string,
   repository: ConstructionRepository = constructionRepository,
 ) {
+  await requireProjectAccess({ organizationId }, projectId, repository);
   const documents = await repository.listDocumentRegister(organizationId, projectId);
   if (!documents) throw new DomainError("NOT_FOUND", "Project not found.", 404);
   return documents;
@@ -35,9 +38,7 @@ export async function getDocument(
   documentId: string,
   repository: ConstructionRepository = constructionRepository,
 ) {
-  const document = await repository.getDocument(organizationId, documentId);
-  if (!document) throw new DomainError("NOT_FOUND", "Document not found.", 404);
-  return document;
+  return requireDocumentAccess({ organizationId }, documentId, repository);
 }
 
 export async function getRevision(
@@ -45,9 +46,7 @@ export async function getRevision(
   revisionId: string,
   repository: ConstructionRepository = constructionRepository,
 ) {
-  const revision = await repository.getRevision(organizationId, revisionId);
-  if (!revision) throw new DomainError("NOT_FOUND", "Revision not found.", 404);
-  return revision;
+  return requireRevisionAccess({ organizationId }, revisionId, repository);
 }
 
 export async function listRevisionAnalysis(
@@ -55,6 +54,7 @@ export async function listRevisionAnalysis(
   revisionId: string,
   repository: ConstructionRepository = constructionRepository,
 ) {
+  await requireRevisionAccess({ organizationId }, revisionId, repository);
   const runs = await repository.listExtractionRuns(organizationId, revisionId);
   if (!runs) throw new DomainError("NOT_FOUND", "Revision not found.", 404);
   return runs;

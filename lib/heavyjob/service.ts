@@ -1,5 +1,7 @@
 import { z } from "zod";
+import { requireProjectAccess, type ProjectAccessLookup } from "@/lib/access/projectAccess";
 import { DomainError } from "@/lib/domain/errors";
+import { constructionRepository } from "@/lib/domain/prismaRepository";
 import { HEAVYJOB_OBJECT_TYPES, type HeavyJobObjectType } from "./fixtures";
 import { heavyJobSourceRepository, type HeavyJobSourceRepository } from "./repository";
 
@@ -15,7 +17,9 @@ export async function listHeavyJobSourceObjects(
   projectId: string,
   objectType?: HeavyJobObjectType,
   repository: HeavyJobSourceRepository = heavyJobSourceRepository,
+  projects: ProjectAccessLookup = constructionRepository,
 ) {
+  await requireProjectAccess({ organizationId }, projectId, projects);
   const objects = await repository.listForProject(organizationId, projectId, objectType);
   if (!objects) throw new DomainError("NOT_FOUND", "Project not found.", 404);
   return objects;
