@@ -167,7 +167,9 @@ button.queue-heading:hover { color: var(--color-brand-hover); }
   .compare { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .comparison-arrow { display: none; }
   .compare .comparison-before + .comparison-after { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--color-line); }
-  .change-desk, .document-register { grid-template-columns: 1fr; }
+  .change-desk, .change-desk-focus, .document-register { grid-template-columns: 1fr; height: auto; min-height: 0; }
+  .change-list-pane { border-right: 0; border-bottom: 1px solid var(--color-line); max-height: 42dvh; }
+  .change-desk > .evidence-rail { min-height: 320px; }
   .document-table thead { display: none; }
   .document-table, .document-table tbody, .document-table tr, .document-table td { display: block; width: auto; }
   .document-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 8px 12px; border-bottom: 1px solid var(--color-line); }
