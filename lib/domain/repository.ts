@@ -19,6 +19,7 @@ import type {
 import type { AppendixPageCite } from "@/lib/review/exportPacketView";
 
 export interface CreateRevisionRecordInput {
+  organizationId: string;
   documentId: string;
   revisionLabel: string;
   originalFilename: string;

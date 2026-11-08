@@ -1,3 +1,4 @@
+import { requireRevisionAccess } from "@/lib/access/projectAccess";
 import { DomainError } from "@/lib/domain/errors";
 import { StorageObjectMissingError, type ObjectStore } from "@/lib/storage/objectStore";
 import { PAGE_PREVIEW_UNAVAILABLE_MESSAGE } from "./pagePreviewCopy";
@@ -71,8 +72,12 @@ export async function openPagePreview(input: {
     ? previewReadTtl(input.expiresInSeconds ?? PAGE_PREVIEW_DEFAULT_TTL_SECONDS)
     : null;
 
-  const revision = await input.repository.getRevision(input.organizationId, input.revisionId);
-  if (!revision || revision.document.project.id !== input.projectId) {
+  const revision = await requireRevisionAccess(
+    { organizationId: input.organizationId },
+    input.revisionId,
+    input.repository,
+  );
+  if (revision.document.project.id !== input.projectId) {
     throw new DomainError("NOT_FOUND", "Revision not found.", 404);
   }
 

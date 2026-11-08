@@ -19,6 +19,7 @@ describe("listAttention", () => {
     const project = await repository.createProject({ organizationId: "org_a", name: "I-95 Bridge" });
     const document = await repository.createDocument({ organizationId: "org_a", projectId: project.id, title: "Drainage Plan" });
     const base = await repository.createRevision({
+      organizationId: "org_a",
       documentId: document!.id,
       revisionLabel: "A",
       originalFilename: "a.pdf",
@@ -30,6 +31,7 @@ describe("listAttention", () => {
       pages: [{ pageNumber: 1, text: `${october}\n${crane}`, textSha256: "c".repeat(64) }],
     });
     const revised = await repository.createRevision({
+      organizationId: "org_a",
       documentId: document!.id,
       revisionLabel: "B",
       originalFilename: "b.pdf",

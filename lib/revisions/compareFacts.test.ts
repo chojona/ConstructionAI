@@ -250,6 +250,7 @@ describe("compareRevisionFacts", () => {
       title: "Drainage Plan",
     });
     const base = await repository.createRevision({
+      organizationId: "org_a",
       documentId: document!.id,
       revisionLabel: "A",
       originalFilename: "a.pdf",
@@ -261,6 +262,7 @@ describe("compareRevisionFacts", () => {
       pages: [{ pageNumber: 1, text: trench, textSha256: "c".repeat(64) }],
     });
     const revised = await repository.createRevision({
+      organizationId: "org_a",
       documentId: document!.id,
       revisionLabel: "B",
       originalFilename: "b.pdf",
@@ -315,6 +317,7 @@ describe("compareRevisionFacts", () => {
       title: "Paving Plan",
     });
     const base = await repository.createRevision({
+      organizationId: "org_a",
       documentId: first!.id,
       revisionLabel: "A",
       originalFilename: "a.pdf",
@@ -326,6 +329,7 @@ describe("compareRevisionFacts", () => {
       pages: [{ pageNumber: 1, text: trench, textSha256: "c".repeat(64) }],
     });
     const otherDocument = await repository.createRevision({
+      organizationId: "org_a",
       documentId: second!.id,
       revisionLabel: "A",
       originalFilename: "b.pdf",

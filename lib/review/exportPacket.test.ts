@@ -233,6 +233,7 @@ describe("export packet gate", () => {
       subject: { type: "proposed_fact", proposedFactId: facts.trench.id },
     }, repository, clock);
     const newer = await repository.createRevision({
+      organizationId: "org_a",
       documentId: project.documentId,
       revisionLabel: "B",
       originalFilename: "b.pdf",
@@ -262,6 +263,7 @@ async function scaffold() {
   const project = await repository.createProject({ organizationId: "org_a", name: "I-95 Bridge" });
   const document = await repository.createDocument({ organizationId: "org_a", projectId: project.id, title: "Drainage Plan" });
   const revision = await repository.createRevision({
+    organizationId: "org_a",
     documentId: document!.id,
     revisionLabel: "A",
     originalFilename: "a.pdf",

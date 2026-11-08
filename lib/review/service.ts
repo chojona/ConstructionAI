@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { requireProjectAccess } from "@/lib/access/projectAccess";
 import { DomainError } from "@/lib/domain/errors";
 import type { ConstructionRepository } from "@/lib/domain/repository";
 import { constructionRepository } from "@/lib/domain/prismaRepository";
@@ -305,6 +306,7 @@ export async function readStoredExportPacket(
 }
 
 async function load(organizationId: string, projectId: string, repository: ConstructionRepository) {
+  await requireProjectAccess({ organizationId }, projectId, repository);
   const source = await repository.getProjectReviewSource(organizationId, projectId);
   if (!source) throw new DomainError("NOT_FOUND", "Project not found.", 404);
   const decisions = await repository.listReviewDecisions(organizationId, projectId);

@@ -260,6 +260,7 @@ async function processedRevision(repository: MemoryRepository) {
     title: "Drainage Plan",
   });
   return repository.createRevision({
+    organizationId: "org_a",
     documentId: document!.id,
     revisionLabel: "Revision A",
     originalFilename: "drainage.pdf",
